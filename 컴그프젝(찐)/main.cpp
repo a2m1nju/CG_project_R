@@ -4,9 +4,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <vector>
-#include <map>    // [추가] 맵을 무한대로 관리하기 위해 필요
+#include <map>   
 #include <ctime>
-#include <algorithm> // for remove_if
+#include <algorithm> 
 #include <gl/glew.h>				
 #include <gl/freeglut.h>
 #include <gl/freeglut_ext.h> 
@@ -21,19 +21,19 @@
 
 // --- 구조체 정의 ---
 struct Car {
-	float x, z;       // 위치
-	float speed;      // 속도
-	glm::vec3 color;  // 차 색상
+	float x, z;
+	float speed;
+	glm::vec3 color;
 };
 
 // --- 전역 변수 ---
 GLuint vao, vbo;
 GLuint transLoc;
 glm::vec3 playerPos(0.0f, 0.5f, 0.0f);
+glm::mat4 PV; // [중요] 나무 그리기 함수와 공유할 전역 행렬
 
-// [변경] 고정 배열 대신 std::map 사용 (Key: Z좌표, Value: 0=잔디, 1=도로)
-// 맵이 무한히 늘어나도 관리할 수 있습니다.
-std::map<int, int> mapType;
+std::map<int, int> mapType; // 0=잔디, 1=도로
+std::map<int, std::vector<int>> treeMap;
 std::vector<Car> cars;
 
 // --- 함수 선언 ---
@@ -45,9 +45,11 @@ GLuint make_shaderProgram();
 char* filetobuf(const char* file);
 
 void initGame();
-void generateLane(int z); // [추가] 특정 Z 위치의 맵을 생성하는 함수
+void generateLane(int z);
 void specialKeyboard(int key, int x, int y);
 void timer(int value);
+bool isTreeAt(int x, int z);
+void drawTree(int x, int z); // 복셀 나무 그리기 함수
 
 GLuint shaderProgramID;
 GLuint vertexShader;
@@ -61,7 +63,7 @@ int main(int argc, char** argv)
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
 	glutInitWindowPosition(100, 100);
 	glutInitWindowSize(1280, 960);
-	glutCreateWindow("Infinite Crossy Road");
+	glutCreateWindow("Crossy Road - Blocky Trees");
 
 	glewExperimental = GL_TRUE;
 	if (glewInit() != GLEW_OK)
@@ -86,46 +88,80 @@ int main(int argc, char** argv)
 	glutMainLoop();
 }
 
-// [추가] 해당 Z좌표에 맵이 없으면 새로 생성하는 함수
+// [수정됨] 퍼지는 모양 대신 위로 쌓아올린 박스형 나무
+void drawTree(int x, int z) {
+	glm::mat4 model;
+	glm::mat4 MVP;
+
+	// 1. 나무 기둥 (Trunk) - 갈색
+	for (int i = 0; i < 1; ++i) {
+		model = glm::mat4(1.0f);
+		model = glm::translate(model, glm::vec3((float)x, 0.5f + (float)i, (float)z));
+		model = glm::scale(model, glm::vec3(0.4f, 1.0f, 0.4f)); // 얇은 기둥
+
+		MVP = PV * model;
+		glUniformMatrix4fv(transLoc, 1, GL_FALSE, glm::value_ptr(MVP));
+		glVertexAttrib3f(1, 1.0f, 0.2f, 0.0f); // 갈색
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+	}
+
+	// 2. 나뭇잎 (Leaves) - 위로 반듯하게 쌓은 형태 (Box Shape)
+	for (int yOffset = 0; yOffset < 4; ++yOffset) { // 3층 높이
+		for (int dx = -1; dx <= 1; ++dx) { // 가로 3칸 (고정)
+			for (int dz = -1; dz <= 1; ++dz) { // 세로 3칸 (고정)
+
+				model = glm::mat4(1.0f);
+
+				float scale = 0.35f;
+				model = glm::translate(model, glm::vec3(x + dx * scale, 1.2f + yOffset * scale, z + dz * scale));
+				model = glm::scale(model, glm::vec3(scale, scale, scale));
+
+				MVP = PV * model;
+				glUniformMatrix4fv(transLoc, 1, GL_FALSE, glm::value_ptr(MVP));
+
+				// 층별 미세한 색상 변화로 입체감 주기
+				if (yOffset == 0) glVertexAttrib3f(1, 0.0f, 0.5f, 0.0f); // 진한 초록
+				else if (yOffset == 1) glVertexAttrib3f(1, 0.1f, 0.6f, 0.1f);
+				else glVertexAttrib3f(1, 0.2f, 0.7f, 0.2f); // 밝은 초록
+
+				glDrawArrays(GL_TRIANGLES, 0, 36);
+			}
+		}
+	}
+}
+
 void generateLane(int z)
 {
-	// 이미 해당 줄(z)에 데이터가 있다면 생략
 	if (mapType.find(z) != mapType.end()) return;
 
-	// 시작 지점 근처(z: -5 ~ 5)는 안전하게 잔디로 고정
-	if (z > -5 && z < 5) {
+	if (z >= -2 && z <= 2) {
 		mapType[z] = 0;
 		return;
 	}
 
-	// 30% 확률로 도로 생성
-	if (rand() % 10 < 5) {
-		mapType[z] = 1; // 도로
-
-		// 차 생성 로직
-		int numCars = 1 + rand() % 2; // 1~2대
-		float speed = (0.05f + (rand() % 5) / 20.0f);
-		if (rand() % 2 == 0) speed *= -1.0f; // 방향 랜덤
+	if (rand() % 10 < 5) { // 도로
+		mapType[z] = 1;
+		int numCars = 1 + rand() % 2;
+		float speed = (0.1f + (rand() % 5) / 20.0f);
+		if (rand() % 2 == 0) speed *= -1.0f;
 
 		for (int i = 0; i < numCars; ++i) {
 			Car newCar;
 			newCar.z = (float)z;
 			newCar.x = (float)(rand() % 30 - 15);
 			newCar.speed = speed;
-
-			// 차 색상 랜덤
-			newCar.color = glm::vec3(
-				(rand() % 10) / 10.0f,
-				(rand() % 10) / 10.0f,
-				(rand() % 10) / 10.0f
-			);
-			if (newCar.color.r < 0.2f) newCar.color.r += 0.5f; // 너무 어두운 색 방지
-
+			newCar.color = glm::vec3((rand() % 10) / 10.f, (rand() % 10) / 10.f, (rand() % 10) / 10.f);
+			if (newCar.color.r < 0.2f) newCar.color.r += 0.5f;
 			cars.push_back(newCar);
 		}
 	}
-	else {
-		mapType[z] = 0; // 잔디
+	else { // 잔디
+		mapType[z] = 0;
+		for (int x = -15; x <= 15; ++x) {
+			if (rand() % 10 < 1) {
+				treeMap[z].push_back(x);
+			}
+		}
 	}
 }
 
@@ -137,62 +173,56 @@ GLvoid drawScene()
 	glUseProgram(shaderProgramID);
 	glBindVertexArray(vao);
 
-	// 1. 카메라 설정
 	glm::mat4 proj = glm::perspective(glm::radians(45.0f), 1280.0f / 960.0f, 0.1f, 100.0f);
-	glm::vec3 cameraOffset(0.0f, 12.0f, 10.0f);
+	glm::vec3 cameraOffset(2.0f, 12.0f, 10.0f);
 	glm::mat4 view = glm::lookAt(playerPos + cameraOffset, playerPos, glm::vec3(0, 1, 0));
-	glm::mat4 PV = proj * view;
 
-	// 2. 무한 맵 그리기 (플레이어 위치 기준 앞뒤로 그리기)
-	// 플레이어가 이동함에 따라 그리는 범위(z)도 같이 이동합니다.
+	PV = proj * view;
+
 	int currentZ = (int)std::round(playerPos.z);
-	int drawRangeFront = 30; // 플레이어 앞쪽으로 얼마나 보여줄지
-	int drawRangeBack = 10;  // 플레이어 뒤쪽으로 얼마나 보여줄지
+	int drawRangeFront = 30;
+	int drawRangeBack = 10;
 
-	// "앞"은 z값이 감소하는 방향(화면 안쪽)입니다.
 	for (int z = currentZ - drawRangeFront; z <= currentZ + drawRangeBack; ++z) {
+		generateLane(z);
 
-		generateLane(z); // [중요] 그리려는 곳에 맵이 없으면 즉석에서 생성!
-
+		// 바닥
 		glm::mat4 model = glm::mat4(1.0f);
 		model = glm::translate(model, glm::vec3(0.0f, -0.5f, (float)z));
-		model = glm::scale(model, glm::vec3(30.0f, 1.0f, 1.0f));
-
+		model = glm::scale(model, glm::vec3(31.0f, 1.0f, 1.0f));
 		glm::mat4 MVP = PV * model;
 		glUniformMatrix4fv(transLoc, 1, GL_FALSE, glm::value_ptr(MVP));
 
-		if (mapType[z] == 0) // 잔디
-			glVertexAttrib3f(1, 0.2f, 0.8f, 0.2f);
-		else // 도로
-			glVertexAttrib3f(1, 0.3f, 0.3f, 0.3f);
-
+		if (mapType[z] == 0) glVertexAttrib3f(1, 0.2f, 0.8f, 0.2f);
+		else glVertexAttrib3f(1, 0.3f, 0.3f, 0.3f);
 		glDrawArrays(GL_TRIANGLES, 0, 36);
+
+		// 나무
+		if (treeMap.count(z)) {
+			for (int treeX : treeMap[z]) {
+				drawTree(treeX, z);
+			}
+		}
 	}
 
-	// 3. 자동차 그리기
+	// 자동차
 	for (const auto& car : cars) {
-		// 플레이어 시야 범위 내의 차만 그리기 (최적화)
 		if (car.z < currentZ - drawRangeFront || car.z > currentZ + drawRangeBack) continue;
-
 		glm::mat4 carModel = glm::mat4(1.0f);
 		carModel = glm::translate(carModel, glm::vec3(car.x, 0.5f, car.z));
 		carModel = glm::scale(carModel, glm::vec3(1.5f, 0.8f, 0.8f));
-
 		glm::mat4 carMVP = PV * carModel;
 		glUniformMatrix4fv(transLoc, 1, GL_FALSE, glm::value_ptr(carMVP));
-
 		glVertexAttrib3f(1, car.color.r, car.color.g, car.color.b);
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
 
-	// 4. 플레이어 그리기
+	// 플레이어
 	glm::mat4 pModel = glm::mat4(1.0f);
 	pModel = glm::translate(pModel, playerPos);
 	pModel = glm::scale(pModel, glm::vec3(0.7f, 0.7f, 0.7f));
-
 	glm::mat4 pMVP = PV * pModel;
 	glUniformMatrix4fv(transLoc, 1, GL_FALSE, glm::value_ptr(pMVP));
-
 	glVertexAttrib3f(1, 1.0f, 0.6f, 0.0f);
 	glDrawArrays(GL_TRIANGLES, 0, 36);
 
@@ -201,24 +231,15 @@ GLvoid drawScene()
 
 void timer(int value)
 {
-	int currentZ = (int)std::round(playerPos.z);
-
-	// 1. 자동차 이동 및 관리
-	// (플레이어보다 너무 뒤처진 차(z > currentZ + 20)는 삭제하는 것이 메모리에 좋지만, 
-	//  간단한 구현을 위해 여기서는 이동만 처리합니다)
 	for (auto& car : cars) {
 		car.x += car.speed;
-
 		if (car.x > 15.0f && car.speed > 0) car.x = -15.0f;
 		if (car.x < -15.0f && car.speed < 0) car.x = 15.0f;
 
-		// 2. 충돌 처리
 		if (abs(car.z - playerPos.z) < 0.5f && abs(car.x - playerPos.x) < 1.0f) {
-			std::cout << "Crash! Resetting Position." << std::endl;
 			playerPos = glm::vec3(0.0f, 0.5f, 0.0f);
 		}
 	}
-
 	glutPostRedisplay();
 	glutTimerFunc(16, timer, 0);
 }
@@ -226,13 +247,8 @@ void timer(int value)
 void initGame()
 {
 	transLoc = glGetUniformLocation(shaderProgramID, "trans");
+	for (int z = -10; z < 10; ++z) generateLane(z);
 
-	// 초기에 플레이어 주변 맵 미리 생성
-	for (int z = -10; z < 10; ++z) {
-		generateLane(z);
-	}
-
-	// 큐브 데이터 (기존과 동일)
 	float vertices[] = {
 		-0.5f, -0.5f,  0.5f,  0.5f, -0.5f,  0.5f,  0.5f,  0.5f,  0.5f,
 		 0.5f,  0.5f,  0.5f, -0.5f,  0.5f,  0.5f, -0.5f, -0.5f,  0.5f,
@@ -247,7 +263,6 @@ void initGame()
 		-0.5f, -0.5f, -0.5f,  0.5f, -0.5f, -0.5f,  0.5f, -0.5f,  0.5f,
 		 0.5f, -0.5f,  0.5f, -0.5f, -0.5f,  0.5f, -0.5f, -0.5f, -0.5f
 	};
-
 	glGenVertexArrays(1, &vao);
 	glGenBuffers(1, &vbo);
 	glBindVertexArray(vao);
@@ -257,17 +272,30 @@ void initGame()
 	glEnableVertexAttribArray(0);
 }
 
+bool isTreeAt(int x, int z) {
+	if (treeMap.count(z)) {
+		for (int treeX : treeMap[z]) if (treeX == x) return true;
+	}
+	return false;
+}
+
 void specialKeyboard(int key, int x, int y)
 {
-	float speed = 1.0f;
+	int nextX = (int)std::round(playerPos.x);
+	int nextZ = (int)std::round(playerPos.z);
 	switch (key) {
-	case GLUT_KEY_UP:    playerPos.z -= speed; break; // 앞으로 (화면 안쪽)
-	case GLUT_KEY_DOWN:  playerPos.z += speed; break; // 뒤로
-	case GLUT_KEY_LEFT:  playerPos.x -= speed; break;
-	case GLUT_KEY_RIGHT: playerPos.x += speed; break;
+	case GLUT_KEY_UP:    nextZ -= 1; break;
+	case GLUT_KEY_DOWN:  nextZ += 1; break;
+	case GLUT_KEY_LEFT:  nextX -= 1; break;
+	case GLUT_KEY_RIGHT: nextX += 1; break;
+	}
+	if (!isTreeAt(nextX, nextZ)) {
+		playerPos.x = (float)nextX;
+		playerPos.z = (float)nextZ;
 	}
 	glutPostRedisplay();
 }
+
 
 GLvoid Reshape(int w, int h)
 {
