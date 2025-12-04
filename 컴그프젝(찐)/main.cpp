@@ -44,6 +44,12 @@ struct CarDesign {
 GLuint vao, vbo;
 GLuint transLoc;
 glm::vec3 playerPos(0.0f, 0.5f, 0.0f);
+glm::vec3 playerTargetPos = playerPos; 
+glm::vec3 playerStartPos = playerPos; //애니메이션 시작 위치
+bool isMoving = false;
+float moveTime = 0.0f; 
+const float MOVE_DURATION = 0.25f; //한칸이동시간
+const float JUMP_HEIGHT = 1.0f; //최대점프높이
 glm::mat4 PV; // 나무 그리기 함수와 공유할 전역 행렬
 GLuint depthFBO, depthMap;
 GLuint depthShader;
@@ -334,8 +340,34 @@ void timer(int value)
 		if (car.x > 15.0f && car.speed > 0) car.x = -15.0f;
 		if (car.x < -15.0f && car.speed < 0) car.x = 15.0f;
 
-		if (abs(car.z - playerPos.z) < 0.5f && abs(car.x - playerPos.x) < 1.0f) {
+		if (abs(car.z - playerPos.z) < 0.08f && abs(car.x - playerPos.x) < 1.5f) {
 			playerPos = glm::vec3(0.0f, 0.5f, 0.0f);
+			playerTargetPos = playerPos;
+			playerStartPos = playerPos;
+			isMoving = false;
+		}
+	}
+	if (isMoving) {
+		
+		moveTime += 0.016f;
+
+		// 보간 비율 t 계산 
+		float t = glm::clamp(moveTime / MOVE_DURATION, 0.0f, 1.0f);
+
+		//점프할려고
+		playerPos.x = glm::mix(playerStartPos.x, playerTargetPos.x, t);
+		playerPos.z = glm::mix(playerStartPos.z, playerTargetPos.z, t);
+
+		//포물선
+		//t * (1.0f - t)
+		float jumpY = JUMP_HEIGHT * 4.0f * t * (1.0f - t); 
+		playerPos.y = 0.5f + jumpY; 
+
+		if (t >= 1.0f) {
+			
+			playerPos = playerTargetPos;
+			playerPos.y = 0.5f;
+			isMoving = false;
 		}
 	}
 	glutPostRedisplay();
@@ -491,17 +523,29 @@ bool isTreeAt(int x, int z) {
 
 void specialKeyboard(int key, int x, int y)
 {
+	if (isMoving) return;
+	
+
 	int nextX = (int)std::round(playerPos.x);
 	int nextZ = (int)std::round(playerPos.z);
+	
+
 	switch (key) {
 	case GLUT_KEY_UP:    nextZ -= 1; break;
 	case GLUT_KEY_DOWN:  nextZ += 1; break;
 	case GLUT_KEY_LEFT:  nextX -= 1; break;
 	case GLUT_KEY_RIGHT: nextX += 1; break;
+	default: return;
 	}
 	if (!isTreeAt(nextX, nextZ)) {
-		playerPos.x = (float)nextX;
-		playerPos.z = (float)nextZ;
+		
+		playerStartPos = playerPos;
+
+		playerTargetPos = glm::vec3((float)nextX, 0.5f, (float)nextZ);
+
+		
+		isMoving = true;
+		moveTime = 0.0f;
 	}
 	glutPostRedisplay();
 }
