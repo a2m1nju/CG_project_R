@@ -256,11 +256,33 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 				glVertexAttrib3f(1, 0.2f, 0.2f, 0.2f);
 			}
 			else { // 잔디 (연한 초록)
-				glVertexAttrib3f(1, 0.3f, 0.5f, 0.3f);
+				glVertexAttrib3f(1, 0.47f, 0.9f, 0.42f);
 			}
 		}
-
 		glDrawArrays(GL_TRIANGLES, 0, 36);
+		//if (mapType[z] == 1) {
+
+		//	// 차선 속성 정의
+		//	glm::vec3 lineScale = glm::vec3(0.5f, 0.05f, 0.1f); // X축 길이, Y축 높이, Z축 두께
+		//	glm::vec3 lineColor = glm::vec3(0.8f, 0.8f, 0.8f); // 연한 회색/흰색
+
+		//	// X축을 따라 차선 그리기
+		//	for (int x = -15; x <= 15; x += 2) { // x=-15부터 2칸 간격으로 차선 블록 시작
+		//		glm::mat4 lineModel = glm::mat4(1.0f);
+
+		//		// 위치: x는 x, y는 바닥 위(0.5f + 0.05f/2), z는 z
+		//		lineModel = glm::translate(lineModel, glm::vec3((float)x, 0.5f + lineScale.y / 2.0f, (float)z));
+		//		lineModel = glm::scale(lineModel, lineScale);
+
+		//		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(lineModel));
+
+		//		if (shader == shaderProgramID) {
+		//			glVertexAttrib3f(1, lineColor.r, lineColor.g, lineColor.b);
+		//		}
+
+		//		glDrawArrays(GL_TRIANGLES, 0, 36);
+		//	}
+		//}
 
 		if (treeMap.count(z)) {
 			for (int treeX : treeMap[z]) drawTree(treeX, z,shader);
@@ -512,6 +534,8 @@ void initGame()
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
+	
+	
 }
 
 bool isTreeAt(int x, int z) {
