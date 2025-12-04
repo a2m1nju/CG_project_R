@@ -35,7 +35,7 @@ GLuint depthFBO, depthMap;
 GLuint depthShader;
 const unsigned int SHADOW_WIDTH = 2048, SHADOW_HEIGHT = 2048;
 
-glm::vec3 lightPos(10.0f, 20.0f, 10.0f);
+glm::vec3 lightPos(-15.0f, 20.0f, 0.0f);
 
 std::map<int, int> mapType; // 0=잔디 1=도로
 std::map<int, std::vector<int>> treeMap;
@@ -191,10 +191,10 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
 		if (shader == shaderProgramID) {
 			if (mapType[z] == 1) { // 도로 (회색)
-				glVertexAttrib3f(1, 0.3f, 0.3f, 0.3f);
+				glVertexAttrib3f(1, 0.2f, 0.2f, 0.2f);
 			}
 			else { // 잔디 (연한 초록)
-				glVertexAttrib3f(1, 0.3f, 0.8f, 0.3f);
+				glVertexAttrib3f(1, 0.3f, 0.5f, 0.3f);
 			}
 		}
 
@@ -241,7 +241,7 @@ GLvoid drawScene()
 	glm::mat4 lightView = glm::lookAt(lightPos, playerPos, glm::vec3(0, 1, 0));
 	glm::mat4 lightSpaceMatrix = lightProjection * lightView;
 
-	// PASS 1: Shadow depth map
+	// 패스 1: Shadow depth map
 	glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
 	glBindFramebuffer(GL_FRAMEBUFFER, depthFBO);
 	glClear(GL_DEPTH_BUFFER_BIT);
@@ -252,7 +252,7 @@ GLvoid drawScene()
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 
-	// PASS 2: Final render
+	// 패스 2: Final render
 	glViewport(0, 0, 1280, 960);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glUseProgram(shaderProgramID);
@@ -467,12 +467,12 @@ void loadDepthShader()
 	glCompileShader(depthVertexShader);
 	glAttachShader(depthShader, depthVertexShader);
 
-	// 컴파일 에러 체크 (추가 권장)
+	// 컴파일 에러 체크 
 	glGetShaderiv(depthVertexShader, GL_COMPILE_STATUS, &result);
 	if (!result) {
 		glGetShaderInfoLog(depthVertexShader, 512, NULL, errorLog);
 		std::cerr << "ERROR: depth vertex shader 컴파일 실패\n" << errorLog << std::endl;
-		// exit(EXIT_FAILURE); // 필요하면 강제 종료
+		
 	}
 
 
@@ -483,7 +483,7 @@ void loadDepthShader()
 	glCompileShader(depthFragmentShader);
 	glAttachShader(depthShader, depthFragmentShader);
 
-	// 컴파일 에러 체크 (추가 권장)
+	
 	glGetShaderiv(depthFragmentShader, GL_COMPILE_STATUS, &result);
 	if (!result) {
 		glGetShaderInfoLog(depthFragmentShader, 512, NULL, errorLog);
@@ -494,7 +494,7 @@ void loadDepthShader()
 	// 프로그램 링크
 	glLinkProgram(depthShader);
 
-	// 링크 에러 체크 (추가 권장)
+	// 링크 에러 체크
 	glGetProgramiv(depthShader, GL_LINK_STATUS, &result);
 	if (!result) {
 		glGetProgramInfoLog(depthShader, 512, NULL, errorLog);
