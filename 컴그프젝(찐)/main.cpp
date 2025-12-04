@@ -24,6 +24,20 @@ struct Car {
 	float x, z;
 	float speed;
 	glm::vec3 color;
+	int designID;
+};
+
+//자동차 부품
+struct CarPart {
+	glm::vec3 offset; // 차량 중앙을 기준으로 한 상대적 위치
+	glm::vec3 scale;  // 크기
+	glm::vec3 color;  // 부품의 색상
+};
+
+// 자동차 모델 정의
+struct CarDesign {
+	std::vector<CarPart> parts;
+	float baseScale; //전체크기조절
 };
 
 // 전역 변수
@@ -40,6 +54,7 @@ glm::vec3 lightPos(-15.0f, 20.0f, 0.0f);
 std::map<int, int> mapType; // 0=잔디 1=도로
 std::map<int, std::vector<int>> treeMap;
 std::vector<Car> cars;
+std::vector<CarDesign> carDesigns; 
 
 // 함수 선언
 GLvoid drawScene(GLvoid);
@@ -141,6 +156,39 @@ void drawTree(int x, int z,GLuint shader) {
 	}
 }
 
+
+void drawCar(const Car& car, GLuint shader) {
+	if (car.designID < 0 || car.designID >= carDesigns.size()) return;
+
+	const CarDesign& design = carDesigns[car.designID];
+	glm::mat4 baseModel = glm::translate(glm::mat4(1.0f), glm::vec3(car.x, 0.5f, car.z));
+
+	//차량크기조절
+	baseModel = glm::scale(baseModel, glm::vec3(design.baseScale));
+
+	for (const auto& part : design.parts) {
+		glm::mat4 model = baseModel;
+
+		// 상대적 위치 이동
+		model = glm::translate(model, part.offset);
+		// 부품 크기 조절
+		model = glm::scale(model, part.scale);
+
+		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
+
+		if (shader == shaderProgramID) {
+			// 부품에 정의된 색상이 없으면 Car 구조체의 기본 색상 사용
+			if (part.color == glm::vec3(0.0f)) {
+				glVertexAttrib3f(1, car.color.r, car.color.g, car.color.b);
+			}
+			else {
+				glVertexAttrib3f(1, part.color.r, part.color.g, part.color.b);
+			}
+		}
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+	}
+}
+
 void generateLane(int z)
 {
 	if (mapType.find(z) != mapType.end()) return;
@@ -164,6 +212,14 @@ void generateLane(int z)
 			newCar.color = glm::vec3((rand() % 10) / 10.f, (rand() % 10) / 10.f, (rand() % 10) / 10.f);
 			if (newCar.color.r < 0.2f) newCar.color.r += 0.5f;
 			cars.push_back(newCar);
+
+			// 디자인 ID 랜덤 할당
+			if (!carDesigns.empty()) {
+				newCar.designID = rand() % carDesigns.size();
+			}
+			else {
+				newCar.designID = 0; // 디자인이 없으면 기본값
+			}
 		}
 	}
 	else { // 잔디
@@ -208,14 +264,15 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 	// 자동차들
 	for (const auto& car : cars) {
 		if (car.z < currentZ - drawRangeFront || car.z > currentZ + drawRangeBack) continue;
-		glm::mat4 carModel = glm::translate(glm::mat4(1.0f), glm::vec3(car.x, 0.5f, car.z));
+		/*glm::mat4 carModel = glm::translate(glm::mat4(1.0f), glm::vec3(car.x, 0.5f, car.z));
 		carModel = glm::scale(carModel, glm::vec3(1.5f, 0.8f, 0.8f));
 
 		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(carModel));
 		if (shader == shaderProgramID) {
 			glVertexAttrib3f(1, car.color.r, car.color.g, car.color.b);
-		}
-		glDrawArrays(GL_TRIANGLES, 0, 36);
+		}*/
+		//glDrawArrays(GL_TRIANGLES, 0, 36);
+		drawCar(car, shader);
 	}
 
 	// 플레이어
@@ -233,7 +290,6 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 GLvoid drawScene()
 {
 	
-
 	glm::mat4 proj = glm::perspective(glm::radians(45.0f), 1280.f / 960.f, 0.1f, 100.f);
 	glm::mat4 view = glm::lookAt(playerPos + glm::vec3(2, 12, 10), playerPos, glm::vec3(0, 1, 0));
 
@@ -241,7 +297,7 @@ GLvoid drawScene()
 	glm::mat4 lightView = glm::lookAt(lightPos, playerPos, glm::vec3(0, 1, 0));
 	glm::mat4 lightSpaceMatrix = lightProjection * lightView;
 
-	// 패스 1: Shadow depth map
+	// 패스2
 	glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
 	glBindFramebuffer(GL_FRAMEBUFFER, depthFBO);
 	glClear(GL_DEPTH_BUFFER_BIT);
@@ -252,7 +308,7 @@ GLvoid drawScene()
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 
-	// 패스 2: Final render
+	// 패스2
 	glViewport(0, 0, 1280, 960);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glUseProgram(shaderProgramID);
@@ -305,7 +361,97 @@ void initGame()
 		-0.5f, -0.5f, -0.5f,  0.5f, -0.5f, -0.5f,  0.5f, -0.5f,  0.5f,
 		 0.5f, -0.5f,  0.5f, -0.5f, -0.5f,  0.5f, -0.5f, -0.5f, -0.5f
 	};
+	// 바퀴창문 
+	glm::vec3 wheelColor = glm::vec3(0.1f, 0.1f, 0.1f); // 검은색
+	glm::vec3 windowColor = glm::vec3(0.2f, 0.2f, 0.3f); // 짙은 파란색/회색
 
+	//세단스타일
+	CarDesign sedan;
+	sedan.baseScale = 1.0f;
+	//바디길고납작
+	sedan.parts.push_back({ glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.7f, 0.5f, 0.8f), glm::vec3(0.0f) }); // color는 Car.color 사용
+	// 캐빈/지붕앞쪽위
+	sedan.parts.push_back({ glm::vec3(0.1f, 0.35f, 0.0f), glm::vec3(0.8f, 0.4f, 0.7f), glm::vec3(1.0f, 1.0f, 1.0f) }); // 흰색 지붕
+	//바퀴4개
+	float wheelXOffset = 0.6f;
+	float wheelZOffset = 0.45f;
+	float wheelYOffset = -0.2f; // 바퀴는 바닥에 가깝게
+	float wheelScale = 0.3f;
+	//앞바퀴
+	sedan.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
+	sedan.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
+	//뒷바퀴
+	sedan.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
+	sedan.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
+
+	//창문 추가 
+	float windowXOffset = 0.1f; //캐빈 중앙으로부터의 X 오프셋
+	float windowYOffset = 0.35f;
+	float windowScaleX = 0.7f;
+	float windowScaleY = 0.3f;
+	// 옆 창문
+	sedan.parts.push_back({ glm::vec3(windowXOffset, windowYOffset, 0.45f), glm::vec3(windowScaleX, windowScaleY, 0.1f), windowColor });
+	sedan.parts.push_back({ glm::vec3(windowXOffset, windowYOffset, -0.45f), glm::vec3(windowScaleX, windowScaleY, 0.1f), windowColor });
+	carDesigns.push_back(sedan);
+
+	//2.suv 
+	CarDesign suv_pickup;
+	suv_pickup.baseScale = 1.0f;
+	//바디
+	suv_pickup.parts.push_back({ glm::vec3(0.0f, -0.05f, 0.0f), glm::vec3(1.5f, 0.5f, 0.9f), glm::vec3(0.0f) }); // Car.color 사용
+	//앞부분
+	suv_pickup.parts.push_back({ glm::vec3(0.65f, 0.2f, 0.0f), glm::vec3(0.6f, 0.2f, 0.8f), glm::vec3(0.0f) }); // Car.color 사용
+	//캐빈/지붕
+	suv_pickup.parts.push_back({ glm::vec3(0.2f, 0.5f, 0.0f), glm::vec3(0.8f, 0.4f, 0.8f), glm::vec3(1.0f, 1.0f, 1.0f) }); // 흰색 지붕
+	suv_pickup.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
+	suv_pickup.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
+	// 뒷바퀴
+	suv_pickup.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
+	suv_pickup.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
+
+	//창문추가
+	// 창문 (측면)
+	suv_pickup.parts.push_back({ glm::vec3(0.2f, 0.5f, 0.45f), glm::vec3(0.6f, 0.3f, 0.1f), windowColor });
+	suv_pickup.parts.push_back({ glm::vec3(0.2f, 0.5f, -0.45f), glm::vec3(0.6f, 0.3f, 0.1f), windowColor });
+	carDesigns.push_back(suv_pickup);
+
+	//3. 트럭
+	CarDesign truck;
+	truck.baseScale = 1.5f;
+	//앞 캐빈
+	truck.parts.push_back({ glm::vec3(0.5f, 0.1f, 0.0f), glm::vec3(0.7f, 0.7f, 0.9f), glm::vec3(0.0f) }); // Car.color 사용
+	//뒷부분
+	truck.parts.push_back({ glm::vec3(-0.7f, 0.2f, 0.0f), glm::vec3(2.0f, 1.2f, 0.95f), glm::vec3(0.9f, 0.9f, 0.9f) }); // 회색 화물칸
+	//캐빈/지붕 (흰색)
+	truck.parts.push_back({ glm::vec3(0.5f, 0.6f, 0.0f), glm::vec3(0.7f, 0.4f, 0.8f), glm::vec3(1.0f, 1.0f, 1.0f) }); // 흰색 지붕
+	suv_pickup.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
+	suv_pickup.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
+	//뒷바퀴
+	suv_pickup.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
+	suv_pickup.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
+
+	//  창문 추가
+	// 창문 (측면)
+	suv_pickup.parts.push_back({ glm::vec3(0.2f, 0.5f, 0.45f), glm::vec3(0.6f, 0.3f, 0.1f), windowColor });
+	suv_pickup.parts.push_back({ glm::vec3(0.2f, 0.5f, -0.45f), glm::vec3(0.6f, 0.3f, 0.1f), windowColor });
+	carDesigns.push_back(truck);
+
+	//4. 택시
+	CarDesign taxi = suv_pickup;
+	taxi.baseScale = 1.0f;
+	//램프 추가
+	taxi.parts.push_back({ glm::vec3(0.2f, 0.8f, 0.0f), glm::vec3(0.2f, 0.1f, 0.5f), glm::vec3(1.0f, 1.0f, 0.0f) }); // 노란색 램프
+	suv_pickup.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
+	suv_pickup.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
+	// 뒷바퀴
+	suv_pickup.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
+	suv_pickup.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
+
+	//창문
+	// 창문 (측면)
+	suv_pickup.parts.push_back({ glm::vec3(0.2f, 0.5f, 0.45f), glm::vec3(0.6f, 0.3f, 0.1f), windowColor });
+	suv_pickup.parts.push_back({ glm::vec3(0.2f, 0.5f, -0.45f), glm::vec3(0.6f, 0.3f, 0.1f), windowColor });
+	carDesigns.push_back(taxi);
 	glGenFramebuffers(1, &depthFBO);
 
 	glGenTextures(1, &depthMap);
@@ -457,26 +603,22 @@ void loadDepthShader()
 	GLint result;
 	GLchar errorLog[512];
 
-	// 깊이 쉐이더 프로그램 생성
 	depthShader = glCreateProgram();
 
-	// depthvertex.glsl 로드 및 컴파일
+	//쉐이더로드
 	GLuint depthVertexShader = glCreateShader(GL_VERTEX_SHADER);
 	GLchar* dvSource = filetobuf("depthvertex.glsl");
 	glShaderSource(depthVertexShader, 1, &dvSource, NULL);
 	glCompileShader(depthVertexShader);
 	glAttachShader(depthShader, depthVertexShader);
 
-	// 컴파일 에러 체크 
+	 
 	glGetShaderiv(depthVertexShader, GL_COMPILE_STATUS, &result);
 	if (!result) {
 		glGetShaderInfoLog(depthVertexShader, 512, NULL, errorLog);
 		std::cerr << "ERROR: depth vertex shader 컴파일 실패\n" << errorLog << std::endl;
 		
 	}
-
-
-	// depthfragment.glsl 로드 및 컴파일
 	GLuint depthFragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
 	GLchar* dfSource = filetobuf("depthfragment.glsl");
 	glShaderSource(depthFragmentShader, 1, &dfSource, NULL);
@@ -489,19 +631,16 @@ void loadDepthShader()
 		glGetShaderInfoLog(depthFragmentShader, 512, NULL, errorLog);
 		std::cerr << "ERROR: depth fragment shader 컴파일 실패\n" << errorLog << std::endl;
 	}
-
-
-	// 프로그램 링크
+	
 	glLinkProgram(depthShader);
 
-	// 링크 에러 체크
+	
 	glGetProgramiv(depthShader, GL_LINK_STATUS, &result);
 	if (!result) {
 		glGetProgramInfoLog(depthShader, 512, NULL, errorLog);
 		std::cerr << "ERROR: depth shader program 연결 실패\n" << errorLog << std::endl;
 	}
 
-	// 쉐이더 오브젝트 정리
 	glDeleteShader(depthVertexShader);
 	glDeleteShader(depthFragmentShader);
 }
