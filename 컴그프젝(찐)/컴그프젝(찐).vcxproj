@@ -71,8 +71,8 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>C:\Users\Desktop\source\repos\컴그프젝%28찐%29\컴그프젝%28찐%29\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Users\Desktop\source\repos\컴그프젝%28찐%29\컴그프젝%28찐%29\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Users\Desktop\source\repos\컴그프젝%28찐%29\컴그프젝%28찐%29\include;$(ProjectDir)include;$(ProjectDir)include/GL;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Users\Desktop\source\repos\컴그프젝%28찐%29\컴그프젝%28찐%29\lib;$(ProjectDir)lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -112,6 +112,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalOptions>freeglut.lib glew32.lib %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
