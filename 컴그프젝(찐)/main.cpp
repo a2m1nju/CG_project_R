@@ -217,7 +217,6 @@ void generateLane(int z)
 			newCar.speed = speed;
 			newCar.color = glm::vec3((rand() % 10) / 10.f, (rand() % 10) / 10.f, (rand() % 10) / 10.f);
 			if (newCar.color.r < 0.2f) newCar.color.r += 0.5f;
-			cars.push_back(newCar);
 
 			// µðÀÚÀÎ ID ·£´ý ÇÒ´ç
 			if (!carDesigns.empty()) {
@@ -226,6 +225,8 @@ void generateLane(int z)
 			else {
 				newCar.designID = 0; // µðÀÚÀÎÀÌ ¾øÀ¸¸é ±âº»°ª
 			}
+
+			cars.push_back(newCar);
 		}
 	}
 	else { // ÀÜµð
@@ -362,7 +363,7 @@ void timer(int value)
 		if (car.x > 15.0f && car.speed > 0) car.x = -15.0f;
 		if (car.x < -15.0f && car.speed < 0) car.x = 15.0f;
 
-		if (abs(car.z - playerPos.z) < 0.08f && abs(car.x - playerPos.x) < 1.5f) {
+		if (abs(car.z - playerPos.z) < 0.08f && abs(car.x - playerPos.x) < 1.2f) {
 			playerPos = glm::vec3(0.0f, 0.5f, 0.0f);
 			playerTargetPos = playerPos;
 			playerStartPos = playerPos;
@@ -399,7 +400,7 @@ void timer(int value)
 void initGame()
 {
 	transLoc = glGetUniformLocation(shaderProgramID, "trans");
-	for (int z = -10; z < 10; ++z) generateLane(z);
+	//for (int z = -10; z < 10; ++z) generateLane(z);
 
 	float vertices[] = {
 		-0.5f, -0.5f,  0.5f,  0.5f, -0.5f,  0.5f,  0.5f,  0.5f,  0.5f,
@@ -419,6 +420,12 @@ void initGame()
 	glm::vec3 wheelColor = glm::vec3(0.1f, 0.1f, 0.1f); // °ËÀº»ö
 	glm::vec3 windowColor = glm::vec3(0.2f, 0.2f, 0.3f); // Â£Àº ÆÄ¶õ»ö/È¸»ö
 
+	//¹ÙÄû4°³
+	float wheelXOffset = 0.6f;
+	float wheelZOffset = 0.45f;
+	float wheelYOffset = -0.2f; // ¹ÙÄû´Â ¹Ù´Ú¿¡ °¡±õ°Ô
+	float wheelScale = 0.3f;
+
 	//¼¼´Ü½ºÅ¸ÀÏ
 	CarDesign sedan;
 	sedan.baseScale = 1.0f;
@@ -426,11 +433,7 @@ void initGame()
 	sedan.parts.push_back({ glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.7f, 0.5f, 0.8f), glm::vec3(0.0f) }); // color´Â Car.color »ç¿ë
 	// Ä³ºó/ÁöºØ¾ÕÂÊÀ§
 	sedan.parts.push_back({ glm::vec3(0.1f, 0.35f, 0.0f), glm::vec3(0.8f, 0.4f, 0.7f), glm::vec3(1.0f, 1.0f, 1.0f) }); // Èò»ö ÁöºØ
-	//¹ÙÄû4°³
-	float wheelXOffset = 0.6f;
-	float wheelZOffset = 0.45f;
-	float wheelYOffset = -0.2f; // ¹ÙÄû´Â ¹Ù´Ú¿¡ °¡±õ°Ô
-	float wheelScale = 0.3f;
+	
 	//¾Õ¹ÙÄû
 	sedan.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
 	sedan.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
@@ -478,16 +481,16 @@ void initGame()
 	truck.parts.push_back({ glm::vec3(-0.7f, 0.2f, 0.0f), glm::vec3(2.0f, 1.2f, 0.95f), glm::vec3(0.9f, 0.9f, 0.9f) }); // È¸»ö È­¹°Ä­
 	//Ä³ºó/ÁöºØ (Èò»ö)
 	truck.parts.push_back({ glm::vec3(0.5f, 0.6f, 0.0f), glm::vec3(0.7f, 0.4f, 0.8f), glm::vec3(1.0f, 1.0f, 1.0f) }); // Èò»ö ÁöºØ
-	suv_pickup.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
-	suv_pickup.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
+	truck.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
+	truck.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
 	//µÞ¹ÙÄû
-	suv_pickup.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
-	suv_pickup.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
+	truck.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
+	truck.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
 
 	//  Ã¢¹® Ãß°¡
 	// Ã¢¹® (Ãø¸é)
-	suv_pickup.parts.push_back({ glm::vec3(0.2f, 0.5f, 0.45f), glm::vec3(0.6f, 0.3f, 0.1f), windowColor });
-	suv_pickup.parts.push_back({ glm::vec3(0.2f, 0.5f, -0.45f), glm::vec3(0.6f, 0.3f, 0.1f), windowColor });
+	truck.parts.push_back({ glm::vec3(0.2f, 0.5f, 0.45f), glm::vec3(0.6f, 0.3f, 0.1f), windowColor });
+	truck.parts.push_back({ glm::vec3(0.2f, 0.5f, -0.45f), glm::vec3(0.6f, 0.3f, 0.1f), windowColor });
 	carDesigns.push_back(truck);
 
 	//4. ÅÃ½Ã
@@ -495,18 +498,20 @@ void initGame()
 	taxi.baseScale = 1.0f;
 	//·¥ÇÁ Ãß°¡
 	taxi.parts.push_back({ glm::vec3(0.2f, 0.8f, 0.0f), glm::vec3(0.2f, 0.1f, 0.5f), glm::vec3(1.0f, 1.0f, 0.0f) }); // ³ë¶õ»ö ·¥ÇÁ
-	suv_pickup.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
-	suv_pickup.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
+	taxi.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
+	taxi.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
 	// µÞ¹ÙÄû
-	suv_pickup.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
-	suv_pickup.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
+	taxi.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
+	taxi.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
 
 	//Ã¢¹®
 	// Ã¢¹® (Ãø¸é)
-	suv_pickup.parts.push_back({ glm::vec3(0.2f, 0.5f, 0.45f), glm::vec3(0.6f, 0.3f, 0.1f), windowColor });
-	suv_pickup.parts.push_back({ glm::vec3(0.2f, 0.5f, -0.45f), glm::vec3(0.6f, 0.3f, 0.1f), windowColor });
+	taxi.parts.push_back({ glm::vec3(0.2f, 0.5f, 0.45f), glm::vec3(0.6f, 0.3f, 0.1f), windowColor });
+	taxi.parts.push_back({ glm::vec3(0.2f, 0.5f, -0.45f), glm::vec3(0.6f, 0.3f, 0.1f), windowColor });
 	carDesigns.push_back(taxi);
 	glGenFramebuffers(1, &depthFBO);
+
+	for (int z = -10; z < 10; ++z) generateLane(z);
 
 	glGenTextures(1, &depthMap);
 	glBindTexture(GL_TEXTURE_2D, depthMap);
