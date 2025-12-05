@@ -48,9 +48,10 @@ GLuint transLoc;
 glm::vec3 playerPos(0.0f, 0.5f, 0.0f);
 glm::vec3 playerTargetPos = playerPos; 
 glm::vec3 playerStartPos = playerPos; //애니메이션 시작 위치
+float playerRotation = 0.0f;
 bool isMoving = false;
 float moveTime = 0.0f; 
-const float MOVE_DURATION = 0.25f; //한칸이동시간
+const float MOVE_DURATION = 0.20f; //한칸이동시간
 const float JUMP_HEIGHT = 1.0f; //최대점프높이
 glm::mat4 PV; // 나무 그리기 함수와 공유할 전역 행렬
 GLuint depthFBO, depthMap;
@@ -251,6 +252,62 @@ void generateLane(int z)
 	}
 }
 
+// 큐브 그리기 헬퍼 함수 (부품 하나하나 그릴 때 사용)
+void drawPart(GLuint shader, glm::mat4 parentModel, glm::vec3 offset, glm::vec3 scale, glm::vec3 color) {
+	glm::mat4 model = glm::translate(parentModel, offset);
+	model = glm::scale(model, scale);
+
+	glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
+
+	// 쉐이더가 메인 쉐이더일 때만 색상 적용 (그림자 맵 만들 때는 색상 필요 없음)
+	if (shader == shaderProgramID) {
+		glVertexAttrib3f(1, color.r, color.g, color.b);
+	}
+	glDrawArrays(GL_TRIANGLES, 0, 36);
+}
+
+// 닭 캐릭터 그리기 함수 
+void drawChicken(GLuint shader, glm::mat4 baseModel) {
+
+	// 색상 정의
+	glm::vec3 white(1.0f, 1.0f, 1.0f);
+	glm::vec3 red(1.0f, 0.2f, 0.2f);
+	glm::vec3 orange(1.0, 0.270588f, 0.0f);
+	glm::vec3 black(0.1f, 0.1f, 0.1f);
+
+	// 1. 몸통 (Body) - 중심점 조정
+	drawPart(shader, baseModel, glm::vec3(0.0f, -0.1f, 0.0f), glm::vec3(0.6f, 0.6f, 0.6f), white);
+
+	// 2. 벼슬 (Comb)
+	drawPart(shader, baseModel, glm::vec3(0.0f, 0.25f, 0.1f), glm::vec3(0.15f, 0.15f, 0.2f), red);
+
+	// 3. 부리 (Beak)
+	drawPart(shader, baseModel, glm::vec3(0.0f, 0.0f, -0.35f), glm::vec3(0.15f, 0.15f, 0.15f), orange);
+
+	// 4. 와틀 (Wattle)
+	drawPart(shader, baseModel, glm::vec3(0.0f, -0.15f, -0.35f), glm::vec3(0.1f, 0.12f, 0.1f), red);
+
+	// 5. 눈 (Eyes)
+	drawPart(shader, baseModel, glm::vec3(0.31f, 0.0f, -0.2f), glm::vec3(0.05f, 0.05f, 0.05f), black);
+	drawPart(shader, baseModel, glm::vec3(-0.31f, 0.0f, -0.2f), glm::vec3(0.05f, 0.05f, 0.05f), black);
+
+	// 6. 날개 (Wings)
+	drawPart(shader, baseModel, glm::vec3(0.32f, -0.2f, 0.05f), glm::vec3(0.1f, 0.3f, 0.4f), white);
+	drawPart(shader, baseModel, glm::vec3(-0.32f, -0.2f, 0.05f), glm::vec3(0.1f, 0.3f, 0.4f), white);
+
+	// 8. 다리 (Legs) 
+    drawPart(shader, baseModel, glm::vec3(0.2f, -0.25f, 0.0f), glm::vec3(0.1f, 0.5f, 0.1f), orange); 
+    drawPart(shader, baseModel, glm::vec3(-0.2f, -0.25f, 0.0f), glm::vec3(0.1f, 0.5f, 0.1f), orange); 
+
+    // 9. 발 (Feet)
+    drawPart(shader, baseModel, glm::vec3(0.2f, -0.49f, -0.3f), glm::vec3(0.15f, 0.02f, 0.25f), orange); 
+    drawPart(shader, baseModel, glm::vec3(-0.2f, -0.49f, -0.3f), glm::vec3(0.15f, 0.02f, 0.25f), orange); 
+
+	// 9. 꼬리 (Tail)
+	drawPart(shader, baseModel, glm::vec3(0.0f, -0.1f, 0.35f), glm::vec3(0.3f, 0.3f, 0.1f), white);
+}
+
+
 void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 {
 	int currentZ = (int)std::round(playerPos.z);
@@ -319,12 +376,15 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 
 	// 플레이어
 	glm::mat4 pModel = glm::translate(glm::mat4(1.0f), playerPos);
-	pModel = glm::scale(pModel, glm::vec3(0.7f));
 
-	glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(pModel));
-	if (shader == shaderProgramID) {
-		glVertexAttrib3f(1, 1.0f, 0.6f, 0.0f);
-	}
+	// [추가] 저장된 각도만큼 Y축을 기준으로 회전
+	pModel = glm::rotate(pModel, glm::radians(playerRotation), glm::vec3(0.0f, 1.0f, 0.0f));
+
+	// 크기 조절 (기존 0.7f)
+	pModel = glm::scale(pModel, glm::vec3(0.7f));
+	drawChicken(shader, pModel);
+
+
 	glDrawArrays(GL_TRIANGLES, 0, 36);
 }
 
@@ -680,12 +740,25 @@ void specialKeyboard(int key, int x, int y)
 	
 
 	switch (key) {
-	case GLUT_KEY_UP:    nextZ -= 1; break;
-	case GLUT_KEY_DOWN:  nextZ += 1; break;
-	case GLUT_KEY_LEFT:  nextX -= 1; break;
-	case GLUT_KEY_RIGHT: nextX += 1; break;
+	case GLUT_KEY_UP:
+		playerRotation = 0.0f;    
+		nextZ -= 1;
+		break;
+	case GLUT_KEY_DOWN:
+		playerRotation = 180.0f; 
+		nextZ += 1;
+		break;
+	case GLUT_KEY_LEFT:
+		playerRotation = 90.0f;   
+		nextX -= 1;
+		break;
+	case GLUT_KEY_RIGHT:
+		playerRotation = -90.0f;  
+		nextX += 1;
+		break;
 	default: return;
 	}
+
 	if (!isTreeAt(nextX, nextZ)) {
 		if (key == GLUT_KEY_UP && nextZ < minZ) {
 			minZ = nextZ;
