@@ -1,5 +1,6 @@
 #define _CRT_SECURE_NO_WARNINGS 
-
+#define STB_TRUETYPE_IMPLEMENTATION 
+#include "stb_truetype.h"
 #include <iostream>
 #include <stdlib.h>
 #include <stdio.h>
@@ -7,6 +8,7 @@
 #include <map>   
 #include <ctime>
 #include <algorithm> 
+#include <string>
 #include <gl/glew.h>				
 #include <gl/freeglut.h>
 #include <gl/freeglut_ext.h> 
@@ -55,12 +57,19 @@ GLuint depthFBO, depthMap;
 GLuint depthShader;
 const unsigned int SHADOW_WIDTH = 2048, SHADOW_HEIGHT = 2048;
 
+int score = 0;
+int minZ = 0; // 플레이어가 도달한 최대 전진 위치
+
 glm::vec3 lightPos(-15.0f, 20.0f, 0.0f);
 
 std::map<int, int> mapType; // 0=잔디 1=도로
 std::map<int, std::vector<int>> treeMap;
 std::vector<Car> cars;
 std::vector<CarDesign> carDesigns; 
+
+// 폰트 관련 전역 변수
+stbtt_bakedchar cdata[96]; 
+GLuint fontTexture;       
 
 // 함수 선언
 GLvoid drawScene(GLvoid);
@@ -72,10 +81,12 @@ char* filetobuf(const char* file);
 
 void initGame();
 void generateLane(int z);
+void initFont(const char* filename, float pixelHeight);
 void specialKeyboard(int key, int x, int y);
 void timer(int value);
 bool isTreeAt(int x, int z);
 void drawTree(int x, int z); // 복셀 나무 그리기 함수
+void renderTextTTF(float x, float y, const char* text, float r, float g, float b);
 void loadDepthShader();
 
 GLuint shaderProgramID;
@@ -105,6 +116,7 @@ int main(int argc, char** argv)
 	loadDepthShader();
 
 	initGame();
+	initFont("Cafe24PROUP.ttf", 60.0f);
 
 	glEnable(GL_DEPTH_TEST);
 
@@ -238,6 +250,7 @@ void generateLane(int z)
 		}
 	}
 }
+
 void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 {
 	int currentZ = (int)std::round(playerPos.z);
@@ -315,6 +328,75 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 	glDrawArrays(GL_TRIANGLES, 0, 36);
 }
 
+//  테두리 있는 텍스트 그리기 함수
+void renderTextWithOutline(float x, float y, const char* text) {
+	float offset = 5.0f; // 테두리 두께 
+
+	// 1. 검은색 테두리 그리기 (상하좌우 + 대각선 4방향 = 총 8방향)
+	renderTextTTF(x - offset, y, text, 0.0f, 0.0f, 0.0f); // 좌
+	renderTextTTF(x + offset, y, text, 0.0f, 0.0f, 0.0f); // 우
+	renderTextTTF(x, y - offset, text, 0.0f, 0.0f, 0.0f); // 상
+	renderTextTTF(x, y + offset, text, 0.0f, 0.0f, 0.0f); // 하
+
+	renderTextTTF(x - offset, y - offset, text, 0.0f, 0.0f, 0.0f);
+	renderTextTTF(x + offset, y - offset, text, 0.0f, 0.0f, 0.0f);
+	renderTextTTF(x - offset, y + offset, text, 0.0f, 0.0f, 0.0f);
+	renderTextTTF(x + offset, y + offset, text, 0.0f, 0.0f, 0.0f);
+
+	// 2. 흰색 알맹이 그리기 (가장 위에 덮어쓰기)
+	renderTextTTF(x, y, text, 1.0f, 1.0f, 1.0f);
+}
+
+// 텍스트 그리기 함수
+void renderTextTTF(float x, float y, const char* text, float r, float g, float b) {
+	glUseProgram(0); // 쉐이더 끄기
+
+	// 2D 투영 설정
+	glMatrixMode(GL_PROJECTION);
+	glPushMatrix();
+	glLoadIdentity();
+	gluOrtho2D(0, 1280, 0, 960); // 윈도우 해상도에 맞춤 (좌하단 0,0)
+
+	glMatrixMode(GL_MODELVIEW);
+	glPushMatrix();
+	glLoadIdentity();
+
+	glDisable(GL_DEPTH_TEST);
+	glEnable(GL_TEXTURE_2D);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	glBindTexture(GL_TEXTURE_2D, fontTexture);
+
+	glBegin(GL_QUADS);
+	glColor3f(r, g, b);
+
+	while (*text) {
+		if (*text >= 32 && *text < 128) {
+			stbtt_aligned_quad q;
+			// 문자의 위치(Quad)와 텍스처 좌표(UV)를 계산해줌
+			stbtt_GetBakedQuad(cdata, 512, 512, *text - 32, &x, &y, &q, 1);
+
+			glTexCoord2f(q.s0, q.t0); glVertex2f(q.x0, 960 - q.y0); // Y좌표 반전 주의
+			glTexCoord2f(q.s1, q.t0); glVertex2f(q.x1, 960 - q.y0);
+			glTexCoord2f(q.s1, q.t1); glVertex2f(q.x1, 960 - q.y1);
+			glTexCoord2f(q.s0, q.t1); glVertex2f(q.x0, 960 - q.y1);
+		}
+		++text;
+	}
+	glEnd();
+
+	glDisable(GL_BLEND);
+	glDisable(GL_TEXTURE_2D);
+	glEnable(GL_DEPTH_TEST);
+
+	glMatrixMode(GL_PROJECTION);
+	glPopMatrix();
+	glMatrixMode(GL_MODELVIEW);
+	glPopMatrix();
+
+	glUseProgram(shaderProgramID); // 쉐이더 복구
+}
 
 GLvoid drawScene()
 {
@@ -353,6 +435,10 @@ GLvoid drawScene()
 
 	renderObjects(shaderProgramID, proj * view);
 
+	// 점수 표시 (좌측 상단)
+	std::string scoreStr = "SCORE: " + std::to_string(score);
+	renderTextWithOutline(20, 60, scoreStr.c_str());
+
 	glutSwapBuffers();
 }
 
@@ -368,6 +454,8 @@ void timer(int value)
 			playerTargetPos = playerPos;
 			playerStartPos = playerPos;
 			isMoving = false;
+			score = 0;
+			minZ = 0;
 		}
 	}
 	if (isMoving) {
@@ -395,6 +483,38 @@ void timer(int value)
 	}
 	glutPostRedisplay();
 	glutTimerFunc(16, timer, 0);
+}
+
+// 폰트 초기화 함수
+void initFont(const char* filename, float pixelHeight) {
+	unsigned char temp_bitmap[512 * 512]; // 폰트를 구울 비트맵 버퍼 (크기는 조절 가능)
+
+	// 1. TTF 파일 읽기
+	FILE* f = fopen(filename, "rb");
+	if (!f) {
+		printf("폰트 파일을 찾을 수 없습니다: %s\n", filename);
+		return;
+	}
+	fseek(f, 0, SEEK_END);
+	long size = ftell(f);
+	fseek(f, 0, SEEK_SET);
+
+	unsigned char* ttf_buffer = (unsigned char*)malloc(size);
+	fread(ttf_buffer, 1, size, f);
+	fclose(f);
+
+	// 2. 비트맵에 글자 굽기 (ASCII 32번부터 96개 글자)
+	stbtt_BakeFontBitmap(ttf_buffer, 0, pixelHeight, temp_bitmap, 512, 512, 32, 96, cdata);
+	free(ttf_buffer);
+
+	// 3. OpenGL 텍스처 생성
+	glGenTextures(1, &fontTexture);
+	glBindTexture(GL_TEXTURE_2D, fontTexture);
+
+	// 텍스처 설정 (글자가 흐릿하면 GL_NEAREST 사용)
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, 512, 512, 0, GL_ALPHA, GL_UNSIGNED_BYTE, temp_bitmap);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 }
 
 void initGame()
@@ -567,7 +687,12 @@ void specialKeyboard(int key, int x, int y)
 	default: return;
 	}
 	if (!isTreeAt(nextX, nextZ)) {
-		
+		if (key == GLUT_KEY_UP && nextZ < minZ) {
+			minZ = nextZ;
+			score++;
+			printf("Score: %d\n", score); 
+		}
+
 		playerStartPos = playerPos;
 
 		playerTargetPos = glm::vec3((float)nextX, 0.5f, (float)nextZ);
@@ -671,6 +796,7 @@ GLuint make_shaderProgram()
 
 	return shaderID;
 }
+
 void loadDepthShader()
 {
 	GLint result;
