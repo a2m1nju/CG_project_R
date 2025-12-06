@@ -97,19 +97,31 @@ std::map<GameSeason, SeasonColors> seasonThemes = {
 const int LINES_PER_SEASON = 30; // 30 라인마다 계절 전환
 int linesPassedSinceSeasonChange = 0; // 계절이 바뀐 후 통과한 라인 수 (minZ 기준)
 
-// [추가] 통나무 구조체
+// 통나무 구조체
 struct Log {
 	float x, z;
 	float speed;
 	float width; // 통나무 길이
 };
 
-// [추가] 연잎 구조체
+// 연잎 구조체
 struct LilyPad {
 	float x, z;
 };
 
-// [추가] 전역 벡터
+// 파티클 구조체
+struct Particle {
+	glm::vec3 position;
+	glm::vec3 velocity; // 이동 속도 및 방향
+	glm::vec3 color;
+	float scale;
+	float life;         // 수명 (1.0에서 시작해 0.0이 되면 사라짐)
+};
+
+// 파티클 관리 벡터
+std::vector<Particle> particles;
+
+// 전역 벡터
 std::vector<Log> logs;
 std::vector<LilyPad> lilyPads;
 
@@ -690,6 +702,23 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 	glDrawArrays(GL_TRIANGLES, 0, 36);
 }
 
+// 파티클 렌더링 함수
+void drawParticles(GLuint shader) {
+	for (const auto& p : particles) {
+		glm::mat4 model = glm::mat4(1.0f);
+		model = glm::translate(model, p.position);
+		model = glm::scale(model, glm::vec3(p.scale)); // 파티클은 정육면체
+
+		// 쉐이더에 모델 행렬 전달
+		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
+
+		if (shader == shaderProgramID) {
+			glVertexAttrib3f(1, p.color.r, p.color.g, p.color.b);
+		}
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+	}
+}
+
 //  테두리 있는 텍스트 그리기 함수
 void renderTextWithOutline(float x, float y, const char* text) {
 	float offset = 5.0f; // 테두리 두께 
@@ -802,6 +831,9 @@ GLvoid drawScene()
 
 	renderObjects(shaderProgramID, proj * view);
 
+	// 파티클 그리기 호출
+	drawParticles(shaderProgramID);
+
 	// 점수 표시 (좌측 상단)
 	std::string scoreStr = "SCORE: " + std::to_string(score);
 	renderTextWithOutline(20, 60, scoreStr.c_str());
@@ -813,6 +845,25 @@ GLvoid drawScene()
 	glutSwapBuffers();
 }
 
+// 파티클 생성 함수
+// pos: 발생 위치, color: 색상, count: 개수, speedScale: 퍼지는 속도 계수
+void spawnParticles(glm::vec3 pos, glm::vec3 color, int count, float speedScale) {
+	for (int i = 0; i < count; i++) {
+		Particle p;
+		p.position = pos;
+
+		float rX = ((rand() % 100) / 100.0f - 0.5f) * speedScale;
+		float rY = ((rand() % 100) / 100.0f) * (speedScale * 0.5f);
+		float rZ = ((rand() % 100) / 100.0f - 0.5f) * speedScale;
+
+		p.velocity = glm::vec3(rX, rY, rZ);
+		p.color = color;
+		p.scale = (rand() % 5) / 20.0f + 0.1f; // 0.1 ~ 0.35 크기 랜덤
+		p.life = 1.0f; // 수명 초기화
+
+		particles.push_back(p);
+	}
+}
 void timer(int value)
 {
 	float playerX = playerPos.x;
@@ -823,8 +874,21 @@ void timer(int value)
 	// 주인공이 서 있을 높이 
 	float restingY = 0.5f;
 
-	// 통나무 이동 및 순환
+	// 파티클 물리 업데이트 (이동 및 수명 감소)
+	for (auto it = particles.begin(); it != particles.end(); ) {
+		it->position += it->velocity; // 위치 이동
+		it->life -= 0.05f;            // 수명 감소 (속도 조절 가능)
+		it->scale -= 0.005f;          // 점점 작아짐
 
+		if (it->life <= 0.0f || it->scale <= 0.0f) {
+			it = particles.erase(it); // 수명 다하면 삭제
+		}
+		else {
+			++it;
+		}
+	}
+
+	// 통나무 이동 및 순환
 	for (auto& logObj : logs) {
 		logObj.x += logObj.speed;
 
@@ -919,17 +983,20 @@ void timer(int value)
 		for (int z = -10; z < 10; ++z) generateLane(z);
 	}
 
-	// 코인 로직
+	// 코인 로직 (코인 획득 시 파티클 생성)
 	for (auto& coin : coins) {
 		if (coin.isCollected) continue;
 		if (std::abs(coin.z - playerZ) < playerSize && std::abs(coin.x - playerX) < playerSize) {
 			coin.isCollected = true;
 			coinCount++;
 			printf("Coin collected! Total: %d\n", coinCount);
+
+			// 코인 획득 파티클
+			spawnParticles(glm::vec3(coin.x, 0.5f, coin.z), glm::vec3(1.0f, 0.9f, 0.0f), 10, 0.3f);
 		}
 	}
 
-	// 점프 애니메이션 로직
+	// 점프 애니메이션 및 착지 파티클
 	if (isMoving) {
 		moveTime += 0.016f;
 		float t = glm::clamp(moveTime / MOVE_DURATION, 0.0f, 1.0f);
@@ -937,15 +1004,23 @@ void timer(int value)
 		playerPos.x = glm::mix(playerStartPos.x, playerTargetPos.x, t);
 		playerPos.z = glm::mix(playerStartPos.z, playerTargetPos.z, t);
 
-		// 포물선 점프 
 		float jumpY = JUMP_HEIGHT * 4.0f * t * (1.0f - t);
+		playerPos.y = 0.5f + jumpY; 
 
-		playerPos.y = 0.5f + jumpY;
-
+		// 착지 순간 (t가 1.0 도달)
 		if (t >= 1.0f) {
 			playerPos = playerTargetPos;
-			// 착지 시점의 높이는 다음 프레임 restingY 로직에서 결정됨
 			isMoving = false;
+
+			// [수정됨] 착지 파티클 로직
+			int landZ = (int)std::round(playerPos.z);
+
+			// 강 타입일 때만 파티클 생성
+			if (mapType.count(landZ) && mapType[landZ] == 2) {
+				// 파란색 물 튀김 효과
+				glm::vec3 particleColor = glm::vec3(0.0f, 0.5f, 1.0f);
+				spawnParticles(playerPos, particleColor, 8, 0.2f);
+			}
 		}
 	}
 	glutPostRedisplay();
@@ -983,6 +1058,7 @@ void initFont(const char* filename, float pixelHeight) {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 }
+
 
 void initGame()
 {
