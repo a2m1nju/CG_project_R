@@ -47,6 +47,56 @@ struct CarDesign {
 	float baseScale; //전체크기조절
 };
 
+enum GameSeason {
+	SPRING,
+	SUMMER,
+	AUTUMN,
+	WINTER
+};
+GameSeason currentSeason = SUMMER;
+
+// 계절별 색상 정의 구조체
+struct SeasonColors {
+	glm::vec3 grass;
+	glm::vec3 treeTrunk;
+	glm::vec3 treeFoliageLight;
+	glm::vec3 treeFoliageMedium;
+	glm::vec3 treeFoliageDark;
+};
+//계절 색상 정의
+std::map<GameSeason, SeasonColors> seasonThemes = {
+	{SUMMER, {
+		glm::vec3(0.47f, 0.9f, 0.42f),      // grass (연한 초록)
+		glm::vec3(1.0f, 0.2f, 0.0f),        // treeTrunk (갈색/주황)
+		glm::vec3(0.2f, 0.7f, 0.2f),        // foliageLight (밝은 초록)
+		glm::vec3(0.1f, 0.6f, 0.1f),        // foliageMedium
+		glm::vec3(0.0f, 0.5f, 0.0f)         // foliageDark (진한 초록)
+	}},
+	{AUTUMN, {
+		glm::vec3(0.8f, 0.7f, 0.3f),        // grass (황토색/누런색)
+		glm::vec3(0.6f, 0.25f, 0.05f),      // treeTrunk (진한 갈색)
+		glm::vec3(1.0f, 0.5f, 0.0f),        // foliageLight (주황)
+		glm::vec3(0.8f, 0.3f, 0.1f),        // foliageMedium (빨강/벽돌)
+		glm::vec3(0.5f, 0.1f, 0.1f)         // foliageDark (진한 빨강)
+	}},
+	{WINTER, {
+		glm::vec3(0.9f, 0.95f, 1.0f),       // grass (흰색/옅은 하늘색 눈밭)
+		glm::vec3(0.6f, 0.4f, 0.2f),        // treeTrunk
+		glm::vec3(1.0f, 1.0f, 1.0f),        // foliageLight (하얀 눈 덮인 나뭇잎)
+		glm::vec3(0.9f, 0.9f, 0.9f),        // foliageMedium
+		glm::vec3(0.8f, 0.8f, 0.8f)         // foliageDark
+	}},
+	{SPRING, {
+		glm::vec3(0.47f, 0.9f, 0.42f),        // grass
+		glm::vec3(0.9f, 0.5f, 0.3f),        // treeTrunk
+		glm::vec3(1.0f, 0.7f, 0.8f),        // foliageLight (벚꽃 핑크)
+		glm::vec3(0.8f, 0.5f, 0.6f),        // foliageMedium
+		glm::vec3(0.6f, 0.3f, 0.4f)         // foliageDark
+	}}
+};
+const int LINES_PER_SEASON = 30; // 30 라인마다 계절 전환
+int linesPassedSinceSeasonChange = 0; // 계절이 바뀐 후 통과한 라인 수 (minZ 기준)
+
 // 전역 변수
 GLuint vao, vbo;
 GLuint transLoc;
@@ -137,8 +187,33 @@ int main(int argc, char** argv)
 	glutMainLoop();
 }
 
+GameSeason getSeasonByZ(int z) {
+	//z는 음수 -> 양수로 변환
+	int linesPassed = -z;
+
+	// 현재 계절 시작점 (minZ = 0)을 기준으로 라인 수를 계산합니다.
+	// linesPassed / LINES_PER_SEASON 의 몫을 구하면, 몇 번 계절이 바뀌었는지 알 수 있습니다.
+	int seasonIndex = (linesPassed / LINES_PER_SEASON) % 4; // 0, 1, 2, 3 로 순환
+
+	// 초기 계절 SUMMER (0)을 기준으로 인덱스를 조정하여 계절을 반환합니다.
+	// SUMMBER=1, AUTUMN=2, WINTER=3, SPRING=0
+
+	// 초기 계절: SUMMER (0~29라인)
+	if (seasonIndex == 0) return SUMMER;
+	// 다음 계절: AUTUMN (30~59라인)
+	if (seasonIndex == 1) return AUTUMN;
+	// 다음 계절: WINTER (60~89라인)
+	if (seasonIndex == 2) return WINTER;
+	// 마지막 계절: SPRING (90~119라인)
+	if (seasonIndex == 3) return SPRING;
+
+	return SUMMER; // 안전장치
+}
+
 // 퍼지는 모양 대신 위로 쌓아올린 박스형 나무
 void drawTree(int x, int z,GLuint shader) {
+	
+	const SeasonColors& colors = seasonThemes[getSeasonByZ(z)];
 	glm::mat4 model;
 	//glm::mat4 MVP;
 
@@ -153,7 +228,7 @@ void drawTree(int x, int z,GLuint shader) {
 		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model)); // 
 		
 		if (shader == shaderProgramID) {
-			glVertexAttrib3f(1, 1.0f, 0.2f, 0.0f);
+			glVertexAttrib3f(1, colors.treeTrunk.r, colors.treeTrunk.g, colors.treeTrunk.b);
 		}
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
@@ -173,9 +248,11 @@ void drawTree(int x, int z,GLuint shader) {
 				glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model)); // 
 				
 				if (shader == shaderProgramID) {
-					if (yOffset == 0) glVertexAttrib3f(1, 0.0f, 0.5f, 0.0f); // 진한 초록
-					else if (yOffset == 1) glVertexAttrib3f(1, 0.1f, 0.6f, 0.1f);
-					else glVertexAttrib3f(1, 0.2f, 0.7f, 0.2f); // 밝은 초록
+					glm::vec3 foliageColor;
+					if (yOffset == 0) foliageColor = colors.treeFoliageDark;
+					else if (yOffset == 1) foliageColor = colors.treeFoliageMedium;
+					else foliageColor = colors.treeFoliageLight;
+					glVertexAttrib3f(1, foliageColor.r, foliageColor.g, foliageColor.b);
 				}
 				glDrawArrays(GL_TRIANGLES, 0, 36);
 			}
@@ -228,7 +305,7 @@ void generateLane(int z)
 	if (rand() % 10 < 5) { // 도로
 		mapType[z] = 1;
 		int numCars = 1 + rand() % 2;
-		float speed = (0.1f + (rand() % 5) / 20.0f);
+		float speed = (0.05f + (rand() % 3) / 50.0f);
 		if (rand() % 2 == 0) speed *= -1.0f;
 
 		for (int i = 0; i < numCars; ++i) {
@@ -352,11 +429,11 @@ void drawCoin(const Coin& coin, GLuint shader) {
 	C_Y_offset = 0.1f;
 	base_Y_offset = 0.0f;
 
-	// 다시 C자 모양 부품 계산을 단순화합니다.
+	
 	float C_Y_POS = 0.1f; // 코인 베이스 위에 놓일 높이
 	float C_Y_THICKNESS = 0.1f; // C 부품 자체의 두께
 
-	// 1. 코인 본체 (노란색 큐브)
+	//노란색
 	// Y 오프셋은 0.0f, 스케일 Y는 0.1f로 얇게
 	drawPart(shader, baseModel, glm::vec3(0.0f, base_Y_offset, 0.0f), glm::vec3(0.9f, C_Y_THICKNESS, 0.9f), yellowColor);
 
@@ -386,12 +463,14 @@ void drawCoin(const Coin& coin, GLuint shader) {
 
 void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 {
+	
 	int currentZ = (int)std::round(playerPos.z);
 	int drawRangeFront = 30;
 	int drawRangeBack = 10;
 
 	for (int z = currentZ - drawRangeFront; z <= currentZ + drawRangeBack; ++z) {
 		generateLane(z);
+		const SeasonColors& colors = seasonThemes[getSeasonByZ(z)];
 
 		glm::mat4 model = glm::mat4(1.0f);
 		model = glm::translate(model, glm::vec3(0.0f, -0.5f, (float)z));
@@ -403,7 +482,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 				glVertexAttrib3f(1, 0.2f, 0.2f, 0.2f);
 			}
 			else { // 잔디 (연한 초록)
-				glVertexAttrib3f(1, 0.47f, 0.9f, 0.42f);
+				glVertexAttrib3f(1, colors.grass.r, colors.grass.g, colors.grass.b);
 			}
 		}
 		glDrawArrays(GL_TRIANGLES, 0, 36);
@@ -604,10 +683,16 @@ void timer(int value)
 			score = 0;
 			minZ = 0;
 			coinCount = 0;
-			coins.clear();
+			cars.clear();
+			treeMap.clear();
+			mapType.clear();
 			for (int z = (int)playerPos.z - 10; z < (int)playerPos.z + 10; ++z) {
 				generateLane(z);
 			}
+			//coins.clear();
+			/*for (int z = (int)playerPos.z - 10; z < (int)playerPos.z + 10; ++z) {
+				generateLane(z);
+			}*/
 		}
 	}
 	for (auto& coin : coins) {
@@ -864,6 +949,24 @@ void specialKeyboard(int key, int x, int y)
 			minZ = nextZ;
 			score++;
 			printf("Score: %d\n", score); 
+
+			int currentTotalLines = -minZ;
+
+			
+			//if (currentTotalLines > 0 && (currentTotalLines % LINES_PER_SEASON) == 0) {
+			//	//linesPassedSinceSeasonChange = 0;
+
+			//	// 다음 계절로 전환
+			//	switch (currentSeason) {
+			//	case SPRING: currentSeason = SUMMER; break;
+			//	case SUMMER: currentSeason = AUTUMN; break;
+			//	case AUTUMN: currentSeason = WINTER; break;
+			//	case WINTER: currentSeason = SPRING; break;
+			//	}
+			//	
+			//	printf("Season changed to %d (Lines passed: %d)\n", currentSeason, LINES_PER_SEASON);
+			//}
+		
 		}
 
 		playerStartPos = playerPos;
