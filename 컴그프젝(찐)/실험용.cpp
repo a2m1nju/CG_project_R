@@ -1080,7 +1080,7 @@ void timer(int value)
 	}
 
 	// [충돌 검사 시작]
-	bool isDead = false;
+	bool isDead = false; 
 
 	// 자동차 충돌 검사
 	for (auto& car : cars) {
