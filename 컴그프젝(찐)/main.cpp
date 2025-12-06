@@ -29,6 +29,11 @@ struct Car {
 	int designID;
 };
 
+struct Coin {
+	float x, z;
+	bool isCollected = false; // 획득 여부
+};
+
 //자동차 부품
 struct CarPart {
 	glm::vec3 offset; // 차량 중앙을 기준으로 한 상대적 위치
@@ -60,6 +65,7 @@ const unsigned int SHADOW_WIDTH = 2048, SHADOW_HEIGHT = 2048;
 
 int score = 0;
 int minZ = 0; // 플레이어가 도달한 최대 전진 위치
+int coinCount = 0; // 획득한 코인 개수
 
 glm::vec3 lightPos(-15.0f, 20.0f, 0.0f);
 
@@ -67,6 +73,8 @@ std::map<int, int> mapType; // 0=잔디 1=도로
 std::map<int, std::vector<int>> treeMap;
 std::vector<Car> cars;
 std::vector<CarDesign> carDesigns; 
+std::vector<Coin> coins; // 코인 목록
+
 
 // 폰트 관련 전역 변수
 stbtt_bakedchar cdata[96]; 
@@ -249,6 +257,20 @@ void generateLane(int z)
 				treeMap[z].push_back(x);
 			}
 		}
+		if (rand() % 2 == 0) {
+			
+			//라인 하나에 코인 하나만
+			int coinX = (rand() % 21) - 10;
+
+			//나무가 없을 때만 코인 생성
+			if (!isTreeAt(coinX, z)) {
+				Coin newCoin;
+				newCoin.x = (float)coinX; // 정수 그리드에 배치
+				newCoin.z = (float)z;
+				coins.push_back(newCoin);
+				
+			}
+		}
 	}
 }
 
@@ -305,6 +327,60 @@ void drawChicken(GLuint shader, glm::mat4 baseModel) {
 
 	// 9. 꼬리 (Tail)
 	drawPart(shader, baseModel, glm::vec3(0.0f, -0.1f, 0.35f), glm::vec3(0.3f, 0.3f, 0.1f), white);
+}
+
+void drawCoin(const Coin& coin, GLuint shader) {
+	if (coin.isCollected) return; // 이미 획득했으면 그리지 않음
+
+	
+	glm::mat4 baseModel = glm::translate(glm::mat4(1.0f), glm::vec3(coin.x, 0.5f, coin.z));
+
+	baseModel = glm::scale(baseModel, glm::vec3(0.5f)); // 코인 크기 조절 (0.5f)
+
+	// 노란색 본체 및 빨간색 'C'의 높이
+	glm::vec3 yellowColor = glm::vec3(1.0f, 0.9f, 0.0f); // 노란색
+	glm::vec3 redColor = glm::vec3(1.0f, 0.0f, 0.0f); // 빨간색
+	float C_height = 0.1f; // 'C' 모양 부품의 두께
+
+	// 노란색 베이스의 Y 오프셋: baseModel의 Y=0.5f 위에서 시작
+	float base_Y_offset = 0.0f;
+	// 'C' 모양의 Y 오프셋: 노란색 베이스 (0.1f 높이) 위에 놓이도록
+	float C_Y_offset = base_Y_offset + C_height;
+
+	// Y축 기준으로 코인 전체를 살짝 더 띄웁니다. (코인 중앙이 Y=0.5f + 0.1f에 오도록 조정)
+	// baseModel에 이미 y=0.5f가 있으므로, 부품 오프셋을 0.1f 위로 올립니다.
+	C_Y_offset = 0.1f;
+	base_Y_offset = 0.0f;
+
+	// 다시 C자 모양 부품 계산을 단순화합니다.
+	float C_Y_POS = 0.1f; // 코인 베이스 위에 놓일 높이
+	float C_Y_THICKNESS = 0.1f; // C 부품 자체의 두께
+
+	// 1. 코인 본체 (노란색 큐브)
+	// Y 오프셋은 0.0f, 스케일 Y는 0.1f로 얇게
+	drawPart(shader, baseModel, glm::vec3(0.0f, base_Y_offset, 0.0f), glm::vec3(0.9f, C_Y_THICKNESS, 0.9f), yellowColor);
+
+	// 2. 'C' 모양 구현 (빨간색 조각들)
+	glm::vec3 redColor_C = glm::vec3(1.0f, 0.0f, 0.0f);
+	float C_Y_offset_final = C_Y_POS; // 노란색 베이스 위에 놓일 높이
+	float C_thick = 0.15f;
+	float C_length = 0.4f;
+	float C_span = 0.25f; // C자의 폭
+
+	// A. 세로 막대 (왼쪽)
+	drawPart(shader, baseModel,
+		glm::vec3(-C_span, C_Y_offset_final, 0.0f),
+		glm::vec3(C_thick, C_Y_THICKNESS, C_length), redColor_C);
+
+	// B. 위쪽 막대 (위)
+	drawPart(shader, baseModel,
+		glm::vec3(-C_span / 2.0f + C_thick / 2.0f, C_Y_offset_final, C_length / 2.0f - C_thick / 2.0f),
+		glm::vec3(C_span - C_thick / 2.0f, C_Y_THICKNESS, C_thick), redColor_C);
+
+	// C. 아래쪽 막대 (아래)
+	drawPart(shader, baseModel,
+		glm::vec3(-C_span / 2.0f + C_thick / 2.0f, C_Y_offset_final, -C_length / 2.0f + C_thick / 2.0f),
+		glm::vec3(C_span - C_thick / 2.0f, C_Y_THICKNESS, C_thick), redColor_C);
 }
 
 
@@ -368,6 +444,11 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 		}*/
 		//glDrawArrays(GL_TRIANGLES, 0, 36);
 		drawCar(car, shader);
+	}
+	//코인들
+	for (const auto& coin : coins) {
+		if (coin.z < currentZ - drawRangeFront || coin.z > currentZ + drawRangeBack) continue;
+		drawCoin(coin, shader);
 	}
 
 	// 플레이어
@@ -495,11 +576,21 @@ GLvoid drawScene()
 	std::string scoreStr = "SCORE: " + std::to_string(score);
 	renderTextWithOutline(20, 60, scoreStr.c_str());
 
+	// [추가] 코인 개수 표시 (우측 상단)
+	std::string coinStr = "COINS: " + std::to_string(coinCount);
+	
+	renderTextWithOutline(1050, 60, coinStr.c_str()); // 1050 (1280 - 230 정도)
+
 	glutSwapBuffers();
 }
 
 void timer(int value)
 {
+	float playerX = playerPos.x;
+	float playerZ = playerPos.z;
+	float playerSize = 0.5f; // 플레이어 충돌 범위
+	float coinSize = 0.5f;   // 코인 충돌 범위
+
 	for (auto& car : cars) {
 		car.x += car.speed;
 		if (car.x > 15.0f && car.speed > 0) car.x = -15.0f;
@@ -512,6 +603,19 @@ void timer(int value)
 			isMoving = false;
 			score = 0;
 			minZ = 0;
+			coinCount = 0;
+			coins.clear();
+			for (int z = (int)playerPos.z - 10; z < (int)playerPos.z + 10; ++z) {
+				generateLane(z);
+			}
+		}
+	}
+	for (auto& coin : coins) {
+		if (coin.isCollected) continue;
+		if(std::abs(coin.z - playerZ) < playerSize && std::abs(coin.x - playerX) < playerSize) {
+			coin.isCollected = true;
+			coinCount++; // 코인 개수 증가
+			printf("Coin collected! Total: %d\n", coinCount);
 		}
 	}
 	if (isMoving) {
