@@ -28,6 +28,10 @@ struct Car {
 	glm::vec3 color;
 	int designID;
 };
+struct Log {
+	float x, z;
+	float speed;
+};
 
 struct Coin {
 	float x, z;
@@ -137,11 +141,12 @@ int riverRemaining = 0; // 현재 강 구간이 진행 중인지 저장하는 전역 변수
 
 glm::vec3 lightPos(-15.0f, 20.0f, 0.0f);
 
-std::map<int, int> mapType; // 0=잔디 1=도로
+std::map<int, int> mapType; // 0=잔디 1=도로 2=물 
 std::map<int, std::vector<int>> treeMap;
 std::vector<Car> cars;
 std::vector<CarDesign> carDesigns; 
 std::vector<Coin> coins; // 코인 목록
+std::vector<Log> logs;
 
 
 // 폰트 관련 전역 변수
@@ -280,6 +285,20 @@ void drawTree(int x, int z,GLuint shader) {
 
 
 void drawCar(const Car& car, GLuint shader) {
+	
+	if (car.designID == -1) {
+		glm::mat4 logModel = glm::translate(glm::mat4(1.0f), glm::vec3(car.x, 0.4f, car.z)); // 0.4f로 물보다 약간 낮게
+		logModel = glm::scale(logModel, glm::vec3(1.8f, 0.4f, 0.8f)); // 통나무 모양
+
+		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(logModel));
+		if (shader == shaderProgramID) {
+			glVertexAttrib3f(1, car.color.r, car.color.g, car.color.b); // 통나무 색상
+		}
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+		return;
+	}
+	
+	
 	if (car.designID < 0 || car.designID >= carDesigns.size()) return;
 
 	const CarDesign& design = carDesigns[car.designID];
@@ -316,12 +335,19 @@ void generateLane(int z)
 	// 현재 줄이 이미 생성되어 있다면 패스
 	if (mapType.find(z) != mapType.end()) return;
 
+<<<<<<< HEAD
 	// 시작 지점 안전지대 (-2 ~ 2)
+=======
+
+>>>>>>> 94bd508f9f53a23a732718e1db8d33df0db9e0cc
 	if (z >= -2 && z <= 2) {
 		mapType[z] = 0;
 		return;
 	}
+	int laneChance = rand() % 10; // 0=도로, 1=잔디, 2=물 
+	
 
+<<<<<<< HEAD
 	static int lastRiverZ = 0; // 마지막으로 강이 생성된 위치 기억
 
 	int growDir = (z < 0) ? -1 : 1;
@@ -337,6 +363,11 @@ void generateLane(int z)
 		mapType[z] = 1; // 도로
 
 		int numCars = 1 + rand() % 2;
+=======
+	if (laneChance < 4) { // 도로
+		mapType[z] = 1;
+		int numCars = 1 + rand() % 3; 
+>>>>>>> 94bd508f9f53a23a732718e1db8d33df0db9e0cc
 		float speed = (0.05f + (rand() % 3) / 50.0f);
 		if (rand() % 2 == 0) speed *= -1.0f;
 
@@ -351,6 +382,7 @@ void generateLane(int z)
 			cars.push_back(newCar);
 		}
 	}
+<<<<<<< HEAD
 
 	// 강
 	else if ((forceRiver || randVal < 7) && !prevWasRiver) {
@@ -437,6 +469,10 @@ void generateLane(int z)
 	MAKE_GRASS:
 		mapType[z] = 0; // 잔디
 
+=======
+	else if(laneChance < 8) { // 잔디
+		mapType[z] = 0;
+>>>>>>> 94bd508f9f53a23a732718e1db8d33df0db9e0cc
 		for (int x = -15; x <= 15; ++x) {
 			if (rand() % 10 < 1) {
 				treeMap[z].push_back(x);
@@ -451,6 +487,27 @@ void generateLane(int z)
 				coins.push_back(newCoin);
 			}
 		}
+	}
+	else  {
+		mapType[z] = 2; // 물 타입 정의
+
+		int numLogs = 2 + rand() % 3; // 통나무 2~4개
+		float speed = (0.04f + (rand() % 3) / 50.0f); // 통나무는 차보다 느리게
+		if (rand() % 2 == 0) speed *= -1.0f;
+
+		for (int i = 0; i < numLogs; ++i) {
+			Car newLog;
+			newLog.z = (float)z;
+			newLog.x = (float)(rand() % 30 - 15);
+			newLog.speed = speed;
+
+			// 통나무 식별을 위한 color 및 designID (Log용 디자인이 없으므로 임의의 값 사용)
+			newLog.color = glm::vec3(0.5f, 0.25f, 0.0f); // 나무 색상
+			newLog.designID = -1; // -1을 통나무 식별자로 사용
+
+			cars.push_back(newLog);
+		}
+
 	}
 }
 
@@ -601,17 +658,27 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 
 		glm::mat4 model = glm::mat4(1.0f);
 		model = glm::translate(model, glm::vec3(0.0f, -0.5f, (float)z));
-		model = glm::scale(model, glm::vec3(31.0f, 1.0f, 1.0f));
+		//  잔디인 경우 높이(Y 스케일)를 2.0f로 설정
+		float groundScaleY = (mapType.count(z) && mapType[z] == 0) ? 1.0f : 1.0f; // 잔디(0)일 때만 높이 2.0f
+
+		model = glm::scale(model, glm::vec3(31.0f, groundScaleY, 1.0f));
 
 		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
 		if (shader == shaderProgramID) {
 			if (mapType[z] == 1) { // 도로
 				glVertexAttrib3f(1, 0.2f, 0.2f, 0.2f);
 			}
+<<<<<<< HEAD
 			else if (mapType[z] == 2) { // 강
 				glVertexAttrib3f(1, 0.0f, 0.5f, 1.0f);
 			}
 			else { // 잔디
+=======
+			else if (mapType[z] == 2) { // [추가] 물 (하늘색)
+				glVertexAttrib3f(1, 0.1f, 0.6f, 0.9f);
+			}
+			else { // 잔디 (Z 기반 계절 색상 적용)
+>>>>>>> 94bd508f9f53a23a732718e1db8d33df0db9e0cc
 				glVertexAttrib3f(1, colors.grass.r, colors.grass.g, colors.grass.b);
 			}
 		}
@@ -815,12 +882,21 @@ void timer(int value)
 {
 	float playerX = playerPos.x;
 	float playerZ = playerPos.z;
+<<<<<<< HEAD
 	float playerSize = 0.5f;
 	float coinSize = 0.5f;
+=======
+	float playerSize = 0.5f; // 플레이어 충돌 범위
+	float coinSize = 0.5f;   // 코인 충돌 범위
+	bool isGameOver = false; // 게임 오버 상태
+	float playerOnLogY = 1.09f;
+
+>>>>>>> 94bd508f9f53a23a732718e1db8d33df0db9e0cc
 
 	// 주인공이 서 있을 높이 
 	float restingY = 0.5f;
 
+<<<<<<< HEAD
 	// 통나무 이동 및 순환
 
 	for (auto& logObj : logs) {
@@ -883,10 +959,50 @@ void timer(int value)
 					safe = true;
 					// 연잎 위에 있을 때 높이 상승
 					restingY = 0.93f;
+=======
+
+		/*if (abs(car.z - playerPos.z) < 0.08f && abs(car.x - playerPos.x) < 1.2f) {
+			playerPos = glm::vec3(0.0f, 0.5f, 0.0f);
+			playerTargetPos = playerPos;
+			playerStartPos = playerPos;
+			isMoving = false;
+			score = 0;
+			minZ = 0;
+			coinCount = 0;
+			cars.clear();
+			treeMap.clear();
+			mapType.clear();
+			for (int z = (int)playerPos.z - 10; z < (int)playerPos.z + 10; ++z) {
+				generateLane(z);
+			}*/
+			
+			
+		if (car.designID != -1) { // 일반 차량인 경우
+			// 충돌 범위 (z는 0.08f, x는 1.2f)
+			if (abs(car.z - playerPos.z) < 0.08f && abs(car.x - playerPos.x) < 1.2f) {
+				isGameOver = true;
+				break; // 차량에 치이면 즉시 루프 탈출
+			}
+		}
+		
+	}
+	int playerGridZ = (int)std::round(playerPos.z);
+
+	if (!isGameOver&&mapType.count(playerGridZ) && mapType[playerGridZ] == 2) { // 현재 물 라인이라면
+		bool safeOnLog = false;
+		float logSpeed = 0.0f;
+
+		for (const auto& log : cars) {
+			if (log.designID == -1 && std::abs(log.z - playerGridZ) < 0.5f) { // 같은 물 라인의 통나무
+				if (std::abs(log.x - playerPos.x) < 1.0f) { // 통나무 위에 있다면
+					safeOnLog = true;
+					logSpeed = log.speed;
+>>>>>>> 94bd508f9f53a23a732718e1db8d33df0db9e0cc
 					break;
 				}
 			}
 		}
+<<<<<<< HEAD
 
 		if (!safe) isDead = true;
 		if (playerPos.x < -16.0f || playerPos.x > 16.0f) isDead = true;
@@ -902,6 +1018,28 @@ void timer(int value)
 
 	// 사망 처리
 	if (isDead) {
+=======
+		if (safeOnLog) {
+			// 통나무와 함께 이동
+			playerPos.x += logSpeed;
+			playerTargetPos.x += logSpeed;
+			playerStartPos.x += logSpeed;
+			playerPos.y = playerOnLogY;
+
+			// 통나무에서 떨어지면 죽음
+			if (std::abs(playerPos.x) > 15.0f) {
+				safeOnLog = false;
+			}
+		}
+
+		else {
+			// 물에 빠짐 (게임 오버)
+			
+			isGameOver = true;
+			}
+		}
+	if (isGameOver) {
+>>>>>>> 94bd508f9f53a23a732718e1db8d33df0db9e0cc
 		playerPos = glm::vec3(0.0f, 0.5f, 0.0f);
 		playerTargetPos = playerPos;
 		playerStartPos = playerPos;
@@ -909,6 +1047,7 @@ void timer(int value)
 		score = 0;
 		minZ = 0;
 		coinCount = 0;
+<<<<<<< HEAD
 		cars.clear();
 		logs.clear();
 		lilyPads.clear();
@@ -944,10 +1083,65 @@ void timer(int value)
 			playerPos = playerTargetPos;
 			// 착지 시점의 높이는 다음 프레임 restingY 로직에서 결정됨
 			isMoving = false;
+=======
+
+		// 맵 리셋 (코인 위치 유지 및 획득된 코인 재활성화)
+		cars.clear();
+		treeMap.clear();
+		mapType.clear();
+		for (int z = (int)playerPos.z - 10; z < (int)playerPos.z + 10; ++z) {
+			generateLane(z);
+		}
+		for (auto& coin : coins) {
+			coin.isCollected = false;
+		}
+	} // <-- 여기서 게임 오버 블록이 끝납니다
+	if (!isGameOver) {
+		for (auto& coin : coins) {
+			if (coin.isCollected) continue;
+			if (std::abs(coin.z - playerZ) < playerSize && std::abs(coin.x - playerX) < playerSize) {
+				coin.isCollected = true;
+				coinCount++; // 코인 개수 증가
+				printf("Coin collected! Total: %d\n", coinCount);
+			}
+>>>>>>> 94bd508f9f53a23a732718e1db8d33df0db9e0cc
 		}
 	}
-	glutPostRedisplay();
-	glutTimerFunc(16, timer, 0);
+
+		for (auto& coin : coins) {
+			if (coin.isCollected) continue;
+			if (std::abs(coin.z - playerZ) < playerSize && std::abs(coin.x - playerX) < playerSize) {
+				coin.isCollected = true;
+				coinCount++; // 코인 개수 증가
+				printf("Coin collected! Total: %d\n", coinCount);
+			}
+		}
+		if (isMoving && !isGameOver) {
+
+			moveTime += 0.016f;
+
+			// 보간 비율 t 계산 
+			float t = glm::clamp(moveTime / MOVE_DURATION, 0.0f, 1.0f);
+
+			//점프할려고
+			playerPos.x = glm::mix(playerStartPos.x, playerTargetPos.x, t);
+			playerPos.z = glm::mix(playerStartPos.z, playerTargetPos.z, t);
+
+			//포물선
+			//t * (1.0f - t)
+			float jumpY = JUMP_HEIGHT * 4.0f * t * (1.0f - t);
+			playerPos.y = 0.5f + jumpY;
+
+			if (t >= 1.0f) {
+
+				playerPos = playerTargetPos;
+				playerPos.y = playerTargetPos.y;
+				isMoving = false;
+			}
+		}
+		glutPostRedisplay();
+		glutTimerFunc(16, timer, 0);
+	
 }
 
 // 폰트 초기화 함수
@@ -1190,9 +1384,18 @@ void specialKeyboard(int key, int x, int y)
 		}
 
 		playerStartPos = playerPos;
-
+		float targetY = 0.5f;
+		if (mapType.count(nextZ) && mapType[nextZ] == 2) {
+			// 통나무 라인이라면 Y를 1.09f로 설정
+			targetY = 1.09f;
+		}
 		playerTargetPos = glm::vec3((float)nextX, 0.5f, (float)nextZ);
-
+		if (mapType.count((int)std::round(playerPos.z)) && mapType[(int)std::round(playerPos.z)] == 2) {
+			playerStartPos.y = 1.09f;
+		}
+		else {
+			playerStartPos.y = 0.5f;
+		}
 		
 		isMoving = true;
 		moveTime = 0.0f;
