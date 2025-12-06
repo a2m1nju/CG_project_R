@@ -167,6 +167,12 @@ int coinCount = 0; // 획득한 코인 개수
 
 int riverRemaining = 0; // 현재 강 구간이 진행 중인지 저장하는 전역 변수
 
+bool isDashing = false; 
+float dashTimer = 0.0f; // 대쉬 남은 시간
+const float DASH_DURATION = 1.0f; // 대쉬 지속 시간 (1초)
+const float DASH_COOLDOWN = 3.0f; // 대쉬 재사용 대기 시간 (3초)
+float dashCooldownTimer = 0.0f; // 재사용 대기 시간 타이머
+const int DASH_COST = 7; // 대쉬에 필요한 코인 개수
 glm::vec3 lightPos(-15.0f, 20.0f, 0.0f);
 
 std::map<int, int> mapType; // 0=잔디 1=도로
@@ -1020,6 +1026,30 @@ GLvoid drawScene()
 	std::string coinStr = "COINS: " + std::to_string(coinCount);
 	renderTextWithOutline(1050, 60, coinStr.c_str());
 
+	std::string dashStr;
+	float dashR = 1.0f, dashG = 1.0f, dashB = 0.0f; // 기본 색상 (노랑)
+
+	if (isDashing) {
+		dashStr = "DASH! (" + std::to_string((int)(dashTimer * 10) / 10.0f) + "s)";
+		dashR = 1.0f; dashG = 0.0f; dashB = 0.0f; // 빨강
+	}
+	else if (dashCooldownTimer > 0.0f) {
+		dashStr = "CD: " + std::to_string((int)(dashCooldownTimer * 10) / 10.0f) + "s";
+		dashR = 0.5f; dashG = 0.5f; dashB = 0.5f; // 회색
+	}
+	else if (coinCount >= DASH_COST) {
+		dashStr = "DASH ";
+		dashR = 0.0f; dashG = 1.0f; dashB = 0.0f; // 초록
+	}
+	else {
+		dashStr = "NEED " + std::to_string(DASH_COST - coinCount) + " COINS FOR DASH";
+		dashR = 1.0f; dashG = 0.5f; dashB = 0.0f; // 주황
+	}
+
+	// 텍스트는 화면 중앙 하단에 가깝게 표시 (예: Y=900)
+	// 텍스트를 그릴 때는 Outline 함수 대신 직접 renderTextTTF를 사용하여 색상을 적용합니다.
+    
+
 	glutSwapBuffers();
 }
 
@@ -1060,178 +1090,250 @@ void timer(int value)
 		if (it->life <= 0.0f || it->scale <= 0.0f) it = particles.erase(it);
 		else ++it;
 	}
-
-	// 통나무 이동 및 순환
-	for (auto& logObj : logs) {
-		logObj.x += logObj.speed;
-		if (logObj.speed > 0 && logObj.x > 20.0f) logObj.x = -20.0f;
-		else if (logObj.speed < 0 && logObj.x < -20.0f) logObj.x = 20.0f;
-
-		bool onLog = (std::abs(playerPos.z - logObj.z) < 0.1f) &&
-			(playerPos.x >= logObj.x - logObj.width / 2.0f - 0.3f) &&
-			(playerPos.x <= logObj.x + logObj.width / 2.0f + 0.3f);
-
-		if (!isMoving && onLog) {
-			playerPos.x += logObj.speed;
-			playerTargetPos.x += logObj.speed;
-			playerStartPos.x += logObj.speed;
-			restingY = 1.1f;
-		}
+	if (dashCooldownTimer > 0.0f) {
+		dashCooldownTimer -= 0.016f;
+		if (dashCooldownTimer < 0.0f) dashCooldownTimer = 0.0f;
 	}
 
-	// [충돌 검사 시작]
-	bool isDead = false;
-
-	// 자동차 충돌 검사
-	for (auto& car : cars) {
-		car.x += car.speed;
-		if (car.x > 18.0f && car.speed > 0) car.x = -18.0f;
-		if (car.x < -18.0f && car.speed < 0) car.x = 18.0f;
-
-		if (abs(car.z - playerPos.z) < 0.2f && abs(car.x - playerPos.x) < 0.8f) {
-			isDead = true;
+	if (isDashing) {
+		const float DASH_SPEED = 0.5f;
+		playerPos.z -= DASH_SPEED;
+		dashTimer -= 0.016f;
+		int currentZ = (int)std::round(playerPos.z);
+		if (currentZ < minZ) {
+			minZ = currentZ;
+			score++;
+			printf("Score: %d (DASH)\n", score);
 		}
-		if (abs(car.z - playerPos.z) < 0.08f && abs(car.x - playerPos.x) < 1.2f) {
-			isDead = true;
+		if (dashTimer <= 0.0f) {
+			isDashing = false;
+			dashCooldownTimer = DASH_COOLDOWN;
+			playerPos.x = (float)std::round(playerPos.x);
+			playerPos.z = (float)std::round(playerPos.z);
+			// 다음 움직임을 위해 playerTargetPos도 현재 위치로 업데이트
+			playerTargetPos = playerPos;
+			printf("대쉬 종료. 쿨다운 시작: %.1f초\n", DASH_COOLDOWN);
+		}
+		
+	}
+	
+	else {
+		if (!isMoving && dashCooldownTimer <= 0.0f && coinCount >= DASH_COST) {
+			// 코인 사용
+			coinCount -= DASH_COST;
+
+			// 대쉬 상태 시작
+			isDashing = true;
+			dashTimer = DASH_DURATION;
+
+			// 시각적 피드백: 무적 대쉬 발동 파티클
+			spawnParticles(playerPos, glm::vec3(1.0f, 0.5f, 0.0f), 20, 0.8f);
+			printf("코인 7개 달성! 무적 대쉬 자동 발동! 남은 시간: %.1f초\n", DASH_DURATION);
 		}
 	}
+	if (!isDashing) {
+		// 통나무 이동 및 순환
+		for (auto& logObj : logs) {
+			logObj.x += logObj.speed;
+			if (logObj.speed > 0 && logObj.x > 20.0f) logObj.x = -20.0f;
+			else if (logObj.speed < 0 && logObj.x < -20.0f) logObj.x = 20.0f;
 
-	// 익사(물) 판정
-	int pZ = (int)std::round(playerPos.z);
-	if (!isMoving && mapType.count(pZ) && mapType[pZ] == 2) {
-		bool safe = false;
-		// 통나무 체크 
-		for (const auto& logObj : logs) {
-			if (logObj.z == (float)pZ &&
-				playerPos.x >= logObj.x - logObj.width / 2.0f - 0.4f &&
-				playerPos.x <= logObj.x + logObj.width / 2.0f + 0.4f) {
-				safe = true;
+			bool onLog = (std::abs(playerPos.z - logObj.z) < 0.1f) &&
+				(playerPos.x >= logObj.x - logObj.width / 2.0f - 0.3f) &&
+				(playerPos.x <= logObj.x + logObj.width / 2.0f + 0.3f);
+
+			if (!isMoving && onLog) {
+				playerPos.x += logObj.speed;
+				playerTargetPos.x += logObj.speed;
+				playerStartPos.x += logObj.speed;
 				restingY = 1.1f;
 				break;
 			}
 		}
-		// 연잎 체크
-		if (!safe) {
-			for (const auto& pad : lilyPads) {
-				if (pad.z == (float)pZ && std::abs(playerPos.x - pad.x) < 0.6f) {
+
+		// [충돌 검사 시작]
+		bool isDead = false;
+
+		// 자동차 충돌 검사
+		for (auto& car : cars) {
+			car.x += car.speed;
+			if (car.x > 18.0f && car.speed > 0) car.x = -18.0f;
+			if (car.x < -18.0f && car.speed < 0) car.x = 18.0f;
+
+			if (abs(car.z - playerPos.z) < 0.2f && abs(car.x - playerPos.x) < 0.8f) {
+				isDead = true;
+			}
+			if (abs(car.z - playerPos.z) < 0.08f && abs(car.x - playerPos.x) < 1.2f) {
+				isDead = true;
+			}
+		}
+
+		// 익사(물) 판정
+		int pZ = (int)std::round(playerPos.z);
+		if (!isMoving && mapType.count(pZ) && mapType[pZ] == 2) {
+			bool safe = false;
+			// 통나무 체크 
+			for (const auto& logObj : logs) {
+				if (logObj.z == (float)pZ &&
+					playerPos.x >= logObj.x - logObj.width / 2.0f - 0.4f &&
+					playerPos.x <= logObj.x + logObj.width / 2.0f + 0.4f) {
 					safe = true;
-					restingY = 0.93f;
+					restingY = 1.1f;
 					break;
 				}
 			}
-		}
-		if (!safe) isDead = true;
-		if (playerPos.x < -16.0f || playerPos.x > 16.0f) isDead = true;
-	}
-
-	// 기차 충돌 검사
-	for (auto& t : trains) {
-		switch (t.state) {
-		case TRAIN_IDLE:
-			t.timer--;
-			if (t.timer <= 0) {
-				t.state = TRAIN_WARNING;
-				t.timer = 120;
-			}
-			break;
-		case TRAIN_WARNING:
-			t.timer--;
-			if ((t.timer / 10) % 2 == 0) t.isLightOn = true;
-			else t.isLightOn = false;
-
-			if (t.timer <= 0) {
-				t.state = TRAIN_PASSING;
-				t.x = -60.0f;
-				t.speed = 3.0f;
-			}
-			break;
-		case TRAIN_PASSING:
-			t.x += t.speed;
-
-			// 충돌 체크
-			{
-				int playerGridZ = (int)std::round(playerPos.z);
-				int trainGridZ = (int)std::round(t.z);
-
-				if (playerGridZ == trainGridZ) {
-					if (playerPos.x > t.x - 9.0f && playerPos.x < t.x + 9.0f) {
-						isDead = true;
-						printf("기차에 치임!\n");
+			// 연잎 체크
+			if (!safe) {
+				for (const auto& pad : lilyPads) {
+					if (pad.z == (float)pZ && std::abs(playerPos.x - pad.x) < 0.6f) {
+						safe = true;
+						restingY = 0.93f;
+						break;
 					}
 				}
 			}
+			if (!safe) isDead = true;
+			if (playerPos.x < -16.0f || playerPos.x > 16.0f) isDead = true;
+		}
 
-			if (t.x > 60.0f) {
-				t.state = TRAIN_IDLE;
-				t.timer = rand() % 300 + 200;
+		// 기차 충돌 검사
+		for (auto& t : trains) {
+			switch (t.state) {
+			case TRAIN_IDLE:
+				t.timer--;
+				if (t.timer <= 0) {
+					t.state = TRAIN_WARNING;
+					t.timer = 120;
+				}
+				break;
+			case TRAIN_WARNING:
+				t.timer--;
+				if ((t.timer / 10) % 2 == 0) t.isLightOn = true;
+				else t.isLightOn = false;
+
+				if (t.timer <= 0) {
+					t.state = TRAIN_PASSING;
+					t.x = -60.0f;
+					t.speed = 3.0f;
+				}
+				break;
+			case TRAIN_PASSING:
+				t.x += t.speed;
+
+				// 충돌 체크
+				if (t.state == TRAIN_PASSING)
+				{
+					int playerGridZ = (int)std::round(playerPos.z);
+					int trainGridZ = (int)std::round(t.z);
+
+					if (playerGridZ == trainGridZ) {
+						if (playerPos.x > t.x - 9.0f && playerPos.x < t.x + 9.0f) {
+							isDead = true;
+							printf("기차에 치임!\n");
+						}
+					}
+				}
+
+				if (t.x > 60.0f) {
+					t.state = TRAIN_IDLE;
+					t.timer = rand() % 300 + 200;
+				}
+				break;
 			}
-			break;
+		}
+
+		if (isDead) {
+			playerPos = glm::vec3(0.0f, 0.5f, 0.0f);
+			playerTargetPos = playerPos;
+			playerStartPos = playerPos;
+			isMoving = false;
+			isDashing = false; // 대쉬 상태 초기화
+			dashTimer = 0.0f;
+			dashCooldownTimer = 0.0f;
+			score = 0;
+			minZ = 0;
+			coinCount = 0;
+			cars.clear();
+			logs.clear();
+			lilyPads.clear();
+			treeMap.clear();
+			mapType.clear();
+			trains.clear();
+			particles.clear();
+			for (int z = -10; z < 10; ++z) generateLane(z);
+
+			glutPostRedisplay();
+			glutTimerFunc(16, timer, 0);
+			return;
+
+		}
+
+		// 코인 로직
+		for (auto& coin : coins) {
+			if (coin.isCollected) continue;
+			if (std::abs(coin.z - playerZ) < playerSize && std::abs(coin.x - playerX) < playerSize) {
+				coin.isCollected = true;
+				coinCount++;
+				printf("Coin collected! Total: %d\n", coinCount);
+				spawnParticles(glm::vec3(coin.x, 0.5f, coin.z), glm::vec3(1.0f, 0.9f, 0.0f), 10, 0.3f);
+			}
+		}
+
+		// 점프 애니메이션
+		if (isMoving) {
+			moveTime += 0.016f;
+			float t = glm::clamp(moveTime / MOVE_DURATION, 0.0f, 1.0f);
+
+			playerPos.x = glm::mix(playerStartPos.x, playerTargetPos.x, t);
+			playerPos.z = glm::mix(playerStartPos.z, playerTargetPos.z, t);
+
+			float jumpY = JUMP_HEIGHT * 4.0f * t * (1.0f - t);
+			playerPos.y = 0.5f + jumpY;
+
+			if (t >= 1.0f) {
+				playerPos = playerTargetPos;
+				isMoving = false;
+
+				int landZ = (int)std::round(playerPos.z);
+				if (mapType.count(landZ) && mapType[landZ] == 2) {
+					glm::vec3 particleColor = glm::vec3(0.0f, 0.5f, 1.0f);
+					spawnParticles(playerPos, particleColor, 8, 0.2f);
+				}
+			}
+		}
+
+		// 점프 애니메이션 (대쉬 중에는 일반 점프를 막아야 함. isDashing은 isMoving과 동시에 실행되지 않도록 보장)
+		if (isMoving && !isDashing) {
+			moveTime += 0.016f;
+			float t = glm::clamp(moveTime / MOVE_DURATION, 0.0f, 1.0f);
+
+			playerPos.x = glm::mix(playerStartPos.x, playerTargetPos.x, t);
+			playerPos.z = glm::mix(playerStartPos.z, playerTargetPos.z, t);
+
+			float jumpY = JUMP_HEIGHT * 4.0f * t * (1.0f - t);
+			playerPos.y = 0.5f + jumpY;
+
+			if (t >= 1.0f) {
+				playerPos = playerTargetPos;
+				isMoving = false;
+
+				int landZ = (int)std::round(playerPos.z);
+				if (mapType.count(landZ) && mapType[landZ] == 2) {
+					glm::vec3 particleColor = glm::vec3(0.0f, 0.5f, 1.0f);
+					spawnParticles(playerPos, particleColor, 8, 0.2f);
+				}
+			}
+		}
+		// 점프 중이 아닐 때 높이 적용
+		if (!isMoving && !isDashing) {
+			playerPos.y = restingY;
+			playerStartPos.y = restingY;
 		}
 	}
-
-	if (isDead) {
-		playerPos = glm::vec3(0.0f, 0.5f, 0.0f);
-		playerTargetPos = playerPos;
-		playerStartPos = playerPos;
-		isMoving = false;
-		score = 0;
-		minZ = 0;
-		coinCount = 0;
-		cars.clear();
-		logs.clear();
-		lilyPads.clear();
-		treeMap.clear();
-		mapType.clear();
-		trains.clear();
-		particles.clear();
-		for (int z = -10; z < 10; ++z) generateLane(z);
 
 		glutPostRedisplay();
 		glutTimerFunc(16, timer, 0);
-		return;
-	}
-
-	// 점프 중이 아닐 때 높이 적용
-	if (!isMoving) {
-		playerPos.y = restingY;
-		playerStartPos.y = restingY;
-	}
-
-	// 코인 로직
-	for (auto& coin : coins) {
-		if (coin.isCollected) continue;
-		if (std::abs(coin.z - playerZ) < playerSize && std::abs(coin.x - playerX) < playerSize) {
-			coin.isCollected = true;
-			coinCount++;
-			printf("Coin collected! Total: %d\n", coinCount);
-			spawnParticles(glm::vec3(coin.x, 0.5f, coin.z), glm::vec3(1.0f, 0.9f, 0.0f), 10, 0.3f);
-		}
-	}
-
-	// 점프 애니메이션
-	if (isMoving) {
-		moveTime += 0.016f;
-		float t = glm::clamp(moveTime / MOVE_DURATION, 0.0f, 1.0f);
-
-		playerPos.x = glm::mix(playerStartPos.x, playerTargetPos.x, t);
-		playerPos.z = glm::mix(playerStartPos.z, playerTargetPos.z, t);
-
-		float jumpY = JUMP_HEIGHT * 4.0f * t * (1.0f - t);
-		playerPos.y = 0.5f + jumpY;
-
-		if (t >= 1.0f) {
-			playerPos = playerTargetPos;
-			isMoving = false;
-
-			int landZ = (int)std::round(playerPos.z);
-			if (mapType.count(landZ) && mapType[landZ] == 2) {
-				glm::vec3 particleColor = glm::vec3(0.0f, 0.5f, 1.0f);
-				spawnParticles(playerPos, particleColor, 8, 0.2f);
-			}
-		}
-	}
-	glutPostRedisplay();
-	glutTimerFunc(16, timer, 0);
+	
 }
 
 // 폰트 초기화 함수
@@ -1423,6 +1525,7 @@ bool isTreeAt(int x, int z) {
 void specialKeyboard(int key, int x, int y)
 {
 	if (isMoving) return;
+	if (isMoving || isDashing) return;
 
 
 	int nextX = (int)std::round(playerPos.x);
@@ -1490,6 +1593,29 @@ void keyboard(unsigned char key, int x, int y)
 {
 	if (key == 'q' || key == 'Q') {
 		exit(0);
+	}
+
+	if (key == ' ') {
+		if (!isDashing && !isMoving && dashCooldownTimer <= 0.0f && coinCount >= DASH_COST) {
+
+			// 코인 사용
+			coinCount -= DASH_COST;
+
+			// 대쉬 상태 시작
+			isDashing = true;
+			dashTimer = DASH_DURATION;
+
+			// 시각적 피드백: 무적 대쉬 발동 파티클
+			spawnParticles(playerPos, glm::vec3(1.0f, 0.5f, 0.0f), 20, 0.8f);
+			printf("무적 대쉬 발동! 남은 시간: %.1f초\n", DASH_DURATION);
+		}
+		else {
+			// 실패 피드백 
+			if (isDashing) printf("이미 대쉬 중입니다.\n");
+			if (isMoving) printf("움직이는 중에는 대쉬를 사용할 수 없습니다.\n");
+			if (dashCooldownTimer > 0.0f) printf("재사용 대기 시간 (%.1f초)이 남았습니다.\n", dashCooldownTimer);
+			if (coinCount < DASH_COST) printf("코인이 부족합니다 (필요: %d, 현재: %d)\n", DASH_COST, coinCount);
+		}
 	}
 }
 
