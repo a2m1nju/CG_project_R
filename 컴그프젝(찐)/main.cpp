@@ -28,10 +28,6 @@ struct Car {
 	glm::vec3 color;
 	int designID;
 };
-struct Log {
-	float x, z;
-	float speed;
-};
 
 struct Coin {
 	float x, z;
@@ -121,11 +117,11 @@ std::vector<LilyPad> lilyPads;
 GLuint vao, vbo;
 GLuint transLoc;
 glm::vec3 playerPos(0.0f, 0.5f, 0.0f);
-glm::vec3 playerTargetPos = playerPos; 
+glm::vec3 playerTargetPos = playerPos;
 glm::vec3 playerStartPos = playerPos; //애니메이션 시작 위치
 float playerRotation = 0.0f;
 bool isMoving = false;
-float moveTime = 0.0f; 
+float moveTime = 0.0f;
 const float MOVE_DURATION = 0.20f; //한칸이동시간
 const float JUMP_HEIGHT = 1.0f; //최대점프높이
 glm::mat4 PV; // 나무 그리기 함수와 공유할 전역 행렬
@@ -141,17 +137,16 @@ int riverRemaining = 0; // 현재 강 구간이 진행 중인지 저장하는 전역 변수
 
 glm::vec3 lightPos(-15.0f, 20.0f, 0.0f);
 
-std::map<int, int> mapType; // 0=잔디 1=도로 2=물 
+std::map<int, int> mapType; // 0=잔디 1=도로
 std::map<int, std::vector<int>> treeMap;
 std::vector<Car> cars;
-std::vector<CarDesign> carDesigns; 
+std::vector<CarDesign> carDesigns;
 std::vector<Coin> coins; // 코인 목록
-std::vector<Log> logs;
 
 
 // 폰트 관련 전역 변수
-stbtt_bakedchar cdata[96]; 
-GLuint fontTexture;       
+stbtt_bakedchar cdata[96];
+GLuint fontTexture;
 
 // 함수 선언
 GLvoid drawScene(GLvoid);
@@ -169,6 +164,7 @@ void timer(int value);
 bool isTreeAt(int x, int z);
 void drawTree(int x, int z); // 복셀 나무 그리기 함수
 void renderTextTTF(float x, float y, const char* text, float r, float g, float b);
+void keyboard(unsigned char key, int x, int y);
 void loadDepthShader();
 
 GLuint shaderProgramID;
@@ -205,6 +201,7 @@ int main(int argc, char** argv)
 	glutDisplayFunc(drawScene);
 	glutReshapeFunc(Reshape);
 	glutSpecialFunc(specialKeyboard);
+	glutKeyboardFunc(keyboard);
 	glutTimerFunc(16, timer, 0);
 
 	glutMainLoop();
@@ -234,8 +231,8 @@ GameSeason getSeasonByZ(int z) {
 }
 
 // 퍼지는 모양 대신 위로 쌓아올린 박스형 나무
-void drawTree(int x, int z,GLuint shader) {
-	
+void drawTree(int x, int z, GLuint shader) {
+
 	const SeasonColors& colors = seasonThemes[getSeasonByZ(z)];
 	glm::mat4 model;
 	//glm::mat4 MVP;
@@ -246,10 +243,10 @@ void drawTree(int x, int z,GLuint shader) {
 		model = glm::translate(model, glm::vec3((float)x, 0.5f + (float)i, (float)z));
 		model = glm::scale(model, glm::vec3(0.4f, 1.0f, 0.4f)); // 얇은 기둥
 
-		
+
 		//glUniformMatrix4fv(transLoc, 1, GL_FALSE, glm::value_ptr(model));
 		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model)); // 
-		
+
 		if (shader == shaderProgramID) {
 			glVertexAttrib3f(1, colors.treeTrunk.r, colors.treeTrunk.g, colors.treeTrunk.b);
 		}
@@ -267,9 +264,9 @@ void drawTree(int x, int z,GLuint shader) {
 				model = glm::translate(model, glm::vec3(x + dx * scale, 1.2f + yOffset * scale, z + dz * scale));
 				model = glm::scale(model, glm::vec3(scale, scale, scale));
 
-				
+
 				glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model)); // 
-				
+
 				if (shader == shaderProgramID) {
 					glm::vec3 foliageColor;
 					if (yOffset == 0) foliageColor = colors.treeFoliageDark;
@@ -285,20 +282,6 @@ void drawTree(int x, int z,GLuint shader) {
 
 
 void drawCar(const Car& car, GLuint shader) {
-	
-	if (car.designID == -1) {
-		glm::mat4 logModel = glm::translate(glm::mat4(1.0f), glm::vec3(car.x, 0.4f, car.z)); // 0.4f로 물보다 약간 낮게
-		logModel = glm::scale(logModel, glm::vec3(1.8f, 0.4f, 0.8f)); // 통나무 모양
-
-		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(logModel));
-		if (shader == shaderProgramID) {
-			glVertexAttrib3f(1, car.color.r, car.color.g, car.color.b); // 통나무 색상
-		}
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-		return;
-	}
-	
-	
 	if (car.designID < 0 || car.designID >= carDesigns.size()) return;
 
 	const CarDesign& design = carDesigns[car.designID];
@@ -335,19 +318,12 @@ void generateLane(int z)
 	// 현재 줄이 이미 생성되어 있다면 패스
 	if (mapType.find(z) != mapType.end()) return;
 
-<<<<<<< HEAD
 	// 시작 지점 안전지대 (-2 ~ 2)
-=======
-
->>>>>>> 94bd508f9f53a23a732718e1db8d33df0db9e0cc
 	if (z >= -2 && z <= 2) {
 		mapType[z] = 0;
 		return;
 	}
-	int laneChance = rand() % 10; // 0=도로, 1=잔디, 2=물 
-	
 
-<<<<<<< HEAD
 	static int lastRiverZ = 0; // 마지막으로 강이 생성된 위치 기억
 
 	int growDir = (z < 0) ? -1 : 1;
@@ -363,11 +339,6 @@ void generateLane(int z)
 		mapType[z] = 1; // 도로
 
 		int numCars = 1 + rand() % 2;
-=======
-	if (laneChance < 4) { // 도로
-		mapType[z] = 1;
-		int numCars = 1 + rand() % 3; 
->>>>>>> 94bd508f9f53a23a732718e1db8d33df0db9e0cc
 		float speed = (0.05f + (rand() % 3) / 50.0f);
 		if (rand() % 2 == 0) speed *= -1.0f;
 
@@ -382,7 +353,6 @@ void generateLane(int z)
 			cars.push_back(newCar);
 		}
 	}
-<<<<<<< HEAD
 
 	// 강
 	else if ((forceRiver || randVal < 7) && !prevWasRiver) {
@@ -469,10 +439,6 @@ void generateLane(int z)
 	MAKE_GRASS:
 		mapType[z] = 0; // 잔디
 
-=======
-	else if(laneChance < 8) { // 잔디
-		mapType[z] = 0;
->>>>>>> 94bd508f9f53a23a732718e1db8d33df0db9e0cc
 		for (int x = -15; x <= 15; ++x) {
 			if (rand() % 10 < 1) {
 				treeMap[z].push_back(x);
@@ -487,27 +453,6 @@ void generateLane(int z)
 				coins.push_back(newCoin);
 			}
 		}
-	}
-	else  {
-		mapType[z] = 2; // 물 타입 정의
-
-		int numLogs = 2 + rand() % 3; // 통나무 2~4개
-		float speed = (0.04f + (rand() % 3) / 50.0f); // 통나무는 차보다 느리게
-		if (rand() % 2 == 0) speed *= -1.0f;
-
-		for (int i = 0; i < numLogs; ++i) {
-			Car newLog;
-			newLog.z = (float)z;
-			newLog.x = (float)(rand() % 30 - 15);
-			newLog.speed = speed;
-
-			// 통나무 식별을 위한 color 및 designID (Log용 디자인이 없으므로 임의의 값 사용)
-			newLog.color = glm::vec3(0.5f, 0.25f, 0.0f); // 나무 색상
-			newLog.designID = -1; // -1을 통나무 식별자로 사용
-
-			cars.push_back(newLog);
-		}
-
 	}
 }
 
@@ -555,12 +500,12 @@ void drawChicken(GLuint shader, glm::mat4 baseModel) {
 	drawPart(shader, baseModel, glm::vec3(-0.32f, -0.2f, 0.05f), glm::vec3(0.1f, 0.3f, 0.4f), white);
 
 	// 8. 다리 (Legs) 
-    drawPart(shader, baseModel, glm::vec3(0.2f, -0.25f, 0.0f), glm::vec3(0.1f, 0.5f, 0.1f), orange); 
-    drawPart(shader, baseModel, glm::vec3(-0.2f, -0.25f, 0.0f), glm::vec3(0.1f, 0.5f, 0.1f), orange); 
+	drawPart(shader, baseModel, glm::vec3(0.2f, -0.25f, 0.0f), glm::vec3(0.1f, 0.5f, 0.1f), orange);
+	drawPart(shader, baseModel, glm::vec3(-0.2f, -0.25f, 0.0f), glm::vec3(0.1f, 0.5f, 0.1f), orange);
 
-    // 9. 발 (Feet)
-    drawPart(shader, baseModel, glm::vec3(0.2f, -0.49f, -0.3f), glm::vec3(0.15f, 0.02f, 0.25f), orange); 
-    drawPart(shader, baseModel, glm::vec3(-0.2f, -0.49f, -0.3f), glm::vec3(0.15f, 0.02f, 0.25f), orange); 
+	// 9. 발 (Feet)
+	drawPart(shader, baseModel, glm::vec3(0.2f, -0.49f, -0.3f), glm::vec3(0.15f, 0.02f, 0.25f), orange);
+	drawPart(shader, baseModel, glm::vec3(-0.2f, -0.49f, -0.3f), glm::vec3(0.15f, 0.02f, 0.25f), orange);
 
 	// 9. 꼬리 (Tail)
 	drawPart(shader, baseModel, glm::vec3(0.0f, -0.1f, 0.35f), glm::vec3(0.3f, 0.3f, 0.1f), white);
@@ -569,7 +514,7 @@ void drawChicken(GLuint shader, glm::mat4 baseModel) {
 void drawCoin(const Coin& coin, GLuint shader) {
 	if (coin.isCollected) return; // 이미 획득했으면 그리지 않음
 
-	
+
 	glm::mat4 baseModel = glm::translate(glm::mat4(1.0f), glm::vec3(coin.x, 0.5f, coin.z));
 
 	baseModel = glm::scale(baseModel, glm::vec3(0.5f)); // 코인 크기 조절 (0.5f)
@@ -589,7 +534,7 @@ void drawCoin(const Coin& coin, GLuint shader) {
 	C_Y_offset = 0.1f;
 	base_Y_offset = 0.0f;
 
-	
+
 	float C_Y_POS = 0.1f; // 코인 베이스 위에 놓일 높이
 	float C_Y_THICKNESS = 0.1f; // C 부품 자체의 두께
 
@@ -638,7 +583,7 @@ void drawLilyPad(const LilyPad& pad, GLuint shader) {
 	model = glm::translate(model, glm::vec3(pad.x, 0.41f, pad.z)); // 물 표면 바로 위
 
 	// 납작한 사각형 (또는 원형 느낌)
-	glm::vec3 scale = glm::vec3(0.6f, 0.05f, 0.8f);
+	glm::vec3 scale = glm::vec3(0.8f, 0.05f, 0.8f);
 	glm::vec3 greenColor = glm::vec3(0.0f, 0.5f, 0.0f);
 
 	drawPart(shader, model, glm::vec3(0.0f), scale, greenColor);
@@ -647,7 +592,7 @@ void drawLilyPad(const LilyPad& pad, GLuint shader) {
 
 void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 {
-	
+
 	int currentZ = (int)std::round(playerPos.z);
 	int drawRangeFront = 30;
 	int drawRangeBack = 10;
@@ -658,53 +603,43 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 
 		glm::mat4 model = glm::mat4(1.0f);
 		model = glm::translate(model, glm::vec3(0.0f, -0.5f, (float)z));
-		//  잔디인 경우 높이(Y 스케일)를 2.0f로 설정
-		float groundScaleY = (mapType.count(z) && mapType[z] == 0) ? 1.0f : 1.0f; // 잔디(0)일 때만 높이 2.0f
-
-		model = glm::scale(model, glm::vec3(31.0f, groundScaleY, 1.0f));
+		model = glm::scale(model, glm::vec3(31.0f, 1.0f, 1.0f));
 
 		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
 		if (shader == shaderProgramID) {
 			if (mapType[z] == 1) { // 도로
 				glVertexAttrib3f(1, 0.2f, 0.2f, 0.2f);
 			}
-<<<<<<< HEAD
 			else if (mapType[z] == 2) { // 강
 				glVertexAttrib3f(1, 0.0f, 0.5f, 1.0f);
 			}
 			else { // 잔디
-=======
-			else if (mapType[z] == 2) { // [추가] 물 (하늘색)
-				glVertexAttrib3f(1, 0.1f, 0.6f, 0.9f);
-			}
-			else { // 잔디 (Z 기반 계절 색상 적용)
->>>>>>> 94bd508f9f53a23a732718e1db8d33df0db9e0cc
 				glVertexAttrib3f(1, colors.grass.r, colors.grass.g, colors.grass.b);
 			}
 		}
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 
 		// 차선
-        if (mapType[z] == 1) { 
-            glm::vec3 lineScale = glm::vec3(1.0f, 0.02f, 0.15f); // 길이, 높이, 폭
+		if (mapType[z] == 1) {
+			glm::vec3 lineScale = glm::vec3(1.0f, 0.02f, 0.15f); // 길이, 높이, 폭
 
-            for (float x = -15.0f; x <= 15.0f; x += 5.0f) {
-                glm::mat4 lineModel = glm::mat4(1.0f);
+			for (float x = -15.0f; x <= 15.0f; x += 5.0f) {
+				glm::mat4 lineModel = glm::mat4(1.0f);
 
-                lineModel = glm::translate(lineModel, glm::vec3(x, 0.01f, (float)z));
-                lineModel = glm::scale(lineModel, lineScale);
+				lineModel = glm::translate(lineModel, glm::vec3(x, 0.01f, (float)z));
+				lineModel = glm::scale(lineModel, lineScale);
 
-                glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(lineModel));
+				glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(lineModel));
 
-                if (shader == shaderProgramID) {
-                    glVertexAttrib3f(1, 0.3f, 0.3f, 0.3f); 
-                }
-                glDrawArrays(GL_TRIANGLES, 0, 36);
-            }
-        }
+				if (shader == shaderProgramID) {
+					glVertexAttrib3f(1, 0.3f, 0.3f, 0.3f);
+				}
+				glDrawArrays(GL_TRIANGLES, 0, 36);
+			}
+		}
 
 		if (treeMap.count(z)) {
-			for (int treeX : treeMap[z]) drawTree(treeX, z,shader);
+			for (int treeX : treeMap[z]) drawTree(treeX, z, shader);
 		}
 	}
 
@@ -744,7 +679,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 	// 플레이어
 	glm::mat4 pModel = glm::translate(glm::mat4(1.0f), playerPos);
 
-	// [추가] 저장된 각도만큼 Y축을 기준으로 회전
+	// 저장된 각도만큼 Y축을 기준으로 회전
 	pModel = glm::rotate(pModel, glm::radians(playerRotation), glm::vec3(0.0f, 1.0f, 0.0f));
 
 	// 크기 조절 (기존 0.7f)
@@ -882,21 +817,12 @@ void timer(int value)
 {
 	float playerX = playerPos.x;
 	float playerZ = playerPos.z;
-<<<<<<< HEAD
 	float playerSize = 0.5f;
 	float coinSize = 0.5f;
-=======
-	float playerSize = 0.5f; // 플레이어 충돌 범위
-	float coinSize = 0.5f;   // 코인 충돌 범위
-	bool isGameOver = false; // 게임 오버 상태
-	float playerOnLogY = 1.09f;
-
->>>>>>> 94bd508f9f53a23a732718e1db8d33df0db9e0cc
 
 	// 주인공이 서 있을 높이 
 	float restingY = 0.5f;
 
-<<<<<<< HEAD
 	// 통나무 이동 및 순환
 
 	for (auto& logObj : logs) {
@@ -959,50 +885,10 @@ void timer(int value)
 					safe = true;
 					// 연잎 위에 있을 때 높이 상승
 					restingY = 0.93f;
-=======
-
-		/*if (abs(car.z - playerPos.z) < 0.08f && abs(car.x - playerPos.x) < 1.2f) {
-			playerPos = glm::vec3(0.0f, 0.5f, 0.0f);
-			playerTargetPos = playerPos;
-			playerStartPos = playerPos;
-			isMoving = false;
-			score = 0;
-			minZ = 0;
-			coinCount = 0;
-			cars.clear();
-			treeMap.clear();
-			mapType.clear();
-			for (int z = (int)playerPos.z - 10; z < (int)playerPos.z + 10; ++z) {
-				generateLane(z);
-			}*/
-			
-			
-		if (car.designID != -1) { // 일반 차량인 경우
-			// 충돌 범위 (z는 0.08f, x는 1.2f)
-			if (abs(car.z - playerPos.z) < 0.08f && abs(car.x - playerPos.x) < 1.2f) {
-				isGameOver = true;
-				break; // 차량에 치이면 즉시 루프 탈출
-			}
-		}
-		
-	}
-	int playerGridZ = (int)std::round(playerPos.z);
-
-	if (!isGameOver&&mapType.count(playerGridZ) && mapType[playerGridZ] == 2) { // 현재 물 라인이라면
-		bool safeOnLog = false;
-		float logSpeed = 0.0f;
-
-		for (const auto& log : cars) {
-			if (log.designID == -1 && std::abs(log.z - playerGridZ) < 0.5f) { // 같은 물 라인의 통나무
-				if (std::abs(log.x - playerPos.x) < 1.0f) { // 통나무 위에 있다면
-					safeOnLog = true;
-					logSpeed = log.speed;
->>>>>>> 94bd508f9f53a23a732718e1db8d33df0db9e0cc
 					break;
 				}
 			}
 		}
-<<<<<<< HEAD
 
 		if (!safe) isDead = true;
 		if (playerPos.x < -16.0f || playerPos.x > 16.0f) isDead = true;
@@ -1018,28 +904,6 @@ void timer(int value)
 
 	// 사망 처리
 	if (isDead) {
-=======
-		if (safeOnLog) {
-			// 통나무와 함께 이동
-			playerPos.x += logSpeed;
-			playerTargetPos.x += logSpeed;
-			playerStartPos.x += logSpeed;
-			playerPos.y = playerOnLogY;
-
-			// 통나무에서 떨어지면 죽음
-			if (std::abs(playerPos.x) > 15.0f) {
-				safeOnLog = false;
-			}
-		}
-
-		else {
-			// 물에 빠짐 (게임 오버)
-			
-			isGameOver = true;
-			}
-		}
-	if (isGameOver) {
->>>>>>> 94bd508f9f53a23a732718e1db8d33df0db9e0cc
 		playerPos = glm::vec3(0.0f, 0.5f, 0.0f);
 		playerTargetPos = playerPos;
 		playerStartPos = playerPos;
@@ -1047,7 +911,6 @@ void timer(int value)
 		score = 0;
 		minZ = 0;
 		coinCount = 0;
-<<<<<<< HEAD
 		cars.clear();
 		logs.clear();
 		lilyPads.clear();
@@ -1083,65 +946,10 @@ void timer(int value)
 			playerPos = playerTargetPos;
 			// 착지 시점의 높이는 다음 프레임 restingY 로직에서 결정됨
 			isMoving = false;
-=======
-
-		// 맵 리셋 (코인 위치 유지 및 획득된 코인 재활성화)
-		cars.clear();
-		treeMap.clear();
-		mapType.clear();
-		for (int z = (int)playerPos.z - 10; z < (int)playerPos.z + 10; ++z) {
-			generateLane(z);
-		}
-		for (auto& coin : coins) {
-			coin.isCollected = false;
-		}
-	} // <-- 여기서 게임 오버 블록이 끝납니다
-	if (!isGameOver) {
-		for (auto& coin : coins) {
-			if (coin.isCollected) continue;
-			if (std::abs(coin.z - playerZ) < playerSize && std::abs(coin.x - playerX) < playerSize) {
-				coin.isCollected = true;
-				coinCount++; // 코인 개수 증가
-				printf("Coin collected! Total: %d\n", coinCount);
-			}
->>>>>>> 94bd508f9f53a23a732718e1db8d33df0db9e0cc
 		}
 	}
-
-		for (auto& coin : coins) {
-			if (coin.isCollected) continue;
-			if (std::abs(coin.z - playerZ) < playerSize && std::abs(coin.x - playerX) < playerSize) {
-				coin.isCollected = true;
-				coinCount++; // 코인 개수 증가
-				printf("Coin collected! Total: %d\n", coinCount);
-			}
-		}
-		if (isMoving && !isGameOver) {
-
-			moveTime += 0.016f;
-
-			// 보간 비율 t 계산 
-			float t = glm::clamp(moveTime / MOVE_DURATION, 0.0f, 1.0f);
-
-			//점프할려고
-			playerPos.x = glm::mix(playerStartPos.x, playerTargetPos.x, t);
-			playerPos.z = glm::mix(playerStartPos.z, playerTargetPos.z, t);
-
-			//포물선
-			//t * (1.0f - t)
-			float jumpY = JUMP_HEIGHT * 4.0f * t * (1.0f - t);
-			playerPos.y = 0.5f + jumpY;
-
-			if (t >= 1.0f) {
-
-				playerPos = playerTargetPos;
-				playerPos.y = playerTargetPos.y;
-				isMoving = false;
-			}
-		}
-		glutPostRedisplay();
-		glutTimerFunc(16, timer, 0);
-	
+	glutPostRedisplay();
+	glutTimerFunc(16, timer, 0);
 }
 
 // 폰트 초기화 함수
@@ -1212,7 +1020,7 @@ void initGame()
 	sedan.parts.push_back({ glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.7f, 0.5f, 0.8f), glm::vec3(0.0f) }); // color는 Car.color 사용
 	// 캐빈/지붕앞쪽위
 	sedan.parts.push_back({ glm::vec3(0.1f, 0.35f, 0.0f), glm::vec3(0.8f, 0.4f, 0.7f), glm::vec3(1.0f, 1.0f, 1.0f) }); // 흰색 지붕
-	
+
 	//앞바퀴
 	sedan.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
 	sedan.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
@@ -1318,8 +1126,8 @@ void initGame()
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
-	
-	
+
+
 }
 
 bool isTreeAt(int x, int z) {
@@ -1332,27 +1140,27 @@ bool isTreeAt(int x, int z) {
 void specialKeyboard(int key, int x, int y)
 {
 	if (isMoving) return;
-	
+
 
 	int nextX = (int)std::round(playerPos.x);
 	int nextZ = (int)std::round(playerPos.z);
-	
+
 
 	switch (key) {
 	case GLUT_KEY_UP:
-		playerRotation = 0.0f;    
+		playerRotation = 0.0f;
 		nextZ -= 1;
 		break;
 	case GLUT_KEY_DOWN:
-		playerRotation = 180.0f; 
+		playerRotation = 180.0f;
 		nextZ += 1;
 		break;
 	case GLUT_KEY_LEFT:
-		playerRotation = 90.0f;   
+		playerRotation = 90.0f;
 		nextX -= 1;
 		break;
 	case GLUT_KEY_RIGHT:
-		playerRotation = -90.0f;  
+		playerRotation = -90.0f;
 		nextX += 1;
 		break;
 	default: return;
@@ -1362,11 +1170,11 @@ void specialKeyboard(int key, int x, int y)
 		if (key == GLUT_KEY_UP && nextZ < minZ) {
 			minZ = nextZ;
 			score++;
-			printf("Score: %d\n", score); 
+			printf("Score: %d\n", score);
 
 			int currentTotalLines = -minZ;
 
-			
+
 			//if (currentTotalLines > 0 && (currentTotalLines % LINES_PER_SEASON) == 0) {
 			//	//linesPassedSinceSeasonChange = 0;
 
@@ -1380,29 +1188,27 @@ void specialKeyboard(int key, int x, int y)
 			//	
 			//	printf("Season changed to %d (Lines passed: %d)\n", currentSeason, LINES_PER_SEASON);
 			//}
-		
+
 		}
 
 		playerStartPos = playerPos;
-		float targetY = 0.5f;
-		if (mapType.count(nextZ) && mapType[nextZ] == 2) {
-			// 통나무 라인이라면 Y를 1.09f로 설정
-			targetY = 1.09f;
-		}
+
 		playerTargetPos = glm::vec3((float)nextX, 0.5f, (float)nextZ);
-		if (mapType.count((int)std::round(playerPos.z)) && mapType[(int)std::round(playerPos.z)] == 2) {
-			playerStartPos.y = 1.09f;
-		}
-		else {
-			playerStartPos.y = 0.5f;
-		}
-		
+
+
 		isMoving = true;
 		moveTime = 0.0f;
 	}
 	glutPostRedisplay();
 }
 
+// 일반 키보드 입력 처리
+void keyboard(unsigned char key, int x, int y)
+{
+	if (key == 'q' || key == 'Q') {
+		exit(0);
+	}
+}
 
 GLvoid Reshape(int w, int h)
 {
@@ -1510,12 +1316,12 @@ void loadDepthShader()
 	glCompileShader(depthVertexShader);
 	glAttachShader(depthShader, depthVertexShader);
 
-	 
+
 	glGetShaderiv(depthVertexShader, GL_COMPILE_STATUS, &result);
 	if (!result) {
 		glGetShaderInfoLog(depthVertexShader, 512, NULL, errorLog);
 		std::cerr << "ERROR: depth vertex shader 컴파일 실패\n" << errorLog << std::endl;
-		
+
 	}
 	GLuint depthFragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
 	GLchar* dfSource = filetobuf("depthfragment.glsl");
@@ -1523,16 +1329,16 @@ void loadDepthShader()
 	glCompileShader(depthFragmentShader);
 	glAttachShader(depthShader, depthFragmentShader);
 
-	
+
 	glGetShaderiv(depthFragmentShader, GL_COMPILE_STATUS, &result);
 	if (!result) {
 		glGetShaderInfoLog(depthFragmentShader, 512, NULL, errorLog);
 		std::cerr << "ERROR: depth fragment shader 컴파일 실패\n" << errorLog << std::endl;
 	}
-	
+
 	glLinkProgram(depthShader);
 
-	
+
 	glGetProgramiv(depthShader, GL_LINK_STATUS, &result);
 	if (!result) {
 		glGetProgramInfoLog(depthShader, 512, NULL, errorLog);
