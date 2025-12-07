@@ -209,6 +209,7 @@ void loadDepthShader();
 GLuint riverTexture;
 GLuint grassTexture;
 GLuint logTexture;
+GLuint lilyPadTexture;
 
 GLuint shaderProgramID;
 GLuint vertexShader;
@@ -778,11 +779,13 @@ void drawLilyPad(const LilyPad& pad, GLuint shader) {
 	glm::mat4 model = glm::mat4(1.0f);
 	model = glm::translate(model, glm::vec3(pad.x, 0.41f, pad.z)); // 물 표면 바로 위
 
-	// 납작한 사각형 (또는 원형 느낌)
+	// 납작한 사각형
 	glm::vec3 scale = glm::vec3(0.8f, 0.05f, 0.8f);
-	glm::vec3 greenColor = glm::vec3(0.0f, 0.5f, 0.0f);
 
-	drawPart(shader, model, glm::vec3(0.0f), scale, greenColor);
+	// [수정] 텍스처가 초록색이므로, 틴트(Tint) 색상을 흰색으로 변경하여 텍스처 원본 색 유지
+	glm::vec3 whiteColor = glm::vec3(1.0f, 1.0f, 1.0f);
+
+	drawPart(shader, model, glm::vec3(0.0f), scale, whiteColor);
 }
 
 void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
@@ -934,7 +937,24 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 	// 연잎 
 	for (const auto& pad : lilyPads) {
 		if (pad.z < currentZ - drawRangeFront || pad.z > currentZ + drawRangeBack) continue;
+
+		// [추가] 쉐이더가 메인 쉐이더일 때만 텍스처 적용
+		if (shader == shaderProgramID) {
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, lilyPadTexture); // 연잎 텍스처 바인딩
+			glUniform1i(texLoc, 1);                   // 샘플러 1번 사용 설정
+			glUniform1i(useTexLoc, 1);                // 텍스처 사용 ON
+
+			glUniform2f(uvScaleLoc, 1.0f, 1.0f);      // UV 스케일 1:1
+		}
+
 		drawLilyPad(pad, shader);
+
+		// [추가] 텍스처 사용 해제 및 초기화
+		if (shader == shaderProgramID) {
+			glUniform1i(useTexLoc, 0);
+			glUniform2f(uvScaleLoc, 1.0f, 1.0f);
+		}
 	}
 
 	// 코인
@@ -1615,9 +1635,9 @@ void initGame()
 	glEnableVertexAttribArray(2);
 
 	loadTexture("river.jpg", &riverTexture);
-
 	loadTexture("grass.jpg", &grassTexture);
 	loadTexture("wood.jpg", &logTexture);
+	loadTexture("lilypad.jpg", &lilyPadTexture);
 
 }
 
@@ -1730,6 +1750,7 @@ GLvoid Reshape(int w, int h)
 	glViewport(0, 0, w, h);
 }
 
+// 기존 filetobuf 함수를 지우고 이 코드로 덮어씌우세요.
 char* filetobuf(const char* file)
 {
 	FILE* fptr;
@@ -1737,8 +1758,17 @@ char* filetobuf(const char* file)
 	char* buf;
 
 	fptr = fopen(file, "rb");
-	if (!fptr)
+	if (!fptr) {
+		// [중요] 파일을 못 찾으면 에러 메시지를 빨간 글씨로 출력하고 멈춥니다.
+		fprintf(stderr, "--------------------------------------------------------\n");
+		fprintf(stderr, "[치명적 오류] 파일을 찾을 수 없습니다: %s\n", file);
+		fprintf(stderr, "프로젝트 폴더에 해당 파일이 있는지 확인해주세요.\n");
+		fprintf(stderr, "--------------------------------------------------------\n");
+		system("pause"); // 에러를 볼 수 있게 콘솔창 정지
+		exit(EXIT_FAILURE);
 		return NULL;
+	}
+
 	fseek(fptr, 0, SEEK_END);
 	length = ftell(fptr);
 	buf = (char*)malloc(length + 1);
