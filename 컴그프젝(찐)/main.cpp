@@ -208,6 +208,7 @@ void keyboard(unsigned char key, int x, int y);
 void loadDepthShader();
 GLuint riverTexture;
 GLuint grassTexture;
+GLuint logTexture;
 
 GLuint shaderProgramID;
 GLuint vertexShader;
@@ -766,9 +767,10 @@ void drawLog(const Log& logObj, GLuint shader) {
 
 	// 통나무는 가로로 김
 	glm::vec3 scale = glm::vec3(logObj.width, 0.3f, 0.8f);
-	glm::vec3 brownColor = glm::vec3(0.545098f, 0.270588f, 0.07451f);
 
-	drawPart(shader, model, glm::vec3(0.0f), scale, brownColor);
+	glm::vec3 whiteColor = glm::vec3(1.0f, 1.0f, 1.0f);
+
+	drawPart(shader, model, glm::vec3(0.0f), scale, whiteColor);
 }
 
 // 연잎 그리기
@@ -910,7 +912,23 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 	// 통나무
 	for (const auto& logObj : logs) {
 		if (logObj.z < currentZ - drawRangeFront || logObj.z > currentZ + drawRangeBack) continue;
+
+		// 쉐이더가 메인 쉐이더일 때만 텍스처 적용
+		if (shader == shaderProgramID) {
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, logTexture); // 통나무 텍스처 바인딩
+			glUniform1i(texLoc, 1);                   // 샘플러 1번 사용 설정
+			glUniform1i(useTexLoc, 1);                // 텍스처 사용 ON
+
+			glUniform2f(uvScaleLoc, logObj.width, 1.0f);
+		}
+
 		drawLog(logObj, shader);
+
+		if (shader == shaderProgramID) {
+			glUniform1i(useTexLoc, 0);
+			glUniform2f(uvScaleLoc, 1.0f, 1.0f); // 스케일 초기화
+		}
 	}
 
 	// 연잎 
@@ -1599,6 +1617,7 @@ void initGame()
 	loadTexture("river.jpg", &riverTexture);
 
 	loadTexture("grass.jpg", &grassTexture);
+	loadTexture("wood.jpg", &logTexture);
 
 }
 
@@ -1844,3 +1863,5 @@ void loadDepthShader()
 	glDeleteShader(depthVertexShader);
 	glDeleteShader(depthFragmentShader);
 }
+
+// 테스트용
