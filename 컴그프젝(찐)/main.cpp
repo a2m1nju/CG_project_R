@@ -169,12 +169,21 @@ int coinCount = 0; // íšë“í•œ ì½”ì¸ ê°œìˆ˜
 
 int riverRemaining = 0; // í˜„ì¬ ê°• êµ¬ê°„ì´ ì§„í–‰ ì¤‘ì¸ì§€ ì €ì¥í•˜ëŠ” ì „ì—­ ë³€ìˆ˜
 
+<<<<<<< HEAD
 bool isDashing = false;
 float dashTimer = 0.0f; // ëŒ€ì‰¬ ë‚¨ì€ ì‹œê°„
 const float DASH_DURATION = 1.0f; // ëŒ€ì‰¬ ì§€ì† ì‹œê°„ (1ì´ˆ)
 const float DASH_COOLDOWN = 3.0f; // ëŒ€ì‰¬ ì¬ì‚¬ìš© ëŒ€ê¸° ì‹œê°„ (3ì´ˆ)
 float dashCooldownTimer = 0.0f; // ì¬ì‚¬ìš© ëŒ€ê¸° ì‹œê°„ íƒ€ì´ë¨¸
 const int DASH_COST = 7; // ëŒ€ì‰¬ì— í•„ìš”í•œ ì½”ì¸ ê°œìˆ˜
+=======
+bool isDashing = false; 
+float dashTimer = 0.0f; // ´ë½¬ ³²Àº ½Ã°£
+const float DASH_DURATION = 1.0f; // ´ë½¬ Áö¼Ó ½Ã°£ (1ÃÊ)
+const float DASH_COOLDOWN = 3.0f; // ´ë½¬ Àç»ç¿ë ´ë±â ½Ã°£ (3ÃÊ)
+float dashCooldownTimer = 0.0f; // Àç»ç¿ë ´ë±â ½Ã°£ Å¸ÀÌ¸Ó
+const int DASH_COST = 7; // ´ë½¬¿¡ ÇÊ¿äÇÑ ÄÚÀÎ °³¼ö
+>>>>>>> ba873008b972d650864da5f752e6c62a13f6e228
 glm::vec3 lightPos(-15.0f, 20.0f, 0.0f);
 
 std::map<int, int> mapType; // 0=ì”ë”” 1=ë„ë¡œ
@@ -1078,6 +1087,7 @@ GLvoid drawScene()
 	renderTextWithOutline(1050, 60, coinStr.c_str());
 
 	std::string dashStr;
+<<<<<<< HEAD
 	float dashR = 1.0f, dashG = 1.0f, dashB = 0.0f; // ê¸°ë³¸ ìƒ‰ìƒ (ë…¸ë‘)
 
 	if (isDashing) {
@@ -1100,6 +1110,30 @@ GLvoid drawScene()
 	// í…ìŠ¤íŠ¸ëŠ” í™”ë©´ ì¤‘ì•™ í•˜ë‹¨ì— ê°€ê¹ê²Œ í‘œì‹œ (ì˜ˆ: Y=900)
 	// í…ìŠ¤íŠ¸ë¥¼ ê·¸ë¦´ ë•ŒëŠ” Outline í•¨ìˆ˜ ëŒ€ì‹  ì§ì ‘ renderTextTTFë¥¼ ì‚¬ìš©í•˜ì—¬ ìƒ‰ìƒì„ ì ìš©í•©ë‹ˆë‹¤.
 
+=======
+	float dashR = 1.0f, dashG = 1.0f, dashB = 0.0f; // ±âº» »ö»ó (³ë¶û)
+
+	if (isDashing) {
+		dashStr = "DASH! (" + std::to_string((int)(dashTimer * 10) / 10.0f) + "s)";
+		dashR = 1.0f; dashG = 0.0f; dashB = 0.0f; // »¡°­
+	}
+	else if (dashCooldownTimer > 0.0f) {
+		dashStr = "CD: " + std::to_string((int)(dashCooldownTimer * 10) / 10.0f) + "s";
+		dashR = 0.5f; dashG = 0.5f; dashB = 0.5f; // È¸»ö
+	}
+	else if (coinCount >= DASH_COST) {
+		dashStr = "DASH ";
+		dashR = 0.0f; dashG = 1.0f; dashB = 0.0f; // ÃÊ·Ï
+	}
+	else {
+		dashStr = "NEED " + std::to_string(DASH_COST - coinCount) + " COINS FOR DASH";
+		dashR = 1.0f; dashG = 0.5f; dashB = 0.0f; // ÁÖÈ²
+	}
+
+	// ÅØ½ºÆ®´Â È­¸é Áß¾Ó ÇÏ´Ü¿¡ °¡±õ°Ô Ç¥½Ã (¿¹: Y=900)
+	// ÅØ½ºÆ®¸¦ ±×¸± ¶§´Â Outline ÇÔ¼ö ´ë½Å Á÷Á¢ renderTextTTF¸¦ »ç¿ëÇÏ¿© »ö»óÀ» Àû¿ëÇÕ´Ï´Ù.
+    
+>>>>>>> ba873008b972d650864da5f752e6c62a13f6e228
 
 	glutSwapBuffers();
 }
@@ -1161,13 +1195,42 @@ void timer(int value)
 			dashCooldownTimer = DASH_COOLDOWN;
 			playerPos.x = (float)std::round(playerPos.x);
 			playerPos.z = (float)std::round(playerPos.z);
+<<<<<<< HEAD
 			// ë‹¤ìŒ ì›€ì§ì„ì„ ìœ„í•´ playerTargetPosë„ í˜„ì¬ ìœ„ì¹˜ë¡œ ì—…ë°ì´íŠ¸
 			playerTargetPos = playerPos;
 			printf("ëŒ€ì‰¬ ì¢…ë£Œ. ì¿¨ë‹¤ìš´ ì‹œì‘: %.1fì´ˆ\n", DASH_COOLDOWN);
+=======
+			// ´ÙÀ½ ¿òÁ÷ÀÓÀ» À§ÇØ playerTargetPosµµ ÇöÀç À§Ä¡·Î ¾÷µ¥ÀÌÆ®
+			playerTargetPos = playerPos;
+			printf("´ë½¬ Á¾·á. Äğ´Ù¿î ½ÃÀÛ: %.1fÃÊ\n", DASH_COOLDOWN);
+		}
+		
+	}
+	
+	else {
+		if (!isMoving && dashCooldownTimer <= 0.0f && coinCount >= DASH_COST) {
+			// ÄÚÀÎ »ç¿ë
+			coinCount -= DASH_COST;
+
+			// ´ë½¬ »óÅÂ ½ÃÀÛ
+			isDashing = true;
+			dashTimer = DASH_DURATION;
+
+			// ½Ã°¢Àû ÇÇµå¹é: ¹«Àû ´ë½¬ ¹ßµ¿ ÆÄÆ¼Å¬
+			spawnParticles(playerPos, glm::vec3(1.0f, 0.5f, 0.0f), 20, 0.8f);
+			printf("ÄÚÀÎ 7°³ ´Ş¼º! ¹«Àû ´ë½¬ ÀÚµ¿ ¹ßµ¿! ³²Àº ½Ã°£: %.1fÃÊ\n", DASH_DURATION);
+>>>>>>> ba873008b972d650864da5f752e6c62a13f6e228
 		}
 
 	}
+	if (!isDashing) {
+		// Åë³ª¹« ÀÌµ¿ ¹× ¼øÈ¯
+		for (auto& logObj : logs) {
+			logObj.x += logObj.speed;
+			if (logObj.speed > 0 && logObj.x > 20.0f) logObj.x = -20.0f;
+			else if (logObj.speed < 0 && logObj.x < -20.0f) logObj.x = 20.0f;
 
+<<<<<<< HEAD
 	else {
 		if (!isMoving && dashCooldownTimer <= 0.0f && coinCount >= DASH_COST) {
 			// ì½”ì¸ ì‚¬ìš©
@@ -1189,6 +1252,8 @@ void timer(int value)
 			if (logObj.speed > 0 && logObj.x > 20.0f) logObj.x = -20.0f;
 			else if (logObj.speed < 0 && logObj.x < -20.0f) logObj.x = 20.0f;
 
+=======
+>>>>>>> ba873008b972d650864da5f752e6c62a13f6e228
 			bool onLog = (std::abs(playerPos.z - logObj.z) < 0.1f) &&
 				(playerPos.x >= logObj.x - logObj.width / 2.0f - 0.3f) &&
 				(playerPos.x <= logObj.x + logObj.width / 2.0f + 0.3f);
@@ -1201,10 +1266,17 @@ void timer(int value)
 			}
 		}
 
+<<<<<<< HEAD
 		// [ì¶©ëŒ ê²€ì‚¬ ì‹œì‘]
 		bool isDead = false;
 
 		// ìë™ì°¨ ì¶©ëŒ ê²€ì‚¬
+=======
+		// [Ãæµ¹ °Ë»ç ½ÃÀÛ]
+		bool isDead = false;
+
+		// ÀÚµ¿Â÷ Ãæµ¹ °Ë»ç
+>>>>>>> ba873008b972d650864da5f752e6c62a13f6e228
 		for (auto& car : cars) {
 			car.x += car.speed;
 			if (car.x > 18.0f && car.speed > 0) car.x = -18.0f;
@@ -1218,11 +1290,19 @@ void timer(int value)
 			}
 		}
 
+<<<<<<< HEAD
 		// ìµì‚¬(ë¬¼) íŒì •
 		int pZ = (int)std::round(playerPos.z);
 		if (!isMoving && mapType.count(pZ) && mapType[pZ] == 2) {
 			bool safe = false;
 			// í†µë‚˜ë¬´ ì²´í¬ 
+=======
+		// ÀÍ»ç(¹°) ÆÇÁ¤
+		int pZ = (int)std::round(playerPos.z);
+		if (!isMoving && mapType.count(pZ) && mapType[pZ] == 2) {
+			bool safe = false;
+			// Åë³ª¹« Ã¼Å© 
+>>>>>>> ba873008b972d650864da5f752e6c62a13f6e228
 			for (const auto& logObj : logs) {
 				if (logObj.z == (float)pZ &&
 					playerPos.x >= logObj.x - logObj.width / 2.0f - 0.4f &&
@@ -1232,7 +1312,11 @@ void timer(int value)
 					break;
 				}
 			}
+<<<<<<< HEAD
 			// ì—°ì ì²´í¬
+=======
+			// ¿¬ÀÙ Ã¼Å©
+>>>>>>> ba873008b972d650864da5f752e6c62a13f6e228
 			if (!safe) {
 				for (const auto& pad : lilyPads) {
 					if (pad.z == (float)pZ && std::abs(playerPos.x - pad.x) < 0.6f) {
@@ -1246,7 +1330,11 @@ void timer(int value)
 			if (playerPos.x < -16.0f || playerPos.x > 16.0f) isDead = true;
 		}
 
+<<<<<<< HEAD
 		// ê¸°ì°¨ ì¶©ëŒ ê²€ì‚¬
+=======
+		// ±âÂ÷ Ãæµ¹ °Ë»ç
+>>>>>>> ba873008b972d650864da5f752e6c62a13f6e228
 		for (auto& t : trains) {
 			switch (t.state) {
 			case TRAIN_IDLE:
@@ -1270,7 +1358,11 @@ void timer(int value)
 			case TRAIN_PASSING:
 				t.x += t.speed;
 
+<<<<<<< HEAD
 				// ì¶©ëŒ ì²´í¬
+=======
+				// Ãæµ¹ Ã¼Å©
+>>>>>>> ba873008b972d650864da5f752e6c62a13f6e228
 				if (t.state == TRAIN_PASSING)
 				{
 					int playerGridZ = (int)std::round(playerPos.z);
@@ -1279,7 +1371,11 @@ void timer(int value)
 					if (playerGridZ == trainGridZ) {
 						if (playerPos.x > t.x - 9.0f && playerPos.x < t.x + 9.0f) {
 							isDead = true;
+<<<<<<< HEAD
 							printf("ê¸°ì°¨ì— ì¹˜ì„!\n");
+=======
+							printf("±âÂ÷¿¡ Ä¡ÀÓ!\n");
+>>>>>>> ba873008b972d650864da5f752e6c62a13f6e228
 						}
 					}
 				}
@@ -1290,8 +1386,100 @@ void timer(int value)
 				}
 				break;
 			}
+<<<<<<< HEAD
+=======
 		}
 
+		if (isDead) {
+			playerPos = glm::vec3(0.0f, 0.5f, 0.0f);
+			playerTargetPos = playerPos;
+			playerStartPos = playerPos;
+			isMoving = false;
+			isDashing = false; // ´ë½¬ »óÅÂ ÃÊ±âÈ­
+			dashTimer = 0.0f;
+			dashCooldownTimer = 0.0f;
+			score = 0;
+			minZ = 0;
+			coinCount = 0;
+			cars.clear();
+			logs.clear();
+			lilyPads.clear();
+			treeMap.clear();
+			mapType.clear();
+			trains.clear();
+			particles.clear();
+			for (int z = -10; z < 10; ++z) generateLane(z);
+
+			glutPostRedisplay();
+			glutTimerFunc(16, timer, 0);
+			return;
+
+		}
+
+		// ÄÚÀÎ ·ÎÁ÷
+		for (auto& coin : coins) {
+			if (coin.isCollected) continue;
+			if (std::abs(coin.z - playerZ) < playerSize && std::abs(coin.x - playerX) < playerSize) {
+				coin.isCollected = true;
+				coinCount++;
+				printf("Coin collected! Total: %d\n", coinCount);
+				spawnParticles(glm::vec3(coin.x, 0.5f, coin.z), glm::vec3(1.0f, 0.9f, 0.0f), 10, 0.3f);
+			}
+		}
+
+		// Á¡ÇÁ ¾Ö´Ï¸ŞÀÌ¼Ç
+		if (isMoving) {
+			moveTime += 0.016f;
+			float t = glm::clamp(moveTime / MOVE_DURATION, 0.0f, 1.0f);
+
+			playerPos.x = glm::mix(playerStartPos.x, playerTargetPos.x, t);
+			playerPos.z = glm::mix(playerStartPos.z, playerTargetPos.z, t);
+
+			float jumpY = JUMP_HEIGHT * 4.0f * t * (1.0f - t);
+			playerPos.y = 0.5f + jumpY;
+
+			if (t >= 1.0f) {
+				playerPos = playerTargetPos;
+				isMoving = false;
+
+				int landZ = (int)std::round(playerPos.z);
+				if (mapType.count(landZ) && mapType[landZ] == 2) {
+					glm::vec3 particleColor = glm::vec3(0.0f, 0.5f, 1.0f);
+					spawnParticles(playerPos, particleColor, 8, 0.2f);
+				}
+			}
+		}
+
+		// Á¡ÇÁ ¾Ö´Ï¸ŞÀÌ¼Ç (´ë½¬ Áß¿¡´Â ÀÏ¹İ Á¡ÇÁ¸¦ ¸·¾Æ¾ß ÇÔ. isDashingÀº isMoving°ú µ¿½Ã¿¡ ½ÇÇàµÇÁö ¾Êµµ·Ï º¸Àå)
+		if (isMoving && !isDashing) {
+			moveTime += 0.016f;
+			float t = glm::clamp(moveTime / MOVE_DURATION, 0.0f, 1.0f);
+
+			playerPos.x = glm::mix(playerStartPos.x, playerTargetPos.x, t);
+			playerPos.z = glm::mix(playerStartPos.z, playerTargetPos.z, t);
+
+			float jumpY = JUMP_HEIGHT * 4.0f * t * (1.0f - t);
+			playerPos.y = 0.5f + jumpY;
+
+			if (t >= 1.0f) {
+				playerPos = playerTargetPos;
+				isMoving = false;
+
+				int landZ = (int)std::round(playerPos.z);
+				if (mapType.count(landZ) && mapType[landZ] == 2) {
+					glm::vec3 particleColor = glm::vec3(0.0f, 0.5f, 1.0f);
+					spawnParticles(playerPos, particleColor, 8, 0.2f);
+				}
+			}
+		}
+		// Á¡ÇÁ ÁßÀÌ ¾Æ´Ò ¶§ ³ôÀÌ Àû¿ë
+		if (!isMoving && !isDashing) {
+			playerPos.y = restingY;
+			playerStartPos.y = restingY;
+>>>>>>> ba873008b972d650864da5f752e6c62a13f6e228
+		}
+
+<<<<<<< HEAD
 		if (isDead) {
 			playerPos = glm::vec3(0.0f, 0.5f, 0.0f);
 			playerTargetPos = playerPos;
@@ -1384,6 +1572,11 @@ void timer(int value)
 	glutPostRedisplay();
 	glutTimerFunc(16, timer, 0);
 
+=======
+		glutPostRedisplay();
+		glutTimerFunc(16, timer, 0);
+	
+>>>>>>> ba873008b972d650864da5f752e6c62a13f6e228
 }
 
 // í°íŠ¸ ì´ˆê¸°í™” í•¨ìˆ˜
@@ -1685,6 +1878,7 @@ void keyboard(unsigned char key, int x, int y)
 	if (key == ' ') {
 		if (!isDashing && !isMoving && dashCooldownTimer <= 0.0f && coinCount >= DASH_COST) {
 
+<<<<<<< HEAD
 			// ì½”ì¸ ì‚¬ìš©
 			coinCount -= DASH_COST;
 
@@ -1702,6 +1896,25 @@ void keyboard(unsigned char key, int x, int y)
 			if (isMoving) printf("ì›€ì§ì´ëŠ” ì¤‘ì—ëŠ” ëŒ€ì‰¬ë¥¼ ì‚¬ìš©í•  ìˆ˜ ì—†ìŠµë‹ˆë‹¤.\n");
 			if (dashCooldownTimer > 0.0f) printf("ì¬ì‚¬ìš© ëŒ€ê¸° ì‹œê°„ (%.1fì´ˆ)ì´ ë‚¨ì•˜ìŠµë‹ˆë‹¤.\n", dashCooldownTimer);
 			if (coinCount < DASH_COST) printf("ì½”ì¸ì´ ë¶€ì¡±í•©ë‹ˆë‹¤ (í•„ìš”: %d, í˜„ì¬: %d)\n", DASH_COST, coinCount);
+=======
+			// ÄÚÀÎ »ç¿ë
+			coinCount -= DASH_COST;
+
+			// ´ë½¬ »óÅÂ ½ÃÀÛ
+			isDashing = true;
+			dashTimer = DASH_DURATION;
+
+			// ½Ã°¢Àû ÇÇµå¹é: ¹«Àû ´ë½¬ ¹ßµ¿ ÆÄÆ¼Å¬
+			spawnParticles(playerPos, glm::vec3(1.0f, 0.5f, 0.0f), 20, 0.8f);
+			printf("¹«Àû ´ë½¬ ¹ßµ¿! ³²Àº ½Ã°£: %.1fÃÊ\n", DASH_DURATION);
+		}
+		else {
+			// ½ÇÆĞ ÇÇµå¹é 
+			if (isDashing) printf("ÀÌ¹Ì ´ë½¬ ÁßÀÔ´Ï´Ù.\n");
+			if (isMoving) printf("¿òÁ÷ÀÌ´Â Áß¿¡´Â ´ë½¬¸¦ »ç¿ëÇÒ ¼ö ¾ø½À´Ï´Ù.\n");
+			if (dashCooldownTimer > 0.0f) printf("Àç»ç¿ë ´ë±â ½Ã°£ (%.1fÃÊ)ÀÌ ³²¾Ò½À´Ï´Ù.\n", dashCooldownTimer);
+			if (coinCount < DASH_COST) printf("ÄÚÀÎÀÌ ºÎÁ·ÇÕ´Ï´Ù (ÇÊ¿ä: %d, ÇöÀç: %d)\n", DASH_COST, coinCount);
+>>>>>>> ba873008b972d650864da5f752e6c62a13f6e228
 		}
 	}
 }
