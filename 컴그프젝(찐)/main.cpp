@@ -1,5 +1,9 @@
-#define _CRT_SECURE_NO_WARNINGS
+ï»¿#define _CRT_SECURE_NO_WARNINGS
 #define STB_TRUETYPE_IMPLEMENTATION
+#define _CRT_SECURE_NO_WARNINGS 
+#define STB_TRUETYPE_IMPLEMENTATION 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 #include "stb_truetype.h"
 #include <iostream>
 #include <stdlib.h>
@@ -21,7 +25,7 @@
 #pragma comment(lib, "freeglut.lib")
 #pragma warning(disable: 4711 4710 4100)
 
-// ±¸Á¶Ã¼ Á¤ÀÇ
+// êµ¬ì¡°ì²´ ì •ì˜
 struct Car {
 	float x, z;
 	float speed;
@@ -31,20 +35,20 @@ struct Car {
 
 struct Coin {
 	float x, z;
-	bool isCollected = false; // È¹µæ ¿©ºÎ
+	bool isCollected = false; // íšë“ ì—¬ë¶€
 };
 
-//ÀÚµ¿Â÷ ºÎÇ°
+//ìë™ì°¨ ë¶€í’ˆ
 struct CarPart {
-	glm::vec3 offset; // Â÷·® Áß¾ÓÀ» ±âÁØÀ¸·Î ÇÑ »ó´ëÀû À§Ä¡
-	glm::vec3 scale; // Å©±â
-	glm::vec3 color; // ºÎÇ°ÀÇ »ö»ó
+	glm::vec3 offset; // ì°¨ëŸ‰ ì¤‘ì•™ì„ ê¸°ì¤€ìœ¼ë¡œ í•œ ìƒëŒ€ì  ìœ„ì¹˜
+	glm::vec3 scale; // í¬ê¸°
+	glm::vec3 color; // ë¶€í’ˆì˜ ìƒ‰ìƒ
 };
 
-// ÀÚµ¿Â÷ ¸ğµ¨ Á¤ÀÇ
+// ìë™ì°¨ ëª¨ë¸ ì •ì˜
 struct CarDesign {
 	std::vector<CarPart> parts;
-	float baseScale; //ÀüÃ¼Å©±âÁ¶Àı
+	float baseScale; //ì „ì²´í¬ê¸°ì¡°ì ˆ
 };
 
 enum GameSeason {
@@ -55,7 +59,7 @@ enum GameSeason {
 };
 GameSeason currentSeason = SUMMER;
 
-// °èÀıº° »ö»ó Á¤ÀÇ ±¸Á¶Ã¼
+// ê³„ì ˆë³„ ìƒ‰ìƒ ì •ì˜ êµ¬ì¡°ì²´
 struct SeasonColors {
 	glm::vec3 grass;
 	glm::vec3 treeTrunk;
@@ -63,135 +67,163 @@ struct SeasonColors {
 	glm::vec3 treeFoliageMedium;
 	glm::vec3 treeFoliageDark;
 };
-//°èÀı »ö»ó Á¤ÀÇ
+//ê³„ì ˆ ìƒ‰ìƒ ì •ì˜
 std::map<GameSeason, SeasonColors> seasonThemes = {
 {SUMMER, {
-glm::vec3(0.47f, 0.9f, 0.42f), // grass (¿¬ÇÑ ÃÊ·Ï)
-glm::vec3(1.0f, 0.2f, 0.0f), // treeTrunk (°¥»ö/ÁÖÈ²)
-glm::vec3(0.2f, 0.7f, 0.2f), // foliageLight (¹àÀº ÃÊ·Ï)
+glm::vec3(0.47f, 0.9f, 0.42f), // grass (ì—°í•œ ì´ˆë¡)
+glm::vec3(1.0f, 0.2f, 0.0f), // treeTrunk (ê°ˆìƒ‰/ì£¼í™©)
+glm::vec3(0.2f, 0.7f, 0.2f), // foliageLight (ë°ì€ ì´ˆë¡)
 glm::vec3(0.1f, 0.6f, 0.1f), // foliageMedium
-glm::vec3(0.0f, 0.5f, 0.0f) // foliageDark (ÁøÇÑ ÃÊ·Ï)
+glm::vec3(0.0f, 0.5f, 0.0f) // foliageDark (ì§„í•œ ì´ˆë¡)
 }},
 {AUTUMN, {
-glm::vec3(0.8f, 0.7f, 0.3f), // grass (È²Åä»ö/´©·±»ö)
-glm::vec3(0.6f, 0.25f, 0.05f), // treeTrunk (ÁøÇÑ °¥»ö)
-glm::vec3(1.0f, 0.5f, 0.0f), // foliageLight (ÁÖÈ²)
-glm::vec3(0.8f, 0.3f, 0.1f), // foliageMedium (»¡°­/º®µ¹)
-glm::vec3(0.5f, 0.1f, 0.1f) // foliageDark (ÁøÇÑ »¡°­)
+glm::vec3(0.8f, 0.7f, 0.3f), // grass (í™©í† ìƒ‰/ëˆ„ëŸ°ìƒ‰)
+glm::vec3(0.6f, 0.25f, 0.05f), // treeTrunk (ì§„í•œ ê°ˆìƒ‰)
+glm::vec3(1.0f, 0.5f, 0.0f), // foliageLight (ì£¼í™©)
+glm::vec3(0.8f, 0.3f, 0.1f), // foliageMedium (ë¹¨ê°•/ë²½ëŒ)
+glm::vec3(0.5f, 0.1f, 0.1f) // foliageDark (ì§„í•œ ë¹¨ê°•)
 }},
 {WINTER, {
-glm::vec3(0.9f, 0.95f, 1.0f), // grass (Èò»ö/¿¶Àº ÇÏ´Ã»ö ´«¹ç)
+glm::vec3(0.9f, 0.95f, 1.0f), // grass (í°ìƒ‰/ì˜…ì€ í•˜ëŠ˜ìƒ‰ ëˆˆë°­)
 glm::vec3(0.6f, 0.4f, 0.2f), // treeTrunk
-glm::vec3(1.0f, 1.0f, 1.0f), // foliageLight (ÇÏ¾á ´« µ¤ÀÎ ³ª¹µÀÙ)
+glm::vec3(1.0f, 1.0f, 1.0f), // foliageLight (í•˜ì–€ ëˆˆ ë®ì¸ ë‚˜ë­‡ì)
 glm::vec3(0.9f, 0.9f, 0.9f), // foliageMedium
 glm::vec3(0.8f, 0.8f, 0.8f) // foliageDark
 }},
 {SPRING, {
 glm::vec3(0.47f, 0.9f, 0.42f), // grass
 glm::vec3(0.9f, 0.5f, 0.3f), // treeTrunk
-glm::vec3(1.0f, 0.7f, 0.8f), // foliageLight (º¢²É ÇÎÅ©)
+glm::vec3(1.0f, 0.7f, 0.8f), // foliageLight (ë²šê½ƒ í•‘í¬)
 glm::vec3(0.8f, 0.5f, 0.6f), // foliageMedium
 glm::vec3(0.6f, 0.3f, 0.4f) // foliageDark
 }}
+	{SUMMER, {
+		glm::vec3(0.47f, 0.9f, 0.42f),      // grass (ì—°í•œ ì´ˆë¡)
+		glm::vec3(1.0f, 0.2f, 0.0f),        // treeTrunk (ê°ˆìƒ‰/ì£¼í™©)
+		glm::vec3(0.2f, 0.7f, 0.2f),        // foliageLight (ë°ì€ ì´ˆë¡)
+		glm::vec3(0.1f, 0.6f, 0.1f),        // foliageMedium
+		glm::vec3(0.0f, 0.5f, 0.0f)         // foliageDark (ì§„í•œ ì´ˆë¡)
+	}},
+	{AUTUMN, {
+		glm::vec3(0.8f, 0.7f, 0.3f),        // grass (í™©í† ìƒ‰/ëˆ„ëŸ°ìƒ‰)
+		glm::vec3(0.6f, 0.25f, 0.05f),      // treeTrunk (ì§„í•œ ê°ˆìƒ‰)
+		glm::vec3(1.0f, 0.5f, 0.0f),        // foliageLight (ì£¼í™©)
+		glm::vec3(0.8f, 0.3f, 0.1f),        // foliageMedium (ë¹¨ê°•/ë²½ëŒ)
+		glm::vec3(0.5f, 0.1f, 0.1f)         // foliageDark (ì§„í•œ ë¹¨ê°•)
+	}},
+	{WINTER, {
+		glm::vec3(0.9f, 0.95f, 1.0f),       // grass (í°ìƒ‰/ì˜…ì€ í•˜ëŠ˜ìƒ‰ ëˆˆë°­)
+		glm::vec3(0.6f, 0.4f, 0.2f),        // treeTrunk
+		glm::vec3(1.0f, 1.0f, 1.0f),        // foliageLight (í•˜ì–€ ëˆˆ ë®ì¸ ë‚˜ë­‡ì)
+		glm::vec3(0.9f, 0.9f, 0.9f),        // foliageMedium
+		glm::vec3(0.8f, 0.8f, 0.8f)         // foliageDark
+	}},
+	{SPRING, {
+		glm::vec3(1.0f, 0.6f, 0.8f),        // grass
+		glm::vec3(0.9f, 0.5f, 0.3f),        // treeTrunk
+		glm::vec3(1.0f, 0.7f, 0.8f),        // foliageLight (ë²šê½ƒ í•‘í¬)
+		glm::vec3(0.8f, 0.5f, 0.6f),        // foliageMedium
+		glm::vec3(0.6f, 0.3f, 0.4f)         // foliageDark
+	}}
 };
-const int LINES_PER_SEASON = 30; // 30 ¶óÀÎ¸¶´Ù °èÀı ÀüÈ¯
-int linesPassedSinceSeasonChange = 0; // °èÀıÀÌ ¹Ù²ï ÈÄ Åë°úÇÑ ¶óÀÎ ¼ö (minZ ±âÁØ)
+const int LINES_PER_SEASON = 30; // 30 ë¼ì¸ë§ˆë‹¤ ê³„ì ˆ ì „í™˜
+int linesPassedSinceSeasonChange = 0; // ê³„ì ˆì´ ë°”ë€ í›„ í†µê³¼í•œ ë¼ì¸ ìˆ˜ (minZ ê¸°ì¤€)
 
-// Åë³ª¹« ±¸Á¶Ã¼
+// í†µë‚˜ë¬´ êµ¬ì¡°ì²´
 struct Log {
 	float x, z;
 	float speed;
-	float width; // Åë³ª¹« ±æÀÌ
+	float width; // í†µë‚˜ë¬´ ê¸¸ì´
 };
 
-// ¿¬ÀÙ ±¸Á¶Ã¼
+// ì—°ì êµ¬ì¡°ì²´
 struct LilyPad {
 	float x, z;
 };
 
-// ÆÄÆ¼Å¬ ±¸Á¶Ã¼
+// íŒŒí‹°í´ êµ¬ì¡°ì²´
 struct Particle {
 	glm::vec3 position;
-	glm::vec3 velocity; // ÀÌµ¿ ¼Óµµ ¹× ¹æÇâ
+	glm::vec3 velocity; // ì´ë™ ì†ë„ ë° ë°©í–¥
 	glm::vec3 color;
 	float scale;
-	float life; // ¼ö¸í (1.0¿¡¼­ ½ÃÀÛÇØ 0.0ÀÌ µÇ¸é »ç¶óÁü)
+	float life; // ìˆ˜ëª… (1.0ì—ì„œ ì‹œì‘í•´ 0.0ì´ ë˜ë©´ ì‚¬ë¼ì§)
 };
 
-// ÆÄÆ¼Å¬ °ü¸® º¤ÅÍ
+// íŒŒí‹°í´ ê´€ë¦¬ ë²¡í„°
 std::vector<Particle> particles;
 
-// ±âÂ÷ »óÅÂ ¿­°ÅÇü
+// ê¸°ì°¨ ìƒíƒœ ì—´ê±°í˜•
 enum TrainState {
-	TRAIN_IDLE, // Æò»ó½Ã (¾Æ¹«°Íµµ ¾øÀ½)
-	TRAIN_WARNING, // °æ°í (½ÅÈ£µî ±ôºıÀÓ)
-	TRAIN_PASSING // Åë°ú (±âÂ÷°¡ ¸Å¿ì ºü¸£°Ô Áö³ª°¨)
+	TRAIN_IDLE, // í‰ìƒì‹œ (ì•„ë¬´ê²ƒë„ ì—†ìŒ)
+	TRAIN_WARNING, // ê²½ê³  (ì‹ í˜¸ë“± ê¹œë¹¡ì„)
+	TRAIN_PASSING // í†µê³¼ (ê¸°ì°¨ê°€ ë§¤ìš° ë¹ ë¥´ê²Œ ì§€ë‚˜ê°)
 };
 
-// ±âÂ÷ ±¸Á¶Ã¼
+// ê¸°ì°¨ êµ¬ì¡°ì²´
 struct Train {
 	float z;
 	float x;
 	float speed;
 	TrainState state;
-	int timer; // »óÅÂ º¯°æÀ» À§ÇÑ Å¸ÀÌ¸Ó
-	bool isLightOn; // ½ÅÈ£µî ±ôºıÀÓ¿ë
+	int timer; // ìƒíƒœ ë³€ê²½ì„ ìœ„í•œ íƒ€ì´ë¨¸
+	bool isLightOn; // ì‹ í˜¸ë“± ê¹œë¹¡ì„ìš©
 };
 
-// Àü¿ª º¤ÅÍ
+// ì „ì—­ ë²¡í„°
 std::vector<Train> trains;
 
-// Àü¿ª º¤ÅÍ
+// ì „ì—­ ë²¡í„°
 std::vector<Log> logs;
 std::vector<LilyPad> lilyPads;
 
 struct Cloud {
 	glm::vec3 position;
 	float scale;
-	float speed; // ±¸¸§ÀÌ ¿·À¸·Î Èê·¯°¡´Â ¼Óµµ
+	float speed; // êµ¬ë¦„ì´ ì˜†ìœ¼ë¡œ í˜ëŸ¬ê°€ëŠ” ì†ë„
 };
-std::vector<Cloud> clouds; // Àü¿ª ±¸¸§ º¤ÅÍ
+std::vector<Cloud> clouds; // ì „ì—­ êµ¬ë¦„ ë²¡í„°
 
-// Àü¿ª º¯¼ö
+// ì „ì—­ ë³€ìˆ˜
 GLuint vao, vbo;
 GLuint transLoc;
 glm::vec3 playerPos(0.0f, 0.5f, 0.0f);
 glm::vec3 playerTargetPos = playerPos;
-glm::vec3 playerStartPos = playerPos; //¾Ö´Ï¸ŞÀÌ¼Ç ½ÃÀÛ À§Ä¡
+glm::vec3 playerStartPos = playerPos; //ì• ë‹ˆë©”ì´ì…˜ ì‹œì‘ ìœ„ì¹˜
 float playerRotation = 0.0f;
 bool isMoving = false;
 float moveTime = 0.0f;
-const float MOVE_DURATION = 0.20f; //ÇÑÄ­ÀÌµ¿½Ã°£
-const float JUMP_HEIGHT = 1.0f; //ÃÖ´ëÁ¡ÇÁ³ôÀÌ
-glm::mat4 PV; // ³ª¹« ±×¸®±â ÇÔ¼ö¿Í °øÀ¯ÇÒ Àü¿ª Çà·Ä
+const float MOVE_DURATION = 0.20f; //í•œì¹¸ì´ë™ì‹œê°„
+const float JUMP_HEIGHT = 1.0f; //ìµœëŒ€ì í”„ë†’ì´
+glm::mat4 PV; // ë‚˜ë¬´ ê·¸ë¦¬ê¸° í•¨ìˆ˜ì™€ ê³µìœ í•  ì „ì—­ í–‰ë ¬
 GLuint depthFBO, depthMap;
 GLuint depthShader;
 const unsigned int SHADOW_WIDTH = 2048, SHADOW_HEIGHT = 2048;
 
 int score = 0;
-int minZ = 0; // ÇÃ·¹ÀÌ¾î°¡ µµ´ŞÇÑ ÃÖ´ë ÀüÁø À§Ä¡
-int coinCount = 0; // È¹µæÇÑ ÄÚÀÎ °³¼ö
+int minZ = 0; // í”Œë ˆì´ì–´ê°€ ë„ë‹¬í•œ ìµœëŒ€ ì „ì§„ ìœ„ì¹˜
+int coinCount = 0; // íšë“í•œ ì½”ì¸ ê°œìˆ˜
 
-int riverRemaining = 0; // ÇöÀç °­ ±¸°£ÀÌ ÁøÇà ÁßÀÎÁö ÀúÀåÇÏ´Â Àü¿ª º¯¼ö
+int riverRemaining = 0; // í˜„ì¬ ê°• êµ¬ê°„ì´ ì§„í–‰ ì¤‘ì¸ì§€ ì €ì¥í•˜ëŠ” ì „ì—­ ë³€ìˆ˜
 
 bool isDashing = false;
-float dashTimer = 0.0f; // ´ë½¬ ³²Àº ½Ã°£
-const float DASH_DURATION = 1.0f; // ´ë½¬ Áö¼Ó ½Ã°£ (1ÃÊ)
-const float DASH_COOLDOWN = 3.0f; // ´ë½¬ Àç»ç¿ë ´ë±â ½Ã°£ (3ÃÊ)
-float dashCooldownTimer = 0.0f; // Àç»ç¿ë ´ë±â ½Ã°£ Å¸ÀÌ¸Ó
-const int DASH_COST = 7; // ´ë½¬¿¡ ÇÊ¿äÇÑ ÄÚÀÎ °³¼ö
+float dashTimer = 0.0f; // ëŒ€ì‰¬ ë‚¨ì€ ì‹œê°„
+const float DASH_DURATION = 1.0f; // ëŒ€ì‰¬ ì§€ì† ì‹œê°„ (1ì´ˆ)
+const float DASH_COOLDOWN = 3.0f; // ëŒ€ì‰¬ ì¬ì‚¬ìš© ëŒ€ê¸° ì‹œê°„ (3ì´ˆ)
+float dashCooldownTimer = 0.0f; // ì¬ì‚¬ìš© ëŒ€ê¸° ì‹œê°„ íƒ€ì´ë¨¸
+const int DASH_COST = 7; // ëŒ€ì‰¬ì— í•„ìš”í•œ ì½”ì¸ ê°œìˆ˜
 glm::vec3 lightPos(-15.0f, 20.0f, 0.0f);
 
-bool isEventActive = false; // ÇöÀç ½ºÆäÀÌ½º ¿¬Å¸ ÀÌº¥Æ®°¡ È°¼ºÈ­µÇ¾ú´Â°¡
-float eventDuration = 4.0f; // ¿¬Å¸ ÀÌº¥Æ® Áö¼Ó ½Ã°£ (4ÃÊ)
-float eventProgress = 0.0f; // ¿¬Å¸ ÁøÇàµµ (0.0 ~ 1.0)
-const float TAP_PER_SECOND = 3.0f; // 1ÃÊ´ç ÇÊ¿äÇÑ ¿¬Å¸ È½¼ö (°ÔÀÌÁö »ó½Â·ü)
-int requiredTaps = 0; // ¿¬Å¸ ÀÌº¥Æ® Áß¿¡ ´­¸° È½¼ö Ä«¿îÆ®
+bool isEventActive = false; // í˜„ì¬ ìŠ¤í˜ì´ìŠ¤ ì—°íƒ€ ì´ë²¤íŠ¸ê°€ í™œì„±í™”ë˜ì—ˆëŠ”ê°€
+float eventDuration = 4.0f; // ì—°íƒ€ ì´ë²¤íŠ¸ ì§€ì† ì‹œê°„ (4ì´ˆ)
+float eventProgress = 0.0f; // ì—°íƒ€ ì§„í–‰ë„ (0.0 ~ 1.0)
+const float TAP_PER_SECOND = 3.0f; // 1ì´ˆë‹¹ í•„ìš”í•œ ì—°íƒ€ íšŸìˆ˜ (ê²Œì´ì§€ ìƒìŠ¹ë¥ )
+int requiredTaps = 0; // ì—°íƒ€ ì´ë²¤íŠ¸ ì¤‘ì— ëˆŒë¦° íšŸìˆ˜ ì¹´ìš´íŠ¸
 
-bool isFlying = false; // ÇöÀç »õ¸¦ Å¸°í °øÁß ºñÇà ÁßÀÎ°¡
-float flyTimer = 0.0f; // ºñÇà ³²Àº ½Ã°£
-const float FLY_DURATION = 3.0f; // ºñÇà Áö¼Ó ½Ã°£ (3ÃÊ)
-const float FLY_SPEED = 0.8f; // ºñÇà Áß ÀüÁø ¼Óµµ
+bool isFlying = false; // í˜„ì¬ ìƒˆë¥¼ íƒ€ê³  ê³µì¤‘ ë¹„í–‰ ì¤‘ì¸ê°€
+float flyTimer = 0.0f; // ë¹„í–‰ ë‚¨ì€ ì‹œê°„
+const float FLY_DURATION = 3.0f; // ë¹„í–‰ ì§€ì† ì‹œê°„ (3ì´ˆ)
+const float FLY_SPEED = 0.8f; // ë¹„í–‰ ì¤‘ ì „ì§„ ì†ë„
 int lastEventScore = 0;
 
 const float FLY_HEIGHT = 8.0f;
@@ -203,19 +235,19 @@ bool isBirdLeaving = false;
 glm::vec3 birdStartPos;
 glm::vec3 birdTargetPos;
 float birdLeaveTime = 0.0f;
-const float BIRD_LEAVE_DURATION = 1.0f; // »õ°¡ ¶°³ª´Â µ¥ °É¸®´Â ½Ã°£
+const float BIRD_LEAVE_DURATION = 1.0f; // ìƒˆê°€ ë– ë‚˜ëŠ” ë° ê±¸ë¦¬ëŠ” ì‹œê°„
 
-std::map<int, int> mapType; // 0=ÀÜµğ 1=µµ·Î
+std::map<int, int> mapType; // 0=ì”ë”” 1=ë„ë¡œ
 std::map<int, std::vector<int>> treeMap;
 std::vector<Car> cars;
 std::vector<CarDesign> carDesigns;
-std::vector<Coin> coins; // ÄÚÀÎ ¸ñ·Ï
+std::vector<Coin> coins; // ì½”ì¸ ëª©ë¡
 
-// ÆùÆ® °ü·Ã Àü¿ª º¯¼ö
+// í°íŠ¸ ê´€ë ¨ ì „ì—­ ë³€ìˆ˜
 stbtt_bakedchar cdata[96];
 GLuint fontTexture;
 
-// ÇÔ¼ö ¼±¾ğ
+// í•¨ìˆ˜ ì„ ì–¸
 GLvoid drawScene(GLvoid);
 GLvoid Reshape(int w, int h);
 void make_vertexShaders();
@@ -229,16 +261,45 @@ void initFont(const char* filename, float pixelHeight);
 void specialKeyboard(int key, int x, int y);
 void timer(int value);
 bool isTreeAt(int x, int z);
-void drawTree(int x, int z); // º¹¼¿ ³ª¹« ±×¸®±â ÇÔ¼ö
+void drawTree(int x, int z); // ë³µì…€ ë‚˜ë¬´ ê·¸ë¦¬ê¸° í•¨ìˆ˜
 void renderTextTTF(float x, float y, const char* text, float r, float g, float b);
 void keyboard(unsigned char key, int x, int y);
 void loadDepthShader();
-void drawCloud(const Cloud& cloud, GLuint shader); // drawCloud°¡ ´Ù¸¥ °÷¿¡¼­ È£ÃâµÈ´Ù¸é Ãß°¡
-void drawClouds(GLuint shader); // <<<<< ÇÊ¼ö Ãß°¡ »çÇ×
+void drawCloud(const Cloud& cloud, GLuint shader); // drawCloudê°€ ë‹¤ë¥¸ ê³³ì—ì„œ í˜¸ì¶œëœë‹¤ë©´ ì¶”ê°€
+void drawClouds(GLuint shader); // <<<<< í•„ìˆ˜ ì¶”ê°€ ì‚¬í•­
+GLuint riverTexture;
+GLuint grassTexture;
+GLuint logTexture;
+GLuint lilyPadTexture;
 
 GLuint shaderProgramID;
 GLuint vertexShader;
 GLuint fragmentShader;
+
+void loadTexture(const char* path, GLuint* textureID) {
+	glGenTextures(1, textureID);
+	glBindTexture(GL_TEXTURE_2D, *textureID);
+
+	// í…ìŠ¤ì²˜ ë˜í•‘ ë° í•„í„°ë§ ì„¤ì • 
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	int width, height, nrChannels;
+	stbi_set_flip_vertically_on_load(true); // ì´ë¯¸ì§€ Yì¶• ë’¤ì§‘ê¸° [cite: 456]
+
+	unsigned char* data = stbi_load(path, &width, &height, &nrChannels, 0);
+	if (data) {
+		GLenum format = (nrChannels == 4) ? GL_RGBA : GL_RGB;
+		glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+		glGenerateMipmap(GL_TEXTURE_2D);
+	}
+	else {
+		std::cout << "Failed to load texture: " << path << std::endl;
+	}
+	stbi_image_free(data);
+}
 
 int main(int argc, char** argv)
 {
@@ -277,40 +338,40 @@ int main(int argc, char** argv)
 }
 
 GameSeason getSeasonByZ(int z) {
-	//z´Â À½¼ö -> ¾ç¼ö·Î º¯È¯
+	//zëŠ” ìŒìˆ˜ -> ì–‘ìˆ˜ë¡œ ë³€í™˜
 	int linesPassed = -z;
 
-	// ÇöÀç °èÀı ½ÃÀÛÁ¡ (minZ = 0)À» ±âÁØÀ¸·Î ¶óÀÎ ¼ö¸¦ °è»êÇÕ´Ï´Ù.
-	// linesPassed / LINES_PER_SEASON ÀÇ ¸òÀ» ±¸ÇÏ¸é, ¸î ¹ø °èÀıÀÌ ¹Ù²î¾ú´ÂÁö ¾Ë ¼ö ÀÖ½À´Ï´Ù.
-	int seasonIndex = (linesPassed / LINES_PER_SEASON) % 4; // 0, 1, 2, 3 ·Î ¼øÈ¯
+	// í˜„ì¬ ê³„ì ˆ ì‹œì‘ì  (minZ = 0)ì„ ê¸°ì¤€ìœ¼ë¡œ ë¼ì¸ ìˆ˜ë¥¼ ê³„ì‚°í•©ë‹ˆë‹¤.
+	// linesPassed / LINES_PER_SEASON ì˜ ëª«ì„ êµ¬í•˜ë©´, ëª‡ ë²ˆ ê³„ì ˆì´ ë°”ë€Œì—ˆëŠ”ì§€ ì•Œ ìˆ˜ ìˆìŠµë‹ˆë‹¤.
+	int seasonIndex = (linesPassed / LINES_PER_SEASON) % 4; // 0, 1, 2, 3 ë¡œ ìˆœí™˜
 
-	// ÃÊ±â °èÀı SUMMER (0)À» ±âÁØÀ¸·Î ÀÎµ¦½º¸¦ Á¶Á¤ÇÏ¿© °èÀıÀ» ¹İÈ¯ÇÕ´Ï´Ù.
+	// ì´ˆê¸° ê³„ì ˆ SUMMER (0)ì„ ê¸°ì¤€ìœ¼ë¡œ ì¸ë±ìŠ¤ë¥¼ ì¡°ì •í•˜ì—¬ ê³„ì ˆì„ ë°˜í™˜í•©ë‹ˆë‹¤.
 	// SUMMBER=1, AUTUMN=2, WINTER=3, SPRING=0
 
-	// ÃÊ±â °èÀı: SUMMER (0~29¶óÀÎ)
+	// ì´ˆê¸° ê³„ì ˆ: SUMMER (0~29ë¼ì¸)
 	if (seasonIndex == 0) return SUMMER;
-	// ´ÙÀ½ °èÀı: AUTUMN (30~59¶óÀÎ)
+	// ë‹¤ìŒ ê³„ì ˆ: AUTUMN (30~59ë¼ì¸)
 	if (seasonIndex == 1) return AUTUMN;
-	// ´ÙÀ½ °èÀı: WINTER (60~89¶óÀÎ)
+	// ë‹¤ìŒ ê³„ì ˆ: WINTER (60~89ë¼ì¸)
 	if (seasonIndex == 2) return WINTER;
-	// ¸¶Áö¸· °èÀı: SPRING (90~119¶óÀÎ)
+	// ë§ˆì§€ë§‰ ê³„ì ˆ: SPRING (90~119ë¼ì¸)
 	if (seasonIndex == 3) return SPRING;
 
-	return SUMMER; // ¾ÈÀüÀåÄ¡
+	return SUMMER; // ì•ˆì „ì¥ì¹˜
 }
 
-// ÆÛÁö´Â ¸ğ¾ç ´ë½Å À§·Î ½×¾Æ¿Ã¸° ¹Ú½ºÇü ³ª¹«
+// í¼ì§€ëŠ” ëª¨ì–‘ ëŒ€ì‹  ìœ„ë¡œ ìŒ“ì•„ì˜¬ë¦° ë°•ìŠ¤í˜• ë‚˜ë¬´
 void drawTree(int x, int z, GLuint shader) {
 
 	const SeasonColors& colors = seasonThemes[getSeasonByZ(z)];
 	glm::mat4 model;
 	//glm::mat4 MVP;
 
-	// 1. ³ª¹« ±âµÕ-°¥»ö
+	// 1. ë‚˜ë¬´ ê¸°ë‘¥-ê°ˆìƒ‰
 	for (int i = 0; i < 1; ++i) {
 		model = glm::mat4(1.0f);
 		model = glm::translate(model, glm::vec3((float)x, 0.5f + (float)i, (float)z));
-		model = glm::scale(model, glm::vec3(0.4f, 1.0f, 0.4f)); // ¾ãÀº ±âµÕ
+		model = glm::scale(model, glm::vec3(0.4f, 1.0f, 0.4f)); // ì–‡ì€ ê¸°ë‘¥
 
 		//glUniformMatrix4fv(transLoc, 1, GL_FALSE, glm::value_ptr(model));
 		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model)); //
@@ -321,10 +382,10 @@ void drawTree(int x, int z, GLuint shader) {
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
 
-	// 2. ³ª¹µÀÙ À§·Î ¹İµíÇÏ°Ô ½×Àº ÇüÅÂ
-	for (int yOffset = 0; yOffset < 4; ++yOffset) { // 3Ãş ³ôÀÌ
-		for (int dx = -1; dx <= 1; ++dx) { // °¡·Î 3Ä­
-			for (int dz = -1; dz <= 1; ++dz) { // ¼¼·Î 3Ä­
+	// 2. ë‚˜ë­‡ì ìœ„ë¡œ ë°˜ë“¯í•˜ê²Œ ìŒ“ì€ í˜•íƒœ
+	for (int yOffset = 0; yOffset < 4; ++yOffset) { // 3ì¸µ ë†’ì´
+		for (int dx = -1; dx <= 1; ++dx) { // ê°€ë¡œ 3ì¹¸
+			for (int dz = -1; dz <= 1; ++dz) { // ì„¸ë¡œ 3ì¹¸
 
 				model = glm::mat4(1.0f);
 
@@ -353,21 +414,21 @@ void drawCar(const Car& car, GLuint shader) {
 	const CarDesign& design = carDesigns[car.designID];
 	glm::mat4 baseModel = glm::translate(glm::mat4(1.0f), glm::vec3(car.x, 0.5f, car.z));
 
-	//Â÷·®Å©±âÁ¶Àı
+	//ì°¨ëŸ‰í¬ê¸°ì¡°ì ˆ
 	baseModel = glm::scale(baseModel, glm::vec3(design.baseScale));
 
 	for (const auto& part : design.parts) {
 		glm::mat4 model = baseModel;
 
-		// »ó´ëÀû À§Ä¡ ÀÌµ¿
+		// ìƒëŒ€ì  ìœ„ì¹˜ ì´ë™
 		model = glm::translate(model, part.offset);
-		// ºÎÇ° Å©±â Á¶Àı
+		// ë¶€í’ˆ í¬ê¸° ì¡°ì ˆ
 		model = glm::scale(model, part.scale);
 
 		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
 		if (shader == shaderProgramID) {
-			// ºÎÇ°¿¡ Á¤ÀÇµÈ »ö»óÀÌ ¾øÀ¸¸é Car ±¸Á¶Ã¼ÀÇ ±âº» »ö»ó »ç¿ë
+			// ë¶€í’ˆì— ì •ì˜ëœ ìƒ‰ìƒì´ ì—†ìœ¼ë©´ Car êµ¬ì¡°ì²´ì˜ ê¸°ë³¸ ìƒ‰ìƒ ì‚¬ìš©
 			if (part.color == glm::vec3(0.0f)) {
 				glVertexAttrib3f(1, car.color.r, car.color.g, car.color.b);
 			}
@@ -381,16 +442,16 @@ void drawCar(const Car& car, GLuint shader) {
 
 void generateLane(int z)
 {
-	// ÇöÀç ÁÙÀÌ ÀÌ¹Ì »ı¼ºµÇ¾î ÀÖ´Ù¸é ÆĞ½º
+	// í˜„ì¬ ì¤„ì´ ì´ë¯¸ ìƒì„±ë˜ì–´ ìˆë‹¤ë©´ íŒ¨ìŠ¤
 	if (mapType.find(z) != mapType.end()) return;
 
-	// ½ÃÀÛ ÁöÁ¡ ¾ÈÀüÁö´ë (-2 ~ 2)
+	// ì‹œì‘ ì§€ì  ì•ˆì „ì§€ëŒ€ (-2 ~ 2)
 	if (z >= -2 && z <= 2) {
 		mapType[z] = 0;
 		return;
 	}
 
-	static int lastRiverZ = 0; // ¸¶Áö¸·À¸·Î °­ÀÌ »ı¼ºµÈ À§Ä¡ ±â¾ï
+	static int lastRiverZ = 0; // ë§ˆì§€ë§‰ìœ¼ë¡œ ê°•ì´ ìƒì„±ëœ ìœ„ì¹˜ ê¸°ì–µ
 
 	int growDir = (z < 0) ? -1 : 1;
 
@@ -402,7 +463,7 @@ void generateLane(int z)
 	int randVal = rand() % 10;
 
 	if (!forceRiver && randVal < 6) {
-		mapType[z] = 1; // µµ·Î
+		mapType[z] = 1; // ë„ë¡œ
 
 		int numCars = 1 + rand() % 2;
 		float speed = (0.05f + (rand() % 3) / 50.0f);
@@ -420,10 +481,10 @@ void generateLane(int z)
 		}
 	}
 
-	// °­
+	// ê°•
 	else if ((forceRiver || randVal < 7) && !prevWasRiver) {
 
-		int riverWidth = 2 + rand() % 3; // 2~4ÁÙ
+		int riverWidth = 2 + rand() % 3; // 2~4ì¤„
 
 		bool canPlaceRiver = true;
 		for (int k = 1; k < riverWidth; ++k) {
@@ -435,20 +496,20 @@ void generateLane(int z)
 		}
 
 		if (canPlaceRiver) {
-			lastRiverZ = z; // ¸¶Áö¸· °­ À§Ä¡ °»½Å
-			int pathX = (rand() % 9) - 4; // Á¤´ä °æ·Î
+			lastRiverZ = z; // ë§ˆì§€ë§‰ ê°• ìœ„ì¹˜ ê°±ì‹ 
+			int pathX = (rand() % 9) - 4; // ì •ë‹µ ê²½ë¡œ
 
 			for (int k = 0; k < riverWidth; ++k) {
 				int currentZ = z + (k * growDir);
-				mapType[currentZ] = 2; // °­ Å¸ÀÔ
+				mapType[currentZ] = 2; // ê°• íƒ€ì…
 
 				bool isLogLane = (rand() % 2 == 0);
 
-				if (isLogLane) { // Åë³ª¹«
+				if (isLogLane) { // í†µë‚˜ë¬´
 					float speed = 0.03f + (rand() % 3) / 100.0f;
 					if (rand() % 2 == 0) speed *= -1.0f;
 
-					// ¾ÈÀü Åë³ª¹«
+					// ì•ˆì „ í†µë‚˜ë¬´
 					Log safeLog;
 					safeLog.z = (float)currentZ;
 					safeLog.width = 5.0f;
@@ -456,7 +517,7 @@ void generateLane(int z)
 					safeLog.x = (float)pathX;
 					logs.push_back(safeLog);
 
-					// ·£´ı Åë³ª¹«
+					// ëœë¤ í†µë‚˜ë¬´
 					int extraLogs = 1 + rand() % 2;
 					for (int i = 0; i < extraLogs; i++) {
 						Log log;
@@ -471,15 +532,15 @@ void generateLane(int z)
 					}
 					pathX += (speed > 0) ? 1 : -1;
 				}
-				else { // ¿¬ÀÙ
-					// ¾ÈÀü ¿¬ÀÙ ¹¶Ä¡
+				else { // ì—°ì
+					// ì•ˆì „ ì—°ì ë­‰ì¹˜
 					for (int offset = -1; offset <= 1; ++offset) {
 						LilyPad pad;
 						pad.z = (float)currentZ;
 						pad.x = (float)(pathX + offset);
 						if (pad.x > -15 && pad.x < 15) lilyPads.push_back(pad);
 					}
-					// Àå½Ä ¿¬ÀÙ
+					// ì¥ì‹ ì—°ì
 					for (int x = -14; x <= 14; x++) {
 						if (abs(x - pathX) <= 2) continue;
 						if (rand() % 100 < 35) {
@@ -496,29 +557,29 @@ void generateLane(int z)
 			}
 		}
 		else {
-			goto MAKE_GRASS; // °ø°£ÀÌ ¾øÀ¸¸é ÀÜµğ·Î º¯°æ
+			goto MAKE_GRASS; // ê³µê°„ì´ ì—†ìœ¼ë©´ ì”ë””ë¡œ ë³€ê²½
 		}
 	}
-	// Ã¶±æ
+	// ì² ê¸¸
 	else if (randVal < 8) {
-		mapType[z] = 3; // Ã¶±æ Å¸ÀÔ 3¹ø
+		mapType[z] = 3; // ì² ê¸¸ íƒ€ì… 3ë²ˆ
 
-		// ±âÂ÷ °´Ã¼ »ı¼º
+		// ê¸°ì°¨ ê°ì²´ ìƒì„±
 		Train newTrain;
 		newTrain.z = (float)z;
-		newTrain.x = -50.0f; // È­¸é ¹Û ´ë±â
+		newTrain.x = -50.0f; // í™”ë©´ ë°– ëŒ€ê¸°
 		newTrain.speed = 0.0f;
 		newTrain.state = TRAIN_IDLE;
-		newTrain.timer = rand() % 200 + 100; // 100~300 ÇÁ·¹ÀÓ ÈÄ ¹ßµ¿
+		newTrain.timer = rand() % 200 + 100; // 100~300 í”„ë ˆì„ í›„ ë°œë™
 		newTrain.isLightOn = false;
 
 		trains.push_back(newTrain);
 	}
 
-	// ÀÜµğ
+	// ì”ë””
 	else {
 	MAKE_GRASS:
-		mapType[z] = 0; // ÀÜµğ
+		mapType[z] = 0; // ì”ë””
 
 		for (int x = -15; x <= 15; ++x) {
 			if (rand() % 10 < 1) {
@@ -537,146 +598,146 @@ void generateLane(int z)
 	}
 }
 
-// Å¥ºê ±×¸®±â ÇïÆÛ ÇÔ¼ö (ºÎÇ° ÇÏ³ªÇÏ³ª ±×¸± ¶§ »ç¿ë)
+// íë¸Œ ê·¸ë¦¬ê¸° í—¬í¼ í•¨ìˆ˜ (ë¶€í’ˆ í•˜ë‚˜í•˜ë‚˜ ê·¸ë¦´ ë•Œ ì‚¬ìš©)
 void drawPart(GLuint shader, glm::mat4 parentModel, glm::vec3 offset, glm::vec3 scale, glm::vec3 color) {
 	glm::mat4 model = glm::translate(parentModel, offset);
 	model = glm::scale(model, scale);
 
 	glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
-	// ½¦ÀÌ´õ°¡ ¸ŞÀÎ ½¦ÀÌ´õÀÏ ¶§¸¸ »ö»ó Àû¿ë (±×¸²ÀÚ ¸Ê ¸¸µé ¶§´Â »ö»ó ÇÊ¿ä ¾øÀ½)
+	// ì‰ì´ë”ê°€ ë©”ì¸ ì‰ì´ë”ì¼ ë•Œë§Œ ìƒ‰ìƒ ì ìš© (ê·¸ë¦¼ì ë§µ ë§Œë“¤ ë•ŒëŠ” ìƒ‰ìƒ í•„ìš” ì—†ìŒ)
 	if (shader == shaderProgramID) {
 		glVertexAttrib3f(1, color.r, color.g, color.b);
 	}
 	glDrawArrays(GL_TRIANGLES, 0, 36);
 }
 
-// ´ß Ä³¸¯ÅÍ ±×¸®±â ÇÔ¼ö
+// ë‹­ ìºë¦­í„° ê·¸ë¦¬ê¸° í•¨ìˆ˜
 void drawChicken(GLuint shader, glm::mat4 baseModel) {
 
-	// »ö»ó Á¤ÀÇ
+	// ìƒ‰ìƒ ì •ì˜
 	glm::vec3 white(1.0f, 1.0f, 1.0f);
 	glm::vec3 red(1.0f, 0.2f, 0.2f);
 	glm::vec3 orange(1.0, 0.270588f, 0.0f);
 	glm::vec3 black(0.1f, 0.1f, 0.1f);
 
-	// 1. ¸öÅë (Body) - Áß½ÉÁ¡ Á¶Á¤
+	// 1. ëª¸í†µ (Body) - ì¤‘ì‹¬ì  ì¡°ì •
 	drawPart(shader, baseModel, glm::vec3(0.0f, -0.1f, 0.0f), glm::vec3(0.6f, 0.6f, 0.6f), white);
 
-	// 2. º­½½ (Comb)
+	// 2. ë²¼ìŠ¬ (Comb)
 	drawPart(shader, baseModel, glm::vec3(0.0f, 0.25f, 0.1f), glm::vec3(0.15f, 0.15f, 0.2f), red);
 
-	// 3. ºÎ¸® (Beak)
+	// 3. ë¶€ë¦¬ (Beak)
 	drawPart(shader, baseModel, glm::vec3(0.0f, 0.0f, -0.35f), glm::vec3(0.15f, 0.15f, 0.15f), orange);
 
-	// 4. ¿ÍÆ² (Wattle)
+	// 4. ì™€í‹€ (Wattle)
 	drawPart(shader, baseModel, glm::vec3(0.0f, -0.15f, -0.35f), glm::vec3(0.1f, 0.12f, 0.1f), red);
 
-	// 5. ´« (Eyes)
+	// 5. ëˆˆ (Eyes)
 	drawPart(shader, baseModel, glm::vec3(0.31f, 0.0f, -0.2f), glm::vec3(0.05f, 0.05f, 0.05f), black);
 	drawPart(shader, baseModel, glm::vec3(-0.31f, 0.0f, -0.2f), glm::vec3(0.05f, 0.05f, 0.05f), black);
 
-	// 6. ³¯°³ (Wings)
+	// 6. ë‚ ê°œ (Wings)
 	drawPart(shader, baseModel, glm::vec3(0.32f, -0.2f, 0.05f), glm::vec3(0.1f, 0.3f, 0.4f), white);
 	drawPart(shader, baseModel, glm::vec3(-0.32f, -0.2f, 0.05f), glm::vec3(0.1f, 0.3f, 0.4f), white);
 
-	// 8. ´Ù¸® (Legs)
+	// 8. ë‹¤ë¦¬ (Legs)
 	drawPart(shader, baseModel, glm::vec3(0.2f, -0.25f, 0.0f), glm::vec3(0.1f, 0.5f, 0.1f), orange);
 	drawPart(shader, baseModel, glm::vec3(-0.2f, -0.25f, 0.0f), glm::vec3(0.1f, 0.5f, 0.1f), orange);
 
-	// 9. ¹ß (Feet)
+	// 9. ë°œ (Feet)
 	drawPart(shader, baseModel, glm::vec3(0.2f, -0.49f, -0.3f), glm::vec3(0.15f, 0.02f, 0.25f), orange);
 	drawPart(shader, baseModel, glm::vec3(-0.2f, -0.49f, -0.3f), glm::vec3(0.15f, 0.02f, 0.25f), orange);
 
-	// 9. ²¿¸® (Tail)
+	// 9. ê¼¬ë¦¬ (Tail)
 	drawPart(shader, baseModel, glm::vec3(0.0f, -0.1f, 0.35f), glm::vec3(0.3f, 0.3f, 0.1f), white);
 }
 void drawBird(GLuint shader, glm::mat4 baseModel) {
-	// »ö»ó Á¤ÀÇ (µ¶¼ö¸® °°Àº °¥»ö/Èò»ö »õ)
+	// ìƒ‰ìƒ ì •ì˜ (ë…ìˆ˜ë¦¬ ê°™ì€ ê°ˆìƒ‰/í°ìƒ‰ ìƒˆ)
 	glm::vec3 brown(0.4f, 0.2f, 0.0f);
 	glm::vec3 white(0.9f, 0.9f, 0.9f);
 	glm::vec3 yellow(1.0f, 0.8f, 0.0f);
 
-	// 1. ¸öÅë
+	// 1. ëª¸í†µ
 	drawPart(shader, baseModel, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.5f, 0.6f), brown);
 
-	// 2. ¸Ó¸®
+	// 2. ë¨¸ë¦¬
 	drawPart(shader, baseModel, glm::vec3(0.5f, 0.15f, 0.0f), glm::vec3(0.4f, 0.4f, 0.4f), white);
 
-	// 3. ºÎ¸®
+	// 3. ë¶€ë¦¬
 	drawPart(shader, baseModel, glm::vec3(0.7f, 0.15f, 0.0f), glm::vec3(0.2f, 0.1f, 0.1f), yellow);
 
-	// 4. ²¿¸®
+	// 4. ê¼¬ë¦¬
 	drawPart(shader, baseModel, glm::vec3(-0.55f, 0.0f, 0.0f), glm::vec3(0.3f, 0.2f, 0.6f), brown);
 
-	// 5. ³¯°³ (¾çÂÊ)
+	// 5. ë‚ ê°œ (ì–‘ìª½)
 	drawPart(shader, baseModel, glm::vec3(0.0f, 0.0f, 0.4f), glm::vec3(0.1f, 0.1f, 1.2f), brown);
 	drawPart(shader, baseModel, glm::vec3(0.0f, 0.0f, -0.4f), glm::vec3(0.1f, 0.1f, 1.2f), brown);
 }
 
 void drawCoin(const Coin& coin, GLuint shader) {
-	if (coin.isCollected) return; // ÀÌ¹Ì È¹µæÇßÀ¸¸é ±×¸®Áö ¾ÊÀ½
+	if (coin.isCollected) return; // ì´ë¯¸ íšë“í–ˆìœ¼ë©´ ê·¸ë¦¬ì§€ ì•ŠìŒ
 
 	glm::mat4 baseModel = glm::translate(glm::mat4(1.0f), glm::vec3(coin.x, 0.5f, coin.z));
 
-	baseModel = glm::scale(baseModel, glm::vec3(0.5f)); // ÄÚÀÎ Å©±â Á¶Àı (0.5f)
+	baseModel = glm::scale(baseModel, glm::vec3(0.5f)); // ì½”ì¸ í¬ê¸° ì¡°ì ˆ (0.5f)
 
-	// ³ë¶õ»ö º»Ã¼ ¹× »¡°£»ö 'C'ÀÇ ³ôÀÌ
-	glm::vec3 yellowColor = glm::vec3(1.0f, 0.9f, 0.0f); // ³ë¶õ»ö
-	glm::vec3 redColor = glm::vec3(1.0f, 0.0f, 0.0f); // »¡°£»ö
-	float C_height = 0.1f; // 'C' ¸ğ¾ç ºÎÇ°ÀÇ µÎ²²
+	// ë…¸ë€ìƒ‰ ë³¸ì²´ ë° ë¹¨ê°„ìƒ‰ 'C'ì˜ ë†’ì´
+	glm::vec3 yellowColor = glm::vec3(1.0f, 0.9f, 0.0f); // ë…¸ë€ìƒ‰
+	glm::vec3 redColor = glm::vec3(1.0f, 0.0f, 0.0f); // ë¹¨ê°„ìƒ‰
+	float C_height = 0.1f; // 'C' ëª¨ì–‘ ë¶€í’ˆì˜ ë‘ê»˜
 
-	// ³ë¶õ»ö º£ÀÌ½ºÀÇ Y ¿ÀÇÁ¼Â: baseModelÀÇ Y=0.5f À§¿¡¼­ ½ÃÀÛ
+	// ë…¸ë€ìƒ‰ ë² ì´ìŠ¤ì˜ Y ì˜¤í”„ì…‹: baseModelì˜ Y=0.5f ìœ„ì—ì„œ ì‹œì‘
 	float base_Y_offset = 0.0f;
-	// 'C' ¸ğ¾çÀÇ Y ¿ÀÇÁ¼Â: ³ë¶õ»ö º£ÀÌ½º (0.1f ³ôÀÌ) À§¿¡ ³õÀÌµµ·Ï
+	// 'C' ëª¨ì–‘ì˜ Y ì˜¤í”„ì…‹: ë…¸ë€ìƒ‰ ë² ì´ìŠ¤ (0.1f ë†’ì´) ìœ„ì— ë†“ì´ë„ë¡
 	float C_Y_offset = base_Y_offset + C_height;
 
-	// YÃà ±âÁØÀ¸·Î ÄÚÀÎ ÀüÃ¼¸¦ »ìÂ¦ ´õ ¶ç¿ó´Ï´Ù. (ÄÚÀÎ Áß¾ÓÀÌ Y=0.5f + 0.1f¿¡ ¿Àµµ·Ï Á¶Á¤)
-	// baseModel¿¡ ÀÌ¹Ì y=0.5f°¡ ÀÖÀ¸¹Ç·Î, ºÎÇ° ¿ÀÇÁ¼ÂÀ» 0.1f À§·Î ¿Ã¸³´Ï´Ù.
+	// Yì¶• ê¸°ì¤€ìœ¼ë¡œ ì½”ì¸ ì „ì²´ë¥¼ ì‚´ì§ ë” ë„ì›ë‹ˆë‹¤. (ì½”ì¸ ì¤‘ì•™ì´ Y=0.5f + 0.1fì— ì˜¤ë„ë¡ ì¡°ì •)
+	// baseModelì— ì´ë¯¸ y=0.5fê°€ ìˆìœ¼ë¯€ë¡œ, ë¶€í’ˆ ì˜¤í”„ì…‹ì„ 0.1f ìœ„ë¡œ ì˜¬ë¦½ë‹ˆë‹¤.
 	C_Y_offset = 0.1f;
 	base_Y_offset = 0.0f;
 
-	float C_Y_POS = 0.1f; // ÄÚÀÎ º£ÀÌ½º À§¿¡ ³õÀÏ ³ôÀÌ
-	float C_Y_THICKNESS = 0.1f; // C ºÎÇ° ÀÚÃ¼ÀÇ µÎ²²
+	float C_Y_POS = 0.1f; // ì½”ì¸ ë² ì´ìŠ¤ ìœ„ì— ë†“ì¼ ë†’ì´
+	float C_Y_THICKNESS = 0.1f; // C ë¶€í’ˆ ìì²´ì˜ ë‘ê»˜
 
-	//³ë¶õ»ö
-	// Y ¿ÀÇÁ¼ÂÀº 0.0f, ½ºÄÉÀÏ Y´Â 0.1f·Î ¾ã°Ô
+	//ë…¸ë€ìƒ‰
+	// Y ì˜¤í”„ì…‹ì€ 0.0f, ìŠ¤ì¼€ì¼ YëŠ” 0.1fë¡œ ì–‡ê²Œ
 	drawPart(shader, baseModel, glm::vec3(0.0f, base_Y_offset, 0.0f), glm::vec3(0.9f, C_Y_THICKNESS, 0.9f), yellowColor);
 
-	// 2. 'C' ¸ğ¾ç ±¸Çö (»¡°£»ö Á¶°¢µé)
+	// 2. 'C' ëª¨ì–‘ êµ¬í˜„ (ë¹¨ê°„ìƒ‰ ì¡°ê°ë“¤)
 	glm::vec3 redColor_C = glm::vec3(1.0f, 0.0f, 0.0f);
-	float C_Y_offset_final = C_Y_POS; // ³ë¶õ»ö º£ÀÌ½º À§¿¡ ³õÀÏ ³ôÀÌ
+	float C_Y_offset_final = C_Y_POS; // ë…¸ë€ìƒ‰ ë² ì´ìŠ¤ ìœ„ì— ë†“ì¼ ë†’ì´
 	float C_thick = 0.15f;
 	float C_length = 0.4f;
-	float C_span = 0.25f; // CÀÚÀÇ Æø
+	float C_span = 0.25f; // Cìì˜ í­
 
-	// A. ¼¼·Î ¸·´ë (¿ŞÂÊ)
+	// A. ì„¸ë¡œ ë§‰ëŒ€ (ì™¼ìª½)
 	drawPart(shader, baseModel,
 		glm::vec3(-C_span, C_Y_offset_final, 0.0f),
 		glm::vec3(C_thick, C_Y_THICKNESS, C_length), redColor_C);
 
-	// B. À§ÂÊ ¸·´ë (À§)
+	// B. ìœ„ìª½ ë§‰ëŒ€ (ìœ„)
 	drawPart(shader, baseModel,
 		glm::vec3(-C_span / 2.0f + C_thick / 2.0f, C_Y_offset_final, C_length / 2.0f - C_thick / 2.0f),
 		glm::vec3(C_span - C_thick / 2.0f, C_Y_THICKNESS, C_thick), redColor_C);
 
-	// C. ¾Æ·¡ÂÊ ¸·´ë (¾Æ·¡)
+	// C. ì•„ë˜ìª½ ë§‰ëŒ€ (ì•„ë˜)
 	drawPart(shader, baseModel,
 		glm::vec3(-C_span / 2.0f + C_thick / 2.0f, C_Y_offset_final, -C_length / 2.0f + C_thick / 2.0f),
 		glm::vec3(C_span - C_thick / 2.0f, C_Y_THICKNESS, C_thick), redColor_C);
 }
 
-// Ã¶±æ ¹× ½ÅÈ£µî ±×¸®±â
+// ì² ê¸¸ ë° ì‹ í˜¸ë“± ê·¸ë¦¬ê¸°
 void drawRail(int z, bool isWarning, bool isLightOn, GLuint shader) {
 
-	// Ä§¸ñ (Sleepers) - ³ª¹«»ö
+	// ì¹¨ëª© (Sleepers) - ë‚˜ë¬´ìƒ‰
 	glm::vec3 woodColor = glm::vec3(0.35f, 0.2f, 0.1f);
 
-	for (float x = -16.0f; x <= 16.0f; x += 1.2f) { // Ä§¸ñ °£°İ
+	for (float x = -16.0f; x <= 16.0f; x += 1.2f) { // ì¹¨ëª© ê°„ê²©
 		glm::mat4 model = glm::mat4(1.0f);
-		// YÁÂÇ¥¸¦ 0.01f(¹Ù´Ú ¹Ù·Î À§)·Î ¼³Á¤
+		// Yì¢Œí‘œë¥¼ 0.01f(ë°”ë‹¥ ë°”ë¡œ ìœ„)ë¡œ ì„¤ì •
 		model = glm::translate(model, glm::vec3(x, 0.01f, (float)z));
-		// Å©±â: °¡·Î 0.6, ³ôÀÌ 0.05, ¼¼·Î 1.4
+		// í¬ê¸°: ê°€ë¡œ 0.6, ë†’ì´ 0.05, ì„¸ë¡œ 1.4
 		model = glm::scale(model, glm::vec3(0.3f, 0.05f, 1.4f));
 
 		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
@@ -684,14 +745,14 @@ void drawRail(int z, bool isWarning, bool isLightOn, GLuint shader) {
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
 
-	// Ã¶·Î (Rails) - Àº»ö
+	// ì² ë¡œ (Rails) - ì€ìƒ‰
 	glm::vec3 railColor = glm::vec3(0.6f, 0.6f, 0.7f);
-	float railZPositions[] = { -0.3f, 0.3f }; // µÎ ÁÙ
+	float railZPositions[] = { -0.3f, 0.3f }; // ë‘ ì¤„
 
 	for (float rz : railZPositions) {
 		glm::mat4 model = glm::mat4(1.0f);
 		model = glm::translate(model, glm::vec3(0.0f, 0.06f, (float)z + rz));
-		// ¸Ê ÀüÃ¼¸¦ °¡·ÎÁö¸£´Â ±ä ¸·´ë
+		// ë§µ ì „ì²´ë¥¼ ê°€ë¡œì§€ë¥´ëŠ” ê¸´ ë§‰ëŒ€
 		model = glm::scale(model, glm::vec3(32.0f, 0.08f, 0.1f));
 
 		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
@@ -699,25 +760,25 @@ void drawRail(int z, bool isWarning, bool isLightOn, GLuint shader) {
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
 
-	// ½ÅÈ£µî (Signal) - ¿À¸¥ÂÊ ¹èÄ¡
+	// ì‹ í˜¸ë“± (Signal) - ì˜¤ë¥¸ìª½ ë°°ì¹˜
 	float signalX = 7.0f;
 
-	// (ÁÙ¹«´Ì ±âµÕ
+	// (ì¤„ë¬´ëŠ¬ ê¸°ë‘¥
 	for (int i = 0; i < 5; ++i) {
 		glm::mat4 model = glm::mat4(1.0f);
-		// ±âµÕ ³ôÀÌ ½×±â
+		// ê¸°ë‘¥ ë†’ì´ ìŒ“ê¸°
 		model = glm::translate(model, glm::vec3(signalX, 0.0f + (i * 0.4f), (float)z - 0.8f));
 		model = glm::scale(model, glm::vec3(0.2f, 0.4f, 0.2f));
 
 		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
 		if (shader == shaderProgramID) {
-			if (i % 2 == 0) glVertexAttrib3f(1, 0.9f, 0.9f, 0.9f); // Èò»ö
-			else glVertexAttrib3f(1, 0.9f, 0.1f, 0.1f); // »¡°£»ö
+			if (i % 2 == 0) glVertexAttrib3f(1, 0.9f, 0.9f, 0.9f); // í°ìƒ‰
+			else glVertexAttrib3f(1, 0.9f, 0.1f, 0.1f); // ë¹¨ê°„ìƒ‰
 		}
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
 
-	// ½ÅÈ£µî ¹Ú½º (°ËÀº»ö)
+	// ì‹ í˜¸ë“± ë°•ìŠ¤ (ê²€ì€ìƒ‰)
 	{
 		glm::mat4 model = glm::mat4(1.0f);
 		model = glm::translate(model, glm::vec3(signalX, 2.0f, (float)z - 0.8f));
@@ -728,11 +789,11 @@ void drawRail(int z, bool isWarning, bool isLightOn, GLuint shader) {
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
 
-	// ±ôºıÀÌ´Â ºÒºû (»¡°£»ö)
+	// ê¹œë¹¡ì´ëŠ” ë¶ˆë¹› (ë¹¨ê°„ìƒ‰)
 	glm::vec3 offColor = glm::vec3(0.3f, 0.0f, 0.0f);
 	glm::vec3 onColor = glm::vec3(1.0f, 0.0f, 0.0f);
 
-	// ¿ŞÂÊ ºÒºû
+	// ì™¼ìª½ ë¶ˆë¹›
 	{
 		glm::mat4 model = glm::mat4(1.0f);
 		model = glm::translate(model, glm::vec3(signalX - 0.25f, 2.0f, (float)z - 0.65f));
@@ -745,7 +806,7 @@ void drawRail(int z, bool isWarning, bool isLightOn, GLuint shader) {
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
 
-	// ¿À¸¥ÂÊ ºÒºû (±³Â÷ Á¡¸ê)
+	// ì˜¤ë¥¸ìª½ ë¶ˆë¹› (êµì°¨ ì ë©¸)
 	{
 		glm::mat4 model = glm::mat4(1.0f);
 		model = glm::translate(model, glm::vec3(signalX + 0.25f, 2.0f, (float)z - 0.65f));
@@ -759,60 +820,70 @@ void drawRail(int z, bool isWarning, bool isLightOn, GLuint shader) {
 	}
 }
 
-// [Ãß°¡] ±âÂ÷ ±×¸®±â
+// ê¸°ì°¨ ê·¸ë¦¬ê¸°
 void drawTrain(const Train& train, GLuint shader) {
-	// ±âÂ÷ ¸öÃ¼ (¸Å¿ì ±ä »¡°£ ¹Ú½º)
+	// ê¸°ì°¨ ëª¸ì²´ (ë§¤ìš° ê¸´ ë¹¨ê°„ ë°•ìŠ¤)
 	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(train.x, 0.5f, train.z));
-	model = glm::scale(model, glm::vec3(15.0f, 1.8f, 0.9f)); // ±æÀÌ 15, ³ôÀÌ 1.8
+	model = glm::scale(model, glm::vec3(15.0f, 1.8f, 0.9f)); // ê¸¸ì´ 15, ë†’ì´ 1.8
 
 	glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
-	if (shader == shaderProgramID) glVertexAttrib3f(1, 0.8f, 0.1f, 0.1f); // »¡°£»ö
+	if (shader == shaderProgramID) glVertexAttrib3f(1, 0.8f, 0.1f, 0.1f); // ë¹¨ê°„ìƒ‰
 	glDrawArrays(GL_TRIANGLES, 0, 36);
 
-	// ±âÂ÷ Ã¢¹® (Àå½Ä)
+	// ê¸°ì°¨ ì°½ë¬¸ (ì¥ì‹)
 	for (float i = -6.0f; i <= 6.0f; i += 2.0f) {
 		glm::mat4 winModel = glm::translate(glm::mat4(1.0f), glm::vec3(train.x + i, 0.8f, train.z));
-		winModel = glm::scale(winModel, glm::vec3(1.0f, 0.6f, 1.0f)); // ¾à°£ Æ¢¾î³ª¿À°Ô
+		winModel = glm::scale(winModel, glm::vec3(1.0f, 0.6f, 1.0f)); // ì•½ê°„ íŠ€ì–´ë‚˜ì˜¤ê²Œ
 		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(winModel));
-		if (shader == shaderProgramID) glVertexAttrib3f(1, 0.2f, 0.2f, 0.3f); // ÆÄ¶õ Ã¢¹®
+		if (shader == shaderProgramID) glVertexAttrib3f(1, 0.2f, 0.2f, 0.3f); // íŒŒë€ ì°½ë¬¸
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
 }
 
-// Åë³ª¹« ±×¸®±â
+// í†µë‚˜ë¬´ ê·¸ë¦¬ê¸°
 void drawLog(const Log& logObj, GLuint shader) {
 	glm::mat4 model = glm::mat4(1.0f);
-	model = glm::translate(model, glm::vec3(logObj.x, 0.45f, logObj.z)); // ¹° À§¿¡ »ìÂ¦ ¶°ÀÖÀ½
+	model = glm::translate(model, glm::vec3(logObj.x, 0.45f, logObj.z)); // ë¬¼ ìœ„ì— ì‚´ì§ ë– ìˆìŒ
 
-	// Åë³ª¹«´Â °¡·Î·Î ±è
+	// í†µë‚˜ë¬´ëŠ” ê°€ë¡œë¡œ ê¹€
 	glm::vec3 scale = glm::vec3(logObj.width, 0.3f, 0.8f);
-	glm::vec3 brownColor = glm::vec3(0.545098f, 0.270588f, 0.07451f);
 
-	drawPart(shader, model, glm::vec3(0.0f), scale, brownColor);
+	glm::vec3 whiteColor = glm::vec3(1.0f, 1.0f, 1.0f);
+
+	drawPart(shader, model, glm::vec3(0.0f), scale, whiteColor);
 }
 
-// ¿¬ÀÙ ±×¸®±â
+// ì—°ì ê·¸ë¦¬ê¸°
 void drawLilyPad(const LilyPad& pad, GLuint shader) {
 	glm::mat4 model = glm::mat4(1.0f);
-	model = glm::translate(model, glm::vec3(pad.x, 0.41f, pad.z)); // ¹° Ç¥¸é ¹Ù·Î À§
+	model = glm::translate(model, glm::vec3(pad.x, 0.41f, pad.z)); // ë¬¼ í‘œë©´ ë°”ë¡œ ìœ„
 
-	// ³³ÀÛÇÑ »ç°¢Çü (¶Ç´Â ¿øÇü ´À³¦)
+	// ë‚©ì‘í•œ ì‚¬ê°í˜•
 	glm::vec3 scale = glm::vec3(0.8f, 0.05f, 0.8f);
-	glm::vec3 greenColor = glm::vec3(0.0f, 0.5f, 0.0f);
 
-	drawPart(shader, model, glm::vec3(0.0f), scale, greenColor);
+	// [ìˆ˜ì •] í…ìŠ¤ì²˜ê°€ ì´ˆë¡ìƒ‰ì´ë¯€ë¡œ, í‹´íŠ¸(Tint) ìƒ‰ìƒì„ í°ìƒ‰ìœ¼ë¡œ ë³€ê²½í•˜ì—¬ í…ìŠ¤ì²˜ ì›ë³¸ ìƒ‰ ìœ ì§€
+	glm::vec3 whiteColor = glm::vec3(1.0f, 1.0f, 1.0f);
+
+	drawPart(shader, model, glm::vec3(0.0f), scale, whiteColor);
 }
 
 void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 {
+	// [í•µì‹¬ ìˆ˜ì • 1] í…ìŠ¤íŠ¸ ë Œë”ë§ì—ì„œ í•´ì œëœ VAOë¥¼ ë‹¤ì‹œ ì—°ê²° (ê²€ì€ í™”ë©´ í•´ê²°)
+	glBindVertexArray(vao);
 
 	int currentZ = (int)std::round(playerPos.z);
 	int drawRangeFront = 30;
 	int drawRangeBack = 10;
-	// **[Ãß°¡] ±¸¸§ ·»´õ¸µÀº renderObjects°¡ Ç×»ó È£ÃâµÇ´Â °æ¿ì¿¡ ´ëºñÇÏ¿© ¿©±â¿¡µµ Ãß°¡**
+	// **[ì¶”ê°€] êµ¬ë¦„ ë Œë”ë§ì€ renderObjectsê°€ í•­ìƒ í˜¸ì¶œë˜ëŠ” ê²½ìš°ì— ëŒ€ë¹„í•˜ì—¬ ì—¬ê¸°ì—ë„ ì¶”ê°€**
 	if (isFlying || isLanding) {
 		drawClouds(shader);
 	}
+
+	// ì‰ì´ë” ìœ ë‹ˆí¼ ìœ„ì¹˜ ê°€ì ¸ì˜¤ê¸°
+	GLint useTexLoc = glGetUniformLocation(shader, "useTexture");
+	GLint texLoc = glGetUniformLocation(shader, "targetTexture");
+	GLint uvScaleLoc = glGetUniformLocation(shader, "uvScale"); // íƒ€ì¼ë§ ìŠ¤ì¼€ì¼ ì¡°ì ˆ ë³€ìˆ˜
 
 	for (int z = currentZ - drawRangeFront; z <= currentZ + drawRangeBack; ++z) {
 		generateLane(z);
@@ -822,33 +893,92 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 			glm::mat4 model = glm::mat4(1.0f);
 			model = glm::translate(model, glm::vec3(0.0f, -0.5f, (float)z));
 			model = glm::scale(model, glm::vec3(31.0f, 1.0f, 1.0f));
+		// ë°”ë‹¥(Lane) ëª¨ë¸ í–‰ë ¬ ì„¤ì •
+		glm::mat4 model = glm::mat4(1.0f);
+		model = glm::translate(model, glm::vec3(0.0f, -0.5f, (float)z));
+		model = glm::scale(model, glm::vec3(31.0f, 1.0f, 1.0f)); // ê°€ë¡œë¡œ 31ë°° í™•ëŒ€
 
 			glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
 			if (shader == shaderProgramID) {
-				if (mapType[z] == 1) { // µµ·Î
+				if (mapType[z] == 1) { // ë„ë¡œ
 					glVertexAttrib3f(1, 0.2f, 0.2f, 0.2f);
 				}
-				else if (mapType[z] == 2) { // °­
+				else if (mapType[z] == 2) { // ê°•
 					glVertexAttrib3f(1, 0.0f, 0.5f, 1.0f);
 				}
 				else if (mapType[z] == 3) {
-					glVertexAttrib3f(1, 0.5f, 0.5f, 0.55f); // ¾à°£ Çª¸¥ºû µµ´Â È¸»ö
+					glVertexAttrib3f(1, 0.5f, 0.5f, 0.55f); // ì•½ê°„ í‘¸ë¥¸ë¹› ë„ëŠ” íšŒìƒ‰
 				}
-				else { // ÀÜµğ
+				else { // ì”ë””
 					glVertexAttrib3f(1, colors.grass.r, colors.grass.g, colors.grass.b);
 				}
 			}
 			glDrawArrays(GL_TRIANGLES, 0, 36);
+		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
-			// Â÷¼±
+		if (shader == shaderProgramID) {
+			// í…ìŠ¤ì²˜ ë§¤í•‘ ë¶„ê¸° ì²˜ë¦¬ (ê°• vs ì”ë”” vs ê¸°íƒ€)
+
+			// CASE 1: ê°• (River)
+			if (mapType[z] == 2) {
+				glActiveTexture(GL_TEXTURE1);
+				glBindTexture(GL_TEXTURE_2D, riverTexture); // ê°• í…ìŠ¤ì²˜ ë°”ì¸ë”©
+				glUniform1i(texLoc, 1);		 // ìƒ˜í”ŒëŸ¬ì— 1ë²ˆ ìœ ë‹› ì§€ì •
+				glUniform1i(useTexLoc, 1);	 // í…ìŠ¤ì²˜ ì‚¬ìš© ON
+
+				glUniform2f(uvScaleLoc, 31.0f, 1.0f);
+
+				glVertexAttrib3f(1, 1.0f, 1.0f, 1.0f);
+			}
+			// CASE 2: ì”ë”” (Grass)
+			else if (mapType[z] == 0) {
+				glActiveTexture(GL_TEXTURE1);
+				glBindTexture(GL_TEXTURE_2D, grassTexture); // ì”ë”” í…ìŠ¤ì²˜ ë°”ì¸ë”©
+				glUniform1i(texLoc, 1);
+				glUniform1i(useTexLoc, 1);	 // í…ìŠ¤ì²˜ ì‚¬ìš© ON
+
+				glUniform2f(uvScaleLoc, 31.0f, 1.0f);
+
+				glVertexAttrib3f(1, colors.grass.r, colors.grass.g, colors.grass.b);
+			}
+			// CASE 3: ë„ë¡œ ë˜ëŠ” ì² ê¸¸ (Road / Rail)
+			else {
+				// í…ìŠ¤ì²˜ ë„ê¸° & ìŠ¤ì¼€ì¼ ì´ˆê¸°í™”
+				glUniform1i(useTexLoc, 0);
+				glUniform2f(uvScaleLoc, 1.0f, 1.0f);
+
+				// ê¸°ì¡´ ìƒ‰ìƒ ë¡œì§
+				if (mapType[z] == 1) { // ë„ë¡œ
+					glVertexAttrib3f(1, 0.2f, 0.2f, 0.2f);
+				}
+				else if (mapType[z] == 3) { // ì² ê¸¸ ë°”ë‹¥
+					glVertexAttrib3f(1, 0.5f, 0.5f, 0.55f);
+				}
+			}
+		}
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+
+			// ì°¨ì„ 
 			if (mapType[z] == 1) {
-				glm::vec3 lineScale = glm::vec3(1.0f, 0.02f, 0.15f); // ±æÀÌ, ³ôÀÌ, Æø
+				glm::vec3 lineScale = glm::vec3(1.0f, 0.02f, 0.15f); // ê¸¸ì´, ë†’ì´, í­
+		if (shader == shaderProgramID) {
+			glUniform1i(useTexLoc, 0);           // í…ìŠ¤ì²˜ ë„ê¸°
+			glUniform2f(uvScaleLoc, 1.0f, 1.0f); // UV ìŠ¤ì¼€ì¼ ì›ìƒë³µêµ¬
+		}
+
+		// ì°¨ì„  ê·¸ë¦¬ê¸°
+		if (mapType[z] == 1) {
+			glm::vec3 lineScale = glm::vec3(1.0f, 0.02f, 0.15f);
 
 				for (float x = -15.0f; x <= 15.0f; x += 5.0f) {
 					glm::mat4 lineModel = glm::mat4(1.0f);
 
 					lineModel = glm::translate(lineModel, glm::vec3(x, 0.01f, (float)z));
 					lineModel = glm::scale(lineModel, lineScale);
+			for (float x = -15.0f; x <= 15.0f; x += 5.0f) {
+				glm::mat4 lineModel = glm::mat4(1.0f);
+				lineModel = glm::translate(lineModel, glm::vec3(x, 0.01f, (float)z));
+				lineModel = glm::scale(lineModel, lineScale);
 
 					glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(lineModel));
 
@@ -859,9 +989,9 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 				}
 			}
 
-			// [Ãß°¡] Ã¶±æ ±¸Á¶¹° ±×¸®±â
+			// [ì¶”ê°€] ì² ê¸¸ êµ¬ì¡°ë¬¼ ê·¸ë¦¬ê¸°
 			if (mapType[z] == 3) {
-				// ÇØ´ç ¶óÀÎ¿¡ ÀÖ´Â ±âÂ÷ »óÅÂ Ã£±â
+				// í•´ë‹¹ ë¼ì¸ì— ìˆëŠ” ê¸°ì°¨ ìƒíƒœ ì°¾ê¸°
 				bool isWarning = false;
 				bool isLightOn = false;
 				for (const auto& t : trains) {
@@ -873,6 +1003,19 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 				}
 				drawRail(z, isWarning, isLightOn, shader);
 			}
+		// ì² ê¸¸ êµ¬ì¡°ë¬¼ ê·¸ë¦¬ê¸°
+		if (mapType[z] == 3) {
+			bool isWarning = false;
+			bool isLightOn = false;
+			for (const auto& t : trains) {
+				if ((int)t.z == z) {
+					isWarning = (t.state == TRAIN_WARNING || t.state == TRAIN_PASSING);
+					isLightOn = t.isLightOn;
+					break;
+				}
+			}
+			drawRail(z, isWarning, isLightOn, shader);
+		}
 
 			if (treeMap.count(z)) {
 				for (int treeX : treeMap[z]) drawTree(treeX, z, shader);
@@ -880,7 +1023,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 		}
 	}
 	if (!isFlying && !isLanding) {
-		// ÀÚµ¿Â÷µé
+		// ìë™ì°¨ë“¤
 		for (const auto& car : cars) {
 			if (car.z < currentZ - drawRangeFront || car.z > currentZ + drawRangeBack) continue;
 			/*glm::mat4 carModel = glm::translate(glm::mat4(1.0f), glm::vec3(car.x, 0.5f, car.z));
@@ -893,64 +1036,126 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 			//glDrawArrays(GL_TRIANGLES, 0, 36);
 			drawCar(car, shader);
 		}
+		// ë‚˜ë¬´ ê·¸ë¦¬ê¸°
+		if (treeMap.count(z)) {
+			for (int treeX : treeMap[z]) drawTree(treeX, z, shader);
+		}
+	}
 
-		// ±âÂ÷
+	// ìë™ì°¨
+	for (const auto& car : cars) {
+		if (car.z < currentZ - drawRangeFront || car.z > currentZ + drawRangeBack) continue;
+		drawCar(car, shader);
+	}
+
+		// ê¸°ì°¨
 		for (const auto& train : trains) {
-			// È­¸é ZÃà ¹üÀ§ ¹ÛÀÌ¸é ±×¸®±â »ı·« (ÃÖÀûÈ­)
+			// í™”ë©´ Zì¶• ë²”ìœ„ ë°–ì´ë©´ ê·¸ë¦¬ê¸° ìƒëµ (ìµœì í™”)
 			if (train.z < currentZ - drawRangeFront || train.z > currentZ + drawRangeBack) continue;
 
-			// ±âÂ÷°¡ 'Áö³ª°¡´Â Áß(PASSING)'ÀÏ ¶§¸¸ ±×¸®±â
-			// (IDLE »óÅÂÀÏ ¶§´Â È­¸é ¹Û x=-50¿¡ ÀÖÀ¸¹Ç·Î ±»ÀÌ ¾È ±×·Áµµ µÊ)
+			// ê¸°ì°¨ê°€ 'ì§€ë‚˜ê°€ëŠ” ì¤‘(PASSING)'ì¼ ë•Œë§Œ ê·¸ë¦¬ê¸°
+			// (IDLE ìƒíƒœì¼ ë•ŒëŠ” í™”ë©´ ë°– x=-50ì— ìˆìœ¼ë¯€ë¡œ êµ³ì´ ì•ˆ ê·¸ë ¤ë„ ë¨)
 			if (train.state == TRAIN_PASSING) {
 				drawTrain(train, shader);
 			}
 		}
+	// ê¸°ì°¨
+	for (const auto& train : trains) {
+		if (train.z < currentZ - drawRangeFront || train.z > currentZ + drawRangeBack) continue;
+		if (train.state == TRAIN_PASSING) {
+			drawTrain(train, shader);
+		}
+	}
 
-		// Åë³ª¹«
+		// í†µë‚˜ë¬´
 		for (const auto& logObj : logs) {
 			if (logObj.z < currentZ - drawRangeFront || logObj.z > currentZ + drawRangeBack) continue;
 			drawLog(logObj, shader);
 		}
+	// í†µë‚˜ë¬´
+	for (const auto& logObj : logs) {
+		if (logObj.z < currentZ - drawRangeFront || logObj.z > currentZ + drawRangeBack) continue;
 
-		// ¿¬ÀÙ
+		// ì‰ì´ë”ê°€ ë©”ì¸ ì‰ì´ë”ì¼ ë•Œë§Œ í…ìŠ¤ì²˜ ì ìš©
+		if (shader == shaderProgramID) {
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, logTexture); // í†µë‚˜ë¬´ í…ìŠ¤ì²˜ ë°”ì¸ë”©
+			glUniform1i(texLoc, 1);                   // ìƒ˜í”ŒëŸ¬ 1ë²ˆ ì‚¬ìš© ì„¤ì •
+			glUniform1i(useTexLoc, 1);                // í…ìŠ¤ì²˜ ì‚¬ìš© ON
+
+			glUniform2f(uvScaleLoc, logObj.width, 1.0f);
+		}
+
+		drawLog(logObj, shader);
+
+		if (shader == shaderProgramID) {
+			glUniform1i(useTexLoc, 0);
+			glUniform2f(uvScaleLoc, 1.0f, 1.0f); // ìŠ¤ì¼€ì¼ ì´ˆê¸°í™”
+		}
+	}
+
+		// ì—°ì
 		for (const auto& pad : lilyPads) {
 			if (pad.z < currentZ - drawRangeFront || pad.z > currentZ + drawRangeBack) continue;
 			drawLilyPad(pad, shader);
 		}
+	// ì—°ì 
+	for (const auto& pad : lilyPads) {
+		if (pad.z < currentZ - drawRangeFront || pad.z > currentZ + drawRangeBack) continue;
 
-		//ÄÚÀÎµé
+		// [ì¶”ê°€] ì‰ì´ë”ê°€ ë©”ì¸ ì‰ì´ë”ì¼ ë•Œë§Œ í…ìŠ¤ì²˜ ì ìš©
+		if (shader == shaderProgramID) {
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, lilyPadTexture); // ì—°ì í…ìŠ¤ì²˜ ë°”ì¸ë”©
+			glUniform1i(texLoc, 1);                   // ìƒ˜í”ŒëŸ¬ 1ë²ˆ ì‚¬ìš© ì„¤ì •
+			glUniform1i(useTexLoc, 1);                // í…ìŠ¤ì²˜ ì‚¬ìš© ON
+
+			glUniform2f(uvScaleLoc, 1.0f, 1.0f);      // UV ìŠ¤ì¼€ì¼ 1:1
+		}
+
+		drawLilyPad(pad, shader);
+
+		// [ì¶”ê°€] í…ìŠ¤ì²˜ ì‚¬ìš© í•´ì œ ë° ì´ˆê¸°í™”
+		if (shader == shaderProgramID) {
+			glUniform1i(useTexLoc, 0);
+			glUniform2f(uvScaleLoc, 1.0f, 1.0f);
+		}
+	}
+
+		//ì½”ì¸ë“¤
 		for (const auto& coin : coins) {
 			if (coin.z < currentZ - drawRangeFront || coin.z > currentZ + drawRangeBack) continue;
 			drawCoin(coin, shader);
 		}
 	}
+	// ì½”ì¸
+	for (const auto& coin : coins) {
+		if (coin.z < currentZ - drawRangeFront || coin.z > currentZ + drawRangeBack) continue;
+		drawCoin(coin, shader);
+	}
 
-	// ÇÃ·¹ÀÌ¾î
+	// í”Œë ˆì´ì–´ (ë‹­)
 	glm::mat4 pModel = glm::translate(glm::mat4(1.0f), playerPos);
-
-	// ÀúÀåµÈ °¢µµ¸¸Å­ YÃàÀ» ±âÁØÀ¸·Î È¸Àü
 	pModel = glm::rotate(pModel, glm::radians(playerRotation), glm::vec3(0.0f, 1.0f, 0.0f));
-
-	// Å©±â Á¶Àı (±âÁ¸ 0.7f)
 	pModel = glm::scale(pModel, glm::vec3(0.7f));
 	if (isFlying) {
-		// »õ¸¦ Å¸°í ÀÖÀ» ¶§´Â ÇÃ·¹ÀÌ¾î À§Ä¡¿Í µ¿ÀÏÇÑ À§Ä¡¿¡ »õ¸¦ ±×¸²
+		// ìƒˆë¥¼ íƒ€ê³  ìˆì„ ë•ŒëŠ” í”Œë ˆì´ì–´ ìœ„ì¹˜ì™€ ë™ì¼í•œ ìœ„ì¹˜ì— ìƒˆë¥¼ ê·¸ë¦¼
 		glm::mat4 birdModel = pModel;
-		birdModel = glm::translate(birdModel, glm::vec3(0.0f, 0.5f, 0.0f)); // ´ß À§¿¡ »õ¸¦ ¹èÄ¡
-		birdModel = glm::scale(birdModel, glm::vec3(1.5f)); // »õ Å©±â Á¶Á¤
+		birdModel = glm::translate(birdModel, glm::vec3(0.0f, 0.5f, 0.0f)); // ë‹­ ìœ„ì— ìƒˆë¥¼ ë°°ì¹˜
+		birdModel = glm::scale(birdModel, glm::vec3(1.5f)); // ìƒˆ í¬ê¸° ì¡°ì •
 		drawBird(shader, birdModel);
 
-		// ´ßÀº »õ¸¦ 'Åº' »óÅÂ·Î »ìÂ¦ ³·Ãç¼­ ÇÔ²² ÀÌµ¿ÇÏ´Â È¿°ú¸¦ ÁÙ ¼ö ÀÖÀ½
-		// ¿©±â¼­´Â °£´ÜÈ÷ ´ßÀÇ ·»´õ¸µÀ» »ı·«ÇÏ°í »õ¸¸ ±×¸³´Ï´Ù.
+		// ë‹­ì€ ìƒˆë¥¼ 'íƒ„' ìƒíƒœë¡œ ì‚´ì§ ë‚®ì¶°ì„œ í•¨ê»˜ ì´ë™í•˜ëŠ” íš¨ê³¼ë¥¼ ì¤„ ìˆ˜ ìˆìŒ
+		// ì—¬ê¸°ì„œëŠ” ê°„ë‹¨íˆ ë‹­ì˜ ë Œë”ë§ì„ ìƒëµí•˜ê³  ìƒˆë§Œ ê·¸ë¦½ë‹ˆë‹¤.
 	}
-	else if (isBirdLeaving) { // **[Ãß°¡] »õ ÅğÀå ¾Ö´Ï¸ŞÀÌ¼Ç Áß**
+	else if (isBirdLeaving) { // **[ì¶”ê°€] ìƒˆ í‡´ì¥ ì• ë‹ˆë©”ì´ì…˜ ì¤‘**
 		glm::mat4 birdModel = glm::mat4(1.0f);
-		// »õ ÅğÀå ·ÎÁ÷¿¡¼­ °è»êµÈ À§Ä¡¸¦ »ç¿ëÇÕ´Ï´Ù (¿©±â¼­´Â currentBirdPos¸¦ Á÷Á¢ »ç¿ëÇÒ ¼ö ¾ø¾î ´Ü¼øÈ­)
-		// ÀÓ½Ã·Î, birdStartPos¸¦ »ç¿ëÇÏ¿© ÇöÀç »õ À§Ä¡¸¦ ´Ù½Ã °è»êÇØ¾ß ÇÕ´Ï´Ù.
-		// **ÀÌ ÄÚµå´Â GLSL ½¦ÀÌ´õ°¡ ¾Æ´Ñ C++¿¡¼­ ¸ğµ¨ Çà·ÄÀ» °è»êÇÏ¹Ç·Î,
-		// currentBirdPos °è»ê ·ÎÁ÷À» drawScene ³»ºÎ¿¡ ÀçÇöÇØ¾ß ÇÕ´Ï´Ù.**
+		// ìƒˆ í‡´ì¥ ë¡œì§ì—ì„œ ê³„ì‚°ëœ ìœ„ì¹˜ë¥¼ ì‚¬ìš©í•©ë‹ˆë‹¤ (ì—¬ê¸°ì„œëŠ” currentBirdPosë¥¼ ì§ì ‘ ì‚¬ìš©í•  ìˆ˜ ì—†ì–´ ë‹¨ìˆœí™”)
+		// ì„ì‹œë¡œ, birdStartPosë¥¼ ì‚¬ìš©í•˜ì—¬ í˜„ì¬ ìƒˆ ìœ„ì¹˜ë¥¼ ë‹¤ì‹œ ê³„ì‚°í•´ì•¼ í•©ë‹ˆë‹¤.
+		// **ì´ ì½”ë“œëŠ” GLSL ì‰ì´ë”ê°€ ì•„ë‹Œ C++ì—ì„œ ëª¨ë¸ í–‰ë ¬ì„ ê³„ì‚°í•˜ë¯€ë¡œ,
+		// currentBirdPos ê³„ì‚° ë¡œì§ì„ drawScene ë‚´ë¶€ì— ì¬í˜„í•´ì•¼ í•©ë‹ˆë‹¤.**
 
-		// C++¿¡¼­ ¾Ö´Ï¸ŞÀÌ¼Ç À§Ä¡ ÀçÇö
+		// C++ì—ì„œ ì• ë‹ˆë©”ì´ì…˜ ìœ„ì¹˜ ì¬í˜„
 		float t = glm::clamp(birdLeaveTime / BIRD_LEAVE_DURATION, 0.0f, 1.0f);
 		glm::vec3 currentBirdPos = glm::mix(birdStartPos, birdTargetPos, t);
 
@@ -960,21 +1165,23 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 		drawBird(shader, birdModel);
 	}
 	else {
-		// Æò¼Ò¿¡´Â ´ßÀ» ±×¸²
+		// í‰ì†Œì—ëŠ” ë‹­ì„ ê·¸ë¦¼
 		drawChicken(shader, pModel);
 	}
+
+	drawChicken(shader, pModel);
 
 	glDrawArrays(GL_TRIANGLES, 0, 36);
 }
 
-// ÆÄÆ¼Å¬ ·»´õ¸µ ÇÔ¼ö
+// íŒŒí‹°í´ ë Œë”ë§ í•¨ìˆ˜
 void drawParticles(GLuint shader) {
 	for (const auto& p : particles) {
 		glm::mat4 model = glm::mat4(1.0f);
 		model = glm::translate(model, p.position);
-		model = glm::scale(model, glm::vec3(p.scale)); // ÆÄÆ¼Å¬Àº Á¤À°¸éÃ¼
+		model = glm::scale(model, glm::vec3(p.scale)); // íŒŒí‹°í´ì€ ì •ìœ¡ë©´ì²´
 
-		// ½¦ÀÌ´õ¿¡ ¸ğµ¨ Çà·Ä Àü´Ş
+		// ì‰ì´ë”ì— ëª¨ë¸ í–‰ë ¬ ì „ë‹¬
 		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
 		if (shader == shaderProgramID) {
@@ -984,44 +1191,55 @@ void drawParticles(GLuint shader) {
 	}
 }
 
-// Å×µÎ¸® ÀÖ´Â ÅØ½ºÆ® ±×¸®±â ÇÔ¼ö
+// í…Œë‘ë¦¬ ìˆëŠ” í…ìŠ¤íŠ¸ ê·¸ë¦¬ê¸° í•¨ìˆ˜
 void renderTextWithOutline(float x, float y, const char* text) {
-	float offset = 5.0f; // Å×µÎ¸® µÎ²²
+	float offset = 5.0f; // í…Œë‘ë¦¬ ë‘ê»˜
 
-	// 1. °ËÀº»ö Å×µÎ¸® ±×¸®±â (»óÇÏÁÂ¿ì + ´ë°¢¼± 4¹æÇâ = ÃÑ 8¹æÇâ)
-	renderTextTTF(x - offset, y, text, 0.0f, 0.0f, 0.0f); // ÁÂ
-	renderTextTTF(x + offset, y, text, 0.0f, 0.0f, 0.0f); // ¿ì
-	renderTextTTF(x, y - offset, text, 0.0f, 0.0f, 0.0f); // »ó
-	renderTextTTF(x, y + offset, text, 0.0f, 0.0f, 0.0f); // ÇÏ
+	// 1. ê²€ì€ìƒ‰ í…Œë‘ë¦¬ ê·¸ë¦¬ê¸° (ìƒí•˜ì¢Œìš° + ëŒ€ê°ì„  4ë°©í–¥ = ì´ 8ë°©í–¥)
+	renderTextTTF(x - offset, y, text, 0.0f, 0.0f, 0.0f); // ì¢Œ
+	renderTextTTF(x + offset, y, text, 0.0f, 0.0f, 0.0f); // ìš°
+	renderTextTTF(x, y - offset, text, 0.0f, 0.0f, 0.0f); // ìƒ
+	renderTextTTF(x, y + offset, text, 0.0f, 0.0f, 0.0f); // í•˜
 
 	renderTextTTF(x - offset, y - offset, text, 0.0f, 0.0f, 0.0f);
 	renderTextTTF(x + offset, y - offset, text, 0.0f, 0.0f, 0.0f);
 	renderTextTTF(x - offset, y + offset, text, 0.0f, 0.0f, 0.0f);
 	renderTextTTF(x + offset, y + offset, text, 0.0f, 0.0f, 0.0f);
 
-	// 2. Èò»ö ¾Ë¸ÍÀÌ ±×¸®±â (°¡Àå À§¿¡ µ¤¾î¾²±â)
+	// 2. í°ìƒ‰ ì•Œë§¹ì´ ê·¸ë¦¬ê¸° (ê°€ì¥ ìœ„ì— ë®ì–´ì“°ê¸°)
 	renderTextTTF(x, y, text, 1.0f, 1.0f, 1.0f);
 }
 
-// ÅØ½ºÆ® ±×¸®±â ÇÔ¼ö
+// í…ìŠ¤íŠ¸ ê·¸ë¦¬ê¸° í•¨ìˆ˜
 void renderTextTTF(float x, float y, const char* text, float r, float g, float b) {
-	glUseProgram(0); // ½¦ÀÌ´õ ²ô±â
+	glUseProgram(0);
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-	// 2D Åõ¿µ ¼³Á¤
+	glDisable(GL_LIGHTING);
+
 	glMatrixMode(GL_PROJECTION);
 	glPushMatrix();
 	glLoadIdentity();
-	gluOrtho2D(0, 1280, 0, 960); // À©µµ¿ì ÇØ»óµµ¿¡ ¸ÂÃã (ÁÂÇÏ´Ü 0,0)
+	gluOrtho2D(0, 1280, 0, 960);
 
 	glMatrixMode(GL_MODELVIEW);
 	glPushMatrix();
 	glLoadIdentity();
 
 	glDisable(GL_DEPTH_TEST);
-	glEnable(GL_TEXTURE_2D);
+
+
+	glActiveTexture(GL_TEXTURE1);
+	glDisable(GL_TEXTURE_2D);   // ìœ ë‹› 1 ë„ê¸°
+
+	glActiveTexture(GL_TEXTURE0);
+	glEnable(GL_TEXTURE_2D);    // ìœ ë‹› 0 ì¼œê¸° (í°íŠ¸ í…ìŠ¤ì²˜ìš©)
+
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+	// ì´ë¯¸ ìœ„ì—ì„œ í™œì„±í™”í–ˆìœ¼ë¯€ë¡œ glActiveTexture(GL_TEXTURE0)ëŠ” ìƒëµ ê°€ëŠ¥í•˜ì§€ë§Œ ëª…ì‹œì ìœ¼ë¡œ ë‘¡ë‹ˆë‹¤.
 	glBindTexture(GL_TEXTURE_2D, fontTexture);
 
 	glBegin(GL_QUADS);
@@ -1030,10 +1248,9 @@ void renderTextTTF(float x, float y, const char* text, float r, float g, float b
 	while (*text) {
 		if (*text >= 32 && *text < 128) {
 			stbtt_aligned_quad q;
-			// ¹®ÀÚÀÇ À§Ä¡(Quad)¿Í ÅØ½ºÃ³ ÁÂÇ¥(UV)¸¦ °è»êÇØÁÜ
 			stbtt_GetBakedQuad(cdata, 512, 512, *text - 32, &x, &y, &q, 1);
 
-			glTexCoord2f(q.s0, q.t0); glVertex2f(q.x0, 960 - q.y0); // YÁÂÇ¥ ¹İÀü ÁÖÀÇ
+			glTexCoord2f(q.s0, q.t0); glVertex2f(q.x0, 960 - q.y0);
 			glTexCoord2f(q.s1, q.t0); glVertex2f(q.x1, 960 - q.y0);
 			glTexCoord2f(q.s1, q.t1); glVertex2f(q.x1, 960 - q.y1);
 			glTexCoord2f(q.s0, q.t1); glVertex2f(q.x0, 960 - q.y1);
@@ -1046,20 +1263,20 @@ void renderTextTTF(float x, float y, const char* text, float r, float g, float b
 	glDisable(GL_TEXTURE_2D);
 	glEnable(GL_DEPTH_TEST);
 
+	glEnable(GL_LIGHTING);
+
 	glMatrixMode(GL_PROJECTION);
 	glPopMatrix();
 	glMatrixMode(GL_MODELVIEW);
 	glPopMatrix();
-
-	glUseProgram(shaderProgramID); // ½¦ÀÌ´õ º¹±¸
 }
 
-// ±¸¸§ Å¥ºê ÇÏ³ª¸¦ ±×¸®´Â ÇïÆÛ ÇÔ¼ö
+// êµ¬ë¦„ íë¸Œ í•˜ë‚˜ë¥¼ ê·¸ë¦¬ëŠ” í—¬í¼ í•¨ìˆ˜
 void drawCloud(const Cloud& cloud, GLuint shader) {
 	for (int dx = -1; dx <= 1; dx++) {
 		for (int dy = -1; dy <= 0; dy++) {
 			for (int dz = -1; dz <= 1; dz++) {
-				// ±¸¸§ Áß½É¿¡¼­ ¾à°£ ·£´ıÇÏ°Ô ÆÛÁöµµ·Ï
+				// êµ¬ë¦„ ì¤‘ì‹¬ì—ì„œ ì•½ê°„ ëœë¤í•˜ê²Œ í¼ì§€ë„ë¡
 				if (rand() % 100 > 60) continue;
 
 				glm::mat4 model = glm::mat4(1.0f);
@@ -1069,9 +1286,9 @@ void drawCloud(const Cloud& cloud, GLuint shader) {
 					dz * cloud.scale * 0.4f
 				);
 				model = glm::translate(model, cloud.position);
-				model = glm::scale(model, glm::vec3(cloud.scale * 1.5f, cloud.scale * 0.8f, cloud.scale * 1.5f)); // ¾à°£ ³³ÀÛÇÏ°Ô
+				model = glm::scale(model, glm::vec3(cloud.scale * 1.5f, cloud.scale * 0.8f, cloud.scale * 1.5f)); // ì•½ê°„ ë‚©ì‘í•˜ê²Œ
 
-				glm::vec3 cloudColor = glm::vec3(0.95f, 0.95f, 0.95f); // ¹àÀº È¸»ö/Èò»ö
+				glm::vec3 cloudColor = glm::vec3(0.95f, 0.95f, 0.95f); // ë°ì€ íšŒìƒ‰/í°ìƒ‰
 
 				glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
 				if (shader == shaderProgramID) {
@@ -1103,7 +1320,7 @@ GLvoid drawScene()
 
 	}
 	else {
-		// Æò¼Ò ½ÃÁ¡
+		// í‰ì†Œ ì‹œì 
 		glm::vec3 cameraTarget = playerPos;
 		cameraTarget.y = 0.5f;
 		view = glm::lookAt(cameraTarget + glm::vec3(2, 12, 10), cameraTarget, glm::vec3(0, 1, 0));
@@ -1112,7 +1329,7 @@ GLvoid drawScene()
 	glm::mat4 lightView = glm::lookAt(lightPos, cameraTarget, glm::vec3(0, 1, 0)); // playerPos -> cameraTarget
 	glm::mat4 lightSpaceMatrix = lightProjection * lightView;
 
-	// ÆĞ½º 1: ±×¸²ÀÚ ¸Ê »ı¼º
+	// íŒ¨ìŠ¤ 1: ê·¸ë¦¼ì ë§µ ìƒì„±
 	glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
 	glBindFramebuffer(GL_FRAMEBUFFER, depthFBO);
 	glClear(GL_DEPTH_BUFFER_BIT);
@@ -1124,14 +1341,14 @@ GLvoid drawScene()
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-	// ÆĞ½º 2: ½ÇÁ¦ Àå¸é ·»´õ¸µ
+	// íŒ¨ìŠ¤ 2: ì‹¤ì œ ì¥ë©´ ë Œë”ë§
 	glViewport(0, 0, 1280, 960);
 	if (isFlying || isLanding || isBirdLeaving) {
-		// ÇÏ´Ã»ö (¾à°£ ¹àÀº ÆÄ¶õ»ö)
+		// í•˜ëŠ˜ìƒ‰ (ì•½ê°„ ë°ì€ íŒŒë€ìƒ‰)
 		glClearColor(0.53f, 0.81f, 0.98f, 1.0f);
 	}
 	else {
-		// Æò¼Ò ¹è°æ»ö (°ËÀº»ö)
+		// í‰ì†Œ ë°°ê²½ìƒ‰ (ê²€ì€ìƒ‰)
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	}
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1145,88 +1362,91 @@ GLvoid drawScene()
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, depthMap);
 	glUniform1i(glGetUniformLocation(shaderProgramID, "shadowMap"), 0);
-	// ºñÇà ÁßÀÏ ¶§´Â Áö¸é ¿ÀºêÁ§Æ® ·»´õ¸µ °Ç³Ê¶Ù±â
+	// ë¹„í–‰ ì¤‘ì¼ ë•ŒëŠ” ì§€ë©´ ì˜¤ë¸Œì íŠ¸ ë Œë”ë§ ê±´ë„ˆë›°ê¸°
 	if (!isFlying && !isLanding) {
 		renderObjects(shaderProgramID, proj * view);
 	}
 
 	renderObjects(shaderProgramID, proj * view);
 
-	// ÆÄÆ¼Å¬ ±×¸®±â È£Ãâ
+	// íŒŒí‹°í´ ê·¸ë¦¬ê¸° í˜¸ì¶œ
 	drawParticles(shaderProgramID);
 
-	// ±¸¸§ ·»´õ¸µ È£Ãâ
+	// êµ¬ë¦„ ë Œë”ë§ í˜¸ì¶œ
 	if (isFlying || isLanding) {
 		drawClouds(shaderProgramID);
 	}
 
-	// Á¡¼ö Ç¥½Ã (ÁÂÃø »ó´Ü)
+	// ì ìˆ˜ í‘œì‹œ (ì¢Œì¸¡ ìƒë‹¨)
 	std::string scoreStr = "SCORE: " + std::to_string(score);
 	renderTextWithOutline(20, 60, scoreStr.c_str());
 
-	// ÄÚÀÎ °³¼ö Ç¥½Ã (¿ìÃø »ó´Ü)
+	// ì½”ì¸ ê°œìˆ˜ í‘œì‹œ (ìš°ì¸¡ ìƒë‹¨)
 	std::string coinStr = "COINS: " + std::to_string(coinCount);
 	renderTextWithOutline(1050, 60, coinStr.c_str());
 
 	std::string dashStr;
-	float dashR = 1.0f, dashG = 1.0f, dashB = 0.0f; // ±âº» »ö»ó (³ë¶û)
+	float dashR = 1.0f, dashG = 1.0f, dashB = 0.0f; // ê¸°ë³¸ ìƒ‰ìƒ (ë…¸ë‘)
 
 	if (isDashing) {
 		dashStr = "DASH! (" + std::to_string((int)(dashTimer * 10) / 10.0f) + "s)";
-		dashR = 1.0f; dashG = 0.0f; dashB = 0.0f; // »¡°­
+		dashR = 1.0f; dashG = 0.0f; dashB = 0.0f; // ë¹¨ê°•
 	}
 	else if (dashCooldownTimer > 0.0f) {
 		dashStr = "CD: " + std::to_string((int)(dashCooldownTimer * 10) / 10.0f) + "s";
-		dashR = 0.5f; dashG = 0.5f; dashB = 0.5f; // È¸»ö
+		dashR = 0.5f; dashG = 0.5f; dashB = 0.5f; // íšŒìƒ‰
 	}
 	else if (coinCount >= DASH_COST) {
 		dashStr = "DASH ";
-		dashR = 0.0f; dashG = 1.0f; dashB = 0.0f; // ÃÊ·Ï
+		dashR = 0.0f; dashG = 1.0f; dashB = 0.0f; // ì´ˆë¡
 	}
 	else {
 		dashStr = "NEED " + std::to_string(DASH_COST - coinCount) + " COINS FOR DASH";
-		dashR = 1.0f; dashG = 0.5f; dashB = 0.0f; // ÁÖÈ²
+		dashR = 1.0f; dashG = 0.5f; dashB = 0.0f; // ì£¼í™©
 	}
 	if (isEventActive) {
 		float barWidth = 600.0f;
 		float barHeight = 40.0f;
 		float centerX = 1280.0f / 2.0f;
-		float centerY = 960.0f - 150.0f; // È­¸é À§ÂÊ Áß¾Ó
-		float centerY_BottomUp = 960.0f - 150.0f; // 810.0f (È­¸é ÇÏ´Ü ±âÁØ)
-		float centerY_TopDown = 150.0f; // 150.0f (È­¸é »ó´Ü ±âÁØ)
+		float centerY = 960.0f - 150.0f; // í™”ë©´ ìœ„ìª½ ì¤‘ì•™
+		float centerY_BottomUp = 960.0f - 150.0f; // 810.0f (í™”ë©´ í•˜ë‹¨ ê¸°ì¤€)
+		float centerY_TopDown = 150.0f; // 150.0f (í™”ë©´ ìƒë‹¨ ê¸°ì¤€)
 
-		// 1. ¹è°æ (Å×µÎ¸®)
+		// 1. ë°°ê²½ (í…Œë‘ë¦¬)
 		glUseProgram(0);
 		glDisable(GL_DEPTH_TEST);
 		glBegin(GL_QUADS);
-		glColor3f(0.1f, 0.1f, 0.1f); // °ËÀº»ö ¹è°æ
+		glColor3f(0.1f, 0.1f, 0.1f); // ê²€ì€ìƒ‰ ë°°ê²½
 		glVertex2f(centerX - barWidth / 2.0f - 5.0f, centerY - barHeight / 2.0f - 5.0f);
 		glVertex2f(centerX + barWidth / 2.0f + 5.0f, centerY - barHeight / 2.0f - 5.0f);
 		glVertex2f(centerX + barWidth / 2.0f + 5.0f, centerY + barHeight / 2.0f + 5.0f);
 		glVertex2f(centerX - barWidth / 2.0f - 5.0f, centerY + barHeight / 2.0f + 5.0f);
 		glEnd();
 
-		// 2. °ÔÀÌÁö Ã¤¿ì±â
+		// 2. ê²Œì´ì§€ ì±„ìš°ê¸°
 		float fillWidth = barWidth * glm::clamp(eventProgress, 0.0f, 1.0f);
 		glBegin(GL_QUADS);
-		glColor3f(0.0f, 1.0f, 0.0f); // ÃÊ·Ï»ö °ÔÀÌÁö
+		glColor3f(0.0f, 1.0f, 0.0f); // ì´ˆë¡ìƒ‰ ê²Œì´ì§€
 		glVertex2f(centerX - barWidth / 2.0f, centerY - barHeight / 2.0f);
 		glVertex2f(centerX - barWidth / 2.0f + fillWidth, centerY - barHeight / 2.0f);
 		glVertex2f(centerX - barWidth / 2.0f + fillWidth, centerY + barHeight / 2.0f);
 		glVertex2f(centerX - barWidth / 2.0f, centerY + barHeight / 2.0f);
 		glEnd();
 
-		// 3. ÅØ½ºÆ® Ç¥½Ã
+		// 3. í…ìŠ¤íŠ¸ í‘œì‹œ
 		renderTextTTF(centerX - 100.0f, 960.0f - centerY - 50.0f, "PRESS SPACE!", 1.0f, 1.0f, 1.0f);
 		glEnable(GL_DEPTH_TEST);
 		glUseProgram(shaderProgramID);
 	}
+	// í…ìŠ¤íŠ¸ëŠ” í™”ë©´ ì¤‘ì•™ í•˜ë‹¨ì— ê°€ê¹ê²Œ í‘œì‹œ (ì˜ˆ: Y=900)
+	// í…ìŠ¤íŠ¸ë¥¼ ê·¸ë¦´ ë•ŒëŠ” Outline í•¨ìˆ˜ ëŒ€ì‹  ì§ì ‘ renderTextTTFë¥¼ ì‚¬ìš©í•˜ì—¬ ìƒ‰ìƒì„ ì ìš©í•©ë‹ˆë‹¤.
+
 
 	glutSwapBuffers();
 }
 
-// ÆÄÆ¼Å¬ »ı¼º ÇÔ¼ö
-// pos: ¹ß»ı À§Ä¡, color: »ö»ó, count: °³¼ö, speedScale: ÆÛÁö´Â ¼Óµµ °è¼ö
+// íŒŒí‹°í´ ìƒì„± í•¨ìˆ˜
+// pos: ë°œìƒ ìœ„ì¹˜, color: ìƒ‰ìƒ, count: ê°œìˆ˜, speedScale: í¼ì§€ëŠ” ì†ë„ ê³„ìˆ˜
 void spawnParticles(glm::vec3 pos, glm::vec3 color, int count, float speedScale) {
 	for (int i = 0; i < count; i++) {
 		Particle p;
@@ -1238,8 +1458,8 @@ void spawnParticles(glm::vec3 pos, glm::vec3 color, int count, float speedScale)
 
 		p.velocity = glm::vec3(rX, rY, rZ);
 		p.color = color;
-		p.scale = (rand() % 5) / 20.0f + 0.1f; // 0.1 ~ 0.35 Å©±â ·£´ı
-		p.life = 1.0f; // ¼ö¸í ÃÊ±âÈ­
+		p.scale = (rand() % 5) / 20.0f + 0.1f; // 0.1 ~ 0.35 í¬ê¸° ëœë¤
+		p.life = 1.0f; // ìˆ˜ëª… ì´ˆê¸°í™”
 
 		particles.push_back(p);
 	}
@@ -1253,15 +1473,15 @@ void timer(int value)
 
 	bool scoreTargetReached = (score > 0) && (score % 50 == 0);
 
-	// ÁÖÀÎ°øÀÌ ¼­ ÀÖÀ» ³ôÀÌ
+	// ì£¼ì¸ê³µì´ ì„œ ìˆì„ ë†’ì´
 	float restingY = 0.5f;
 
 	if (isFlying || isLanding) {
-		// ºñÇà Áß¿¡´Â ÃæºĞÇÑ ¼öÀÇ ±¸¸§ÀÌ ÀÖ´ÂÁö È®ÀÎÇÏ°í ºÎÁ·ÇÏ¸é Ãß°¡ »ı¼º
+		// ë¹„í–‰ ì¤‘ì—ëŠ” ì¶©ë¶„í•œ ìˆ˜ì˜ êµ¬ë¦„ì´ ìˆëŠ”ì§€ í™•ì¸í•˜ê³  ë¶€ì¡±í•˜ë©´ ì¶”ê°€ ìƒì„±
 		if (clouds.size() < 20) {
 			for (int i = 0; i < 20 - clouds.size(); ++i) {
 				Cloud newCloud;
-				newCloud.position.z = playerPos.z - 40.0f - (rand() % 20); // ÇÃ·¹ÀÌ¾î ¾Õ¿¡¼­ ¸Õ °÷
+				newCloud.position.z = playerPos.z - 40.0f - (rand() % 20); // í”Œë ˆì´ì–´ ì•ì—ì„œ ë¨¼ ê³³
 				newCloud.position.x = ((rand() % 100) / 100.0f - 0.5f) * 40.0f;
 				newCloud.position.y = FLY_HEIGHT + (rand() % 10) + 5.0f;
 				newCloud.scale = 1.0f + (rand() % 10) / 10.0f;
@@ -1270,7 +1490,7 @@ void timer(int value)
 			}
 		}
 	}
-	// ÆÄÆ¼Å¬ ¹°¸® ¾÷µ¥ÀÌÆ®
+	// íŒŒí‹°í´ ë¬¼ë¦¬ ì—…ë°ì´íŠ¸
 	for (auto it = particles.begin(); it != particles.end(); ) {
 		it->position += it->velocity;
 		it->life -= 0.05f;
@@ -1283,17 +1503,17 @@ void timer(int value)
 		if (dashCooldownTimer < 0.0f) dashCooldownTimer = 0.0f;
 	}
 
-	// ±¸¸§ ¹°¸® ¾÷µ¥ÀÌÆ®
+	// êµ¬ë¦„ ë¬¼ë¦¬ ì—…ë°ì´íŠ¸
 	for (auto it = clouds.begin(); it != clouds.end(); ) {
-		it->position.x += it->speed * 0.016f; // ¿·À¸·Î Èå¸£´Â ¿òÁ÷ÀÓ
-		it->position.z += FLY_SPEED * 0.016f * 0.5f; // ºñÇà ¼ÓµµÀÇ Àı¹İÀ¸·Î µÚ·Î Èå¸§ (°øÁß°¨ Áõ´ë)
+		it->position.x += it->speed * 0.016f; // ì˜†ìœ¼ë¡œ íë¥´ëŠ” ì›€ì§ì„
+		it->position.z += FLY_SPEED * 0.016f * 0.5f; // ë¹„í–‰ ì†ë„ì˜ ì ˆë°˜ìœ¼ë¡œ ë’¤ë¡œ íë¦„ (ê³µì¤‘ê° ì¦ëŒ€)
 
-		// ÇÃ·¹ÀÌ¾î ½Ã¾ß ¹üÀ§ ¹ÛÀ¸·Î ³ª°¡¸é Àç»ı¼º
+		// í”Œë ˆì´ì–´ ì‹œì•¼ ë²”ìœ„ ë°–ìœ¼ë¡œ ë‚˜ê°€ë©´ ì¬ìƒì„±
 		if (it->position.z > playerPos.z + 20.0f) {
-			it->position.z = playerPos.z - 40.0f; // ÇÃ·¹ÀÌ¾î ÈÎ¾À ¾ÕÀ¸·Î Àç¹èÄ¡
+			it->position.z = playerPos.z - 40.0f; // í”Œë ˆì´ì–´ í›¨ì”¬ ì•ìœ¼ë¡œ ì¬ë°°ì¹˜
 			it->position.x = ((rand() % 100) / 100.0f - 0.5f) * 40.0f; // -20 ~ 20
-			it->position.y = FLY_HEIGHT + (rand() % 10 + 5); // ´õ ³ôÀº À§Ä¡¿¡ ·£´ı ¹èÄ¡
-			it->scale = 1.0f + (rand() % 10) / 10.0f; // Å©±â ·£´ı
+			it->position.y = FLY_HEIGHT + (rand() % 10 + 5); // ë” ë†’ì€ ìœ„ì¹˜ì— ëœë¤ ë°°ì¹˜
+			it->scale = 1.0f + (rand() % 10) / 10.0f; // í¬ê¸° ëœë¤
 			it->speed = ((rand() % 10) / 100.0f + 0.05f) * (rand() % 2 == 0 ? 1.0f : -1.0f);
 		}
 		++it;
@@ -1301,13 +1521,13 @@ void timer(int value)
 
 	//if (!isEventActive && !isFlying) {
 	//
-	// // ·£´ı ÀÌº¥Æ® ¹ß»ı Á¶°Ç Ã¼Å©
+	// // ëœë¤ ì´ë²¤íŠ¸ ë°œìƒ ì¡°ê±´ ì²´í¬
 	if (scoreTargetReached && score > lastEventScore && !isEventActive && !isFlying) {
 		isEventActive = true;
 		eventProgress = 0.0f;
 		requiredTaps = 0;
 		lastEventScore = score;
-		printf("!!! ½ºÆäÀÌ½º ¿¬Å¸ ÀÌº¥Æ® ¹ß»ı! 4ÃÊ ¾È¿¡ ¼º°øÇÏ¼¼¿ä!\n");
+		printf("!!! ìŠ¤í˜ì´ìŠ¤ ì—°íƒ€ ì´ë²¤íŠ¸ ë°œìƒ! 4ì´ˆ ì•ˆì— ì„±ê³µí•˜ì„¸ìš”!\n");
 
 	}
 	//}
@@ -1329,14 +1549,14 @@ void timer(int value)
 			playerPos.z = (float)std::round(playerPos.z);
 
 			playerTargetPos = playerPos;
-			printf("´ë½¬ Á¾·á. Äğ´Ù¿î ½ÃÀÛ: %.1fÃÊ\n", DASH_COOLDOWN);
-			// ´ë½¬ Á¾·á Á÷ÈÄ ÀÌº¥Æ® °­Á¦ Ã¼Å© (½ºÄÚ¾î 50À» ´ë½¬·Î ³Ñ¾î¹ö·ÈÀ» ¶§)
+			printf("ëŒ€ì‰¬ ì¢…ë£Œ. ì¿¨ë‹¤ìš´ ì‹œì‘: %.1fì´ˆ\n", DASH_COOLDOWN);
+			// ëŒ€ì‰¬ ì¢…ë£Œ ì§í›„ ì´ë²¤íŠ¸ ê°•ì œ ì²´í¬ (ìŠ¤ì½”ì–´ 50ì„ ëŒ€ì‰¬ë¡œ ë„˜ì–´ë²„ë ¸ì„ ë•Œ)
 			if (scoreTargetReached && score > lastEventScore && !isEventActive && !isFlying) {
 				isEventActive = true;
 				eventProgress = 0.0f;
 				requiredTaps = 0;
 				lastEventScore = score;
-				printf("!!! ´ë½¬ Á¾·á Á÷ÈÄ ½ºÆäÀÌ½º ¿¬Å¸ ÀÌº¥Æ® ¹ß»ı! 4ÃÊ ¾È¿¡ ¼º°øÇÏ¼¼¿ä!\n");
+				printf("!!! ëŒ€ì‰¬ ì¢…ë£Œ ì§í›„ ìŠ¤í˜ì´ìŠ¤ ì—°íƒ€ ì´ë²¤íŠ¸ ë°œìƒ! 4ì´ˆ ì•ˆì— ì„±ê³µí•˜ì„¸ìš”!\n");
 			}
 		}
 
@@ -1345,22 +1565,22 @@ void timer(int value)
 	//else {
 	// if (!isMoving && dashCooldownTimer <= 0.0f && coinCount >= DASH_COST) {
 	// if (!isFlying && !isEventActive) {
-	// // ÄÚÀÎ »ç¿ë
+	// // ì½”ì¸ ì‚¬ìš©
 	// coinCount -= DASH_COST;
 
-	// // ´ë½¬ »óÅÂ ½ÃÀÛ
+	// // ëŒ€ì‰¬ ìƒíƒœ ì‹œì‘
 	// isDashing = true;
 	// dashTimer = DASH_DURATION;
 
-	// // ½Ã°¢Àû ÇÇµå¹é: ¹«Àû ´ë½¬ ¹ßµ¿ ÆÄÆ¼Å¬
+	// // ì‹œê°ì  í”¼ë“œë°±: ë¬´ì  ëŒ€ì‰¬ ë°œë™ íŒŒí‹°í´
 	// spawnParticles(playerPos, glm::vec3(1.0f, 0.5f, 0.0f), 20, 0.8f);
-	// printf("ÄÚÀÎ 7°³ ´Ş¼º! ¹«Àû ´ë½¬ ÀÚµ¿ ¹ßµ¿! ³²Àº ½Ã°£: %.1fÃÊ\n", DASH_DURATION);
+	// printf("ì½”ì¸ 7ê°œ ë‹¬ì„±! ë¬´ì  ëŒ€ì‰¬ ìë™ ë°œë™! ë‚¨ì€ ì‹œê°„: %.1fì´ˆ\n", DASH_DURATION);
 	// }
 	// }
 	//}
 	else if (isFlying) {
-		playerPos.z -= FLY_SPEED; // ZÃà ¸¶ÀÌ³Ê½º ¹æÇâ (¾ÕÀ¸·Î) ÀÌµ¿
-		playerPos.y = 3.0f; // °øÁß ³ôÀÌ °íÁ¤ (3.0f)
+		playerPos.z -= FLY_SPEED; // Zì¶• ë§ˆì´ë„ˆìŠ¤ ë°©í–¥ (ì•ìœ¼ë¡œ) ì´ë™
+		playerPos.y = 3.0f; // ê³µì¤‘ ë†’ì´ ê³ ì • (3.0f)
 
 		flyTimer -= 0.016f;
 
@@ -1368,24 +1588,24 @@ void timer(int value)
 		if (currentZ < minZ) {
 			minZ = currentZ;
 			score++;
-			// Á¡¼ö È¹µæ ½Ã ÆÄÆ¼Å¬ È¿°ú Ãß°¡ °¡´É
+			// ì ìˆ˜ íšë“ ì‹œ íŒŒí‹°í´ íš¨ê³¼ ì¶”ê°€ ê°€ëŠ¥
 		}
 
-		// ºñÇà Á¾·á
+		// ë¹„í–‰ ì¢…ë£Œ
 		if (flyTimer <= 0.0f) {
 			isFlying = false;
-			// ¶¥À¸·Î ÂøÁö, ÇöÀç Ä­ÀÇ Á¤Áß¾Ó¿¡ °íÁ¤
+			// ë•…ìœ¼ë¡œ ì°©ì§€, í˜„ì¬ ì¹¸ì˜ ì •ì¤‘ì•™ì— ê³ ì •
 			isLanding = true;
 			landingTime = 0.0f;
 			/*playerPos.x = (float)std::round(playerPos.x);
 			playerPos.z = (float)std::round(playerPos.z);*/
 
-			birdStartPos = playerPos + glm::vec3(0.0f, 0.5f * 0.7f + 0.5f * 0.7f, 0.0f); // ´ß À§¿¡ »õÀÇ ´ë·«Àû À§Ä¡
-			birdTargetPos = playerPos + glm::vec3(30.0f, FLY_HEIGHT + 10.0f, -50.0f); // ¸Ö¸® ³¯¾Æ°¥ ¸ñÇ¥ À§Ä¡
+			birdStartPos = playerPos + glm::vec3(0.0f, 0.5f * 0.7f + 0.5f * 0.7f, 0.0f); // ë‹­ ìœ„ì— ìƒˆì˜ ëŒ€ëµì  ìœ„ì¹˜
+			birdTargetPos = playerPos + glm::vec3(30.0f, FLY_HEIGHT + 10.0f, -50.0f); // ë©€ë¦¬ ë‚ ì•„ê°ˆ ëª©í‘œ ìœ„ì¹˜
 
 			playerStartPos = playerPos;
 			playerTargetPos = glm::vec3((float)std::round(playerPos.x), 0.5f, (float)std::round(playerPos.z));
-			printf("·ÎÄÏ ¶óÀÌµå Á¾·á! Âø·úÀ» ½ÃÀÛÇÕ´Ï´Ù.\n");
+			printf("ë¡œì¼“ ë¼ì´ë“œ ì¢…ë£Œ! ì°©ë¥™ì„ ì‹œì‘í•©ë‹ˆë‹¤.\n");
 		}
 	}
 
@@ -1393,89 +1613,92 @@ void timer(int value)
 		landingTime += 0.016f;
 		float t = glm::clamp(landingTime / LANDING_DURATION, 0.0f, 1.0f);
 
-		// X, Z´Â ¸ñÇ¥ ÁöÁ¡(TargetPos)À¸·Î º¸°£
+		// X, ZëŠ” ëª©í‘œ ì§€ì (TargetPos)ìœ¼ë¡œ ë³´ê°„
 		playerPos.x = glm::mix(playerStartPos.x, playerTargetPos.x, t);
 		playerPos.z = glm::mix(playerStartPos.z, playerTargetPos.z, t);
 
-		// Y´Â ÇÏ°­ ¾Ö´Ï¸ŞÀÌ¼Ç
+		// YëŠ” í•˜ê°• ì• ë‹ˆë©”ì´ì…˜
 		playerPos.y = glm::mix(playerStartPos.y, playerTargetPos.y, t);
 
-		// Âø·ú ¿Ï·á
+		// ì°©ë¥™ ì™„ë£Œ
 		if (t >= 1.0f) {
 			isLanding = false;
-			playerPos = playerTargetPos; // ÃÖÁ¾ À§Ä¡ È®Á¤ (¿øÁ¡ ¾Æ´Ô)
+			playerPos = playerTargetPos; // ìµœì¢… ìœ„ì¹˜ í™•ì • (ì›ì  ì•„ë‹˜)
 			isBirdLeaving = true;
 			birdLeaveTime = 0.0f;
-			printf("Âø·ú ¿Ï·á!\n");
+			printf("ì°©ë¥™ ì™„ë£Œ!\n");
 		}
 	}
 
 	else if (isEventActive) {
 		eventDuration -= 0.016f;
 
-		//// ¸ñÇ¥ °ÔÀÌÁö: 1ÃÊ¿¡ TAP_PER_SECOND È½¼ö¸¦ ´©¸£¸é °ÔÀÌÁö°¡ 1.0ÀÌ µË´Ï´Ù.
+		//// ëª©í‘œ ê²Œì´ì§€: 1ì´ˆì— TAP_PER_SECOND íšŸìˆ˜ë¥¼ ëˆ„ë¥´ë©´ ê²Œì´ì§€ê°€ 1.0ì´ ë©ë‹ˆë‹¤.
 		//float targetProgress = requiredTaps / (TAP_PER_SECOND * (4.0f - eventDuration));
 		//eventProgress = glm::clamp(eventProgress, 0.0f, targetProgress);
 
-		// ¼º°ø Á¶°Ç:
+		// ì„±ê³µ ì¡°ê±´:
 		if (eventProgress >= 1.0f) {
 			isEventActive = false;
 			isFlying = true;
 			flyTimer = FLY_DURATION;
 			playerPos.y = FLY_HEIGHT;
-			printf("·ÎÄÏ ¶óÀÌµå ¼º°ø! »õ¸¦ Å¸°í ºñÇàÇÕ´Ï´Ù!\n");
-			// »õ¿Í ÇÔ²² ³¯¾Æ°¥ ¶§ È¿°ú ÆÄÆ¼Å¬
+			printf("ë¡œì¼“ ë¼ì´ë“œ ì„±ê³µ! ìƒˆë¥¼ íƒ€ê³  ë¹„í–‰í•©ë‹ˆë‹¤!\n");
+			// ìƒˆì™€ í•¨ê»˜ ë‚ ì•„ê°ˆ ë•Œ íš¨ê³¼ íŒŒí‹°í´
 			spawnParticles(playerPos + glm::vec3(0, 1.0f, 0), glm::vec3(1.0f, 0.5f, 0.0f), 50, 1.5f);
 		}
-		// ½ÇÆĞ Á¶°Ç
+		// ì‹¤íŒ¨ ì¡°ê±´
 		else if (eventDuration <= 0.0f) {
 			isEventActive = false;
 			eventProgress = 0.0f;
-			printf("·ÎÄÏ ¶óÀÌµå ½ÇÆĞ! ´ÙÀ½ ±âÈ¸¸¦ ³ë¸®¼¼¿ä.\n");
+			printf("ë¡œì¼“ ë¼ì´ë“œ ì‹¤íŒ¨! ë‹¤ìŒ ê¸°íšŒë¥¼ ë…¸ë¦¬ì„¸ìš”.\n");
 		}
 
-		// ÀÌº¥Æ® Áß¿¡´Â ÀÏ¹İ ÀÌµ¿ ·ÎÁ÷À» °Ç³Ê¶İ´Ï´Ù.
+		// ì´ë²¤íŠ¸ ì¤‘ì—ëŠ” ì¼ë°˜ ì´ë™ ë¡œì§ì„ ê±´ë„ˆëœë‹ˆë‹¤.
 	}
-	// »õ ÅğÀå ·ÎÁ÷
+	// ìƒˆ í‡´ì¥ ë¡œì§
 	if (isBirdLeaving) {
 		birdLeaveTime += 0.016f;
 		float t = glm::clamp(birdLeaveTime / BIRD_LEAVE_DURATION, 0.0f, 1.0f);
 
-		// »õ¸¦ ¸Ö¸®, À§·Î ³¯·Á º¸³À´Ï´Ù (playerPos´Â ´ß À§Ä¡, birdStartPos/birdTargetPos´Â »õ À§Ä¡)
+		// ìƒˆë¥¼ ë©€ë¦¬, ìœ„ë¡œ ë‚ ë ¤ ë³´ëƒ…ë‹ˆë‹¤ (playerPosëŠ” ë‹­ ìœ„ì¹˜, birdStartPos/birdTargetPosëŠ” ìƒˆ ìœ„ì¹˜)
 		glm::vec3 currentBirdPos = glm::mix(birdStartPos, birdTargetPos, t);
 
-		// »õ°¡ ÃÖÁ¾ ¸ñÀûÁö¿¡ µµ´ŞÇÏ¸é ÅğÀå Á¾·á
+		// ìƒˆê°€ ìµœì¢… ëª©ì ì§€ì— ë„ë‹¬í•˜ë©´ í‡´ì¥ ì¢…ë£Œ
 		if (t >= 1.0f) {
 			isBirdLeaving = false;
 		}
 	}
 
+
+	}
+
 	else {
-		// 1. ´ë½¬ ÀÚµ¿ ¹ßµ¿ Á¶°Ç (isFlying, isEventActive°¡ ¾Æ´Ò ¶§¸¸ ¹ßµ¿µÇµµ·Ï Á¶°ÇÀ» ¿Ã¸²)
+		// 1. ëŒ€ì‰¬ ìë™ ë°œë™ ì¡°ê±´ (isFlying, isEventActiveê°€ ì•„ë‹ ë•Œë§Œ ë°œë™ë˜ë„ë¡ ì¡°ê±´ì„ ì˜¬ë¦¼)
 		if (!isMoving && dashCooldownTimer <= 0.0f && coinCount >= DASH_COST) {
 
-			// **NOTE:** ÀÌ ·ÎÁ÷ÀÌ À§ isDashing ºí·Ï ¹Û¿¡ ÀÖÀ¸¹Ç·Î isDashingÀÌ falseÀÏ ¶§ ½ÇÇàµÊ.
-			// isFlying, isEventActive Ã¼Å©´Â ÀÌ¹Ì ¹Û¿¡¼­ else·Î Ã³¸®µÇ¾úÁö¸¸ ¸í½ÃÀûÀ¸·Î ³ÖÀ½.
+			// **NOTE:** ì´ ë¡œì§ì´ ìœ„ isDashing ë¸”ë¡ ë°–ì— ìˆìœ¼ë¯€ë¡œ isDashingì´ falseì¼ ë•Œ ì‹¤í–‰ë¨.
+			// isFlying, isEventActive ì²´í¬ëŠ” ì´ë¯¸ ë°–ì—ì„œ elseë¡œ ì²˜ë¦¬ë˜ì—ˆì§€ë§Œ ëª…ì‹œì ìœ¼ë¡œ ë„£ìŒ.
 			if (!isFlying && !isEventActive) {
 				coinCount -= DASH_COST;
 				isDashing = true;
 				dashTimer = DASH_DURATION;
 
 				spawnParticles(playerPos, glm::vec3(1.0f, 0.5f, 0.0f), 20, 0.8f);
-				printf("ÄÚÀÎ 7°³ ´Ş¼º! ¹«Àû ´ë½¬ ÀÚµ¿ ¹ßµ¿! ³²Àº ½Ã°£: %.1fÃÊ\n", DASH_DURATION);
+				printf("ì½”ì¸ 7ê°œ ë‹¬ì„±! ë¬´ì  ëŒ€ì‰¬ ìë™ ë°œë™! ë‚¨ì€ ì‹œê°„: %.1fì´ˆ\n", DASH_DURATION);
 			}
 		}
 
-		// 2. ·£´ı ÀÌº¥Æ® ¹ß»ı Á¶°Ç Ã¼Å© (isMovingÀÌ false·Î Ç®¸®´Â ´ÙÀ½ ÇÁ·¹ÀÓ¿¡ ¾ÈÀüÇÏ°Ô Ã¼Å©)
+		// 2. ëœë¤ ì´ë²¤íŠ¸ ë°œìƒ ì¡°ê±´ ì²´í¬ (isMovingì´ falseë¡œ í’€ë¦¬ëŠ” ë‹¤ìŒ í”„ë ˆì„ì— ì•ˆì „í•˜ê²Œ ì²´í¬)
 		if (scoreTargetReached && score > lastEventScore && !isMoving) {
 			isEventActive = true;
 			eventProgress = 0.0f;
 			requiredTaps = 0;
 			lastEventScore = score;
-			printf("!!! ½ºÆäÀÌ½º ¿¬Å¸ ÀÌº¥Æ® ¹ß»ı! 4ÃÊ ¾È¿¡ ¼º°øÇÏ¼¼¿ä!\n");
+			printf("!!! ìŠ¤í˜ì´ìŠ¤ ì—°íƒ€ ì´ë²¤íŠ¸ ë°œìƒ! 4ì´ˆ ì•ˆì— ì„±ê³µí•˜ì„¸ìš”!\n");
 		}
 		if (!isDashing) {
-			// Åë³ª¹« ÀÌµ¿ ¹× ¼øÈ¯
+			// í†µë‚˜ë¬´ ì´ë™ ë° ìˆœí™˜
 			for (auto& logObj : logs) {
 				logObj.x += logObj.speed;
 				if (logObj.speed > 0 && logObj.x > 20.0f) logObj.x = -20.0f;
@@ -1493,11 +1716,18 @@ void timer(int value)
 					break;
 				}
 			}
+			if (!isMoving && onLog) {
+				playerPos.x += logObj.speed;
+				playerTargetPos.x += logObj.speed;
+				playerStartPos.x += logObj.speed;
+				restingY = 1.1f;
+			}
+		}
 
-			// [Ãæµ¹ °Ë»ç ½ÃÀÛ]
+			// [ì¶©ëŒ ê²€ì‚¬ ì‹œì‘]
 			bool isDead = false;
 			if (!isDashing && !isFlying && !isLanding) {
-				// ÀÚµ¿Â÷ Ãæµ¹ °Ë»ç
+				// ìë™ì°¨ ì¶©ëŒ ê²€ì‚¬
 				for (auto& car : cars) {
 					car.x += car.speed;
 					if (car.x > 18.0f && car.speed > 0) car.x = -18.0f;
@@ -1511,11 +1741,11 @@ void timer(int value)
 					}
 				}
 
-				// ÀÍ»ç(¹°) ÆÇÁ¤
+				// ìµì‚¬(ë¬¼) íŒì •
 				int pZ = (int)std::round(playerPos.z);
 				if (!isMoving && mapType.count(pZ) && mapType[pZ] == 2) {
 					bool safe = false;
-					// Åë³ª¹« Ã¼Å©
+					// í†µë‚˜ë¬´ ì²´í¬
 					for (const auto& logObj : logs) {
 						if (logObj.z == (float)pZ &&
 							playerPos.x >= logObj.x - logObj.width / 2.0f - 0.4f &&
@@ -1525,7 +1755,7 @@ void timer(int value)
 							break;
 						}
 					}
-					// ¿¬ÀÙ Ã¼Å©
+					// ì—°ì ì²´í¬
 					if (!safe) {
 						for (const auto& pad : lilyPads) {
 							if (pad.z == (float)pZ && std::abs(playerPos.x - pad.x) < 0.6f) {
@@ -1539,7 +1769,7 @@ void timer(int value)
 					if (playerPos.x < -16.0f || playerPos.x > 16.0f) isDead = true;
 				}
 
-				// ±âÂ÷ Ãæµ¹ °Ë»ç
+				// ê¸°ì°¨ ì¶©ëŒ ê²€ì‚¬
 				for (auto& t : trains) {
 					switch (t.state) {
 					case TRAIN_IDLE:
@@ -1563,7 +1793,7 @@ void timer(int value)
 					case TRAIN_PASSING:
 						t.x += t.speed;
 
-						// Ãæµ¹ Ã¼Å©
+						// ì¶©ëŒ ì²´í¬
 						if (t.state == TRAIN_PASSING)
 						{
 							int playerGridZ = (int)std::round(playerPos.z);
@@ -1572,7 +1802,7 @@ void timer(int value)
 							if (playerGridZ == trainGridZ) {
 								if (playerPos.x > t.x - 9.0f && playerPos.x < t.x + 9.0f) {
 									isDead = true;
-									printf("±âÂ÷¿¡ Ä¡ÀÓ!\n");
+									printf("ê¸°ì°¨ì— ì¹˜ì„!\n");
 								}
 							}
 						}
@@ -1591,7 +1821,7 @@ void timer(int value)
 				playerTargetPos = playerPos;
 				playerStartPos = playerPos;
 				isMoving = false;
-				isDashing = false; // ´ë½¬ »óÅÂ ÃÊ±âÈ­
+				isDashing = false; // ëŒ€ì‰¬ ìƒíƒœ ì´ˆê¸°í™”
 				dashTimer = 0.0f;
 				dashCooldownTimer = 0.0f;
 				score = 0;
@@ -1612,7 +1842,7 @@ void timer(int value)
 
 			}
 
-			// ÄÚÀÎ ·ÎÁ÷
+			// ì½”ì¸ ë¡œì§
 			for (auto& coin : coins) {
 				if (coin.isCollected) continue;
 				if (std::abs(coin.z - playerZ) < playerSize && std::abs(coin.x - playerX) < playerSize) {
@@ -1623,7 +1853,7 @@ void timer(int value)
 				}
 			}
 
-			// Á¡ÇÁ ¾Ö´Ï¸ŞÀÌ¼Ç (´ë½¬ Áß¿¡´Â ÀÏ¹İ Á¡ÇÁ¸¦ ¸·¾Æ¾ß ÇÔ. isDashingÀº isMoving°ú µ¿½Ã¿¡ ½ÇÇàµÇÁö ¾Êµµ·Ï º¸Àå)
+			// ì í”„ ì• ë‹ˆë©”ì´ì…˜ (ëŒ€ì‰¬ ì¤‘ì—ëŠ” ì¼ë°˜ ì í”„ë¥¼ ë§‰ì•„ì•¼ í•¨. isDashingì€ isMovingê³¼ ë™ì‹œì— ì‹¤í–‰ë˜ì§€ ì•Šë„ë¡ ë³´ì¥)
 			if (isMoving) {
 				moveTime += 0.016f;
 				float t = glm::clamp(moveTime / MOVE_DURATION, 0.0f, 1.0f);
@@ -1645,7 +1875,7 @@ void timer(int value)
 					}
 				}
 			}
-			// Á¡ÇÁ ÁßÀÌ ¾Æ´Ò ¶§ ³ôÀÌ Àû¿ë
+			// ì í”„ ì¤‘ì´ ì•„ë‹ ë•Œ ë†’ì´ ì ìš©
 			if (!isMoving && !isDashing) {
 				playerPos.y = restingY;
 				playerStartPos.y = restingY;
@@ -1661,16 +1891,18 @@ void timer(int value)
 	glutPostRedisplay();
 	glutTimerFunc(16, timer, 0);
 
+	glutPostRedisplay();
+	glutTimerFunc(16, timer, 0);
+
 }
 
-// ÆùÆ® ÃÊ±âÈ­ ÇÔ¼ö
+// í°íŠ¸ ì´ˆê¸°í™” í•¨ìˆ˜
 void initFont(const char* filename, float pixelHeight) {
-	unsigned char temp_bitmap[512 * 512]; // ÆùÆ®¸¦ ±¸¿ï ºñÆ®¸Ê ¹öÆÛ (Å©±â´Â Á¶Àı °¡´É)
+	unsigned char temp_bitmap[512 * 512];
 
-	// 1. TTF ÆÄÀÏ ÀĞ±â
 	FILE* f = fopen(filename, "rb");
 	if (!f) {
-		printf("ÆùÆ® ÆÄÀÏÀ» Ã£À» ¼ö ¾ø½À´Ï´Ù: %s\n", filename);
+		printf("í°íŠ¸ íŒŒì¼ì„ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤: %s\n", filename);
 		return;
 	}
 	fseek(f, 0, SEEK_END);
@@ -1681,16 +1913,14 @@ void initFont(const char* filename, float pixelHeight) {
 	fread(ttf_buffer, 1, size, f);
 	fclose(f);
 
-	// 2. ºñÆ®¸Ê¿¡ ±ÛÀÚ ±Á±â (ASCII 32¹øºÎÅÍ 96°³ ±ÛÀÚ)
 	stbtt_BakeFontBitmap(ttf_buffer, 0, pixelHeight, temp_bitmap, 512, 512, 32, 96, cdata);
 	free(ttf_buffer);
 
-	// 3. OpenGL ÅØ½ºÃ³ »ı¼º
 	glGenTextures(1, &fontTexture);
 	glBindTexture(GL_TEXTURE_2D, fontTexture);
 
-	// ÅØ½ºÃ³ ¼³Á¤ (±ÛÀÚ°¡ Èå¸´ÇÏ¸é GL_NEAREST »ç¿ë)
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, 512, 512, 0, GL_ALPHA, GL_UNSIGNED_BYTE, temp_bitmap);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_INTENSITY, 512, 512, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, temp_bitmap);
+
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 }
@@ -1713,38 +1943,82 @@ void initGame()
 	0.5f, 0.5f, 0.5f, 0.5f, 0.5f, -0.5f, -0.5f, 0.5f, -0.5f,
 	-0.5f, -0.5f, -0.5f, 0.5f, -0.5f, -0.5f, 0.5f, -0.5f, 0.5f,
 	0.5f, -0.5f, 0.5f, -0.5f, -0.5f, 0.5f, -0.5f, -0.5f, -0.5f
-	};
-	// ¹ÙÄûÃ¢¹®
-	glm::vec3 wheelColor = glm::vec3(0.1f, 0.1f, 0.1f); // °ËÀº»ö
-	glm::vec3 windowColor = glm::vec3(0.2f, 0.2f, 0.3f); // Â£Àº ÆÄ¶õ»ö/È¸»ö
+		// ìœ„ì¹˜(X,Y,Z)        // í…ìŠ¤ì²˜ ì¢Œí‘œ(U,V)
+		-0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
+		 0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
+		 0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+		 0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+		-0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
+		-0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
 
-	//¹ÙÄû4°³
+		-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+		 0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+		 0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
+		 0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
+		-0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
+		-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+
+		-0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+		-0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+		-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+		-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+		-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+		-0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+
+		 0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+		 0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+		 0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+		 0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+		 0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+		 0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+
+		-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+		 0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
+		 0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+		 0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+		-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+		-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+
+		-0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
+		 0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+		 0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+		 0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+		-0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
+		-0.5f,  0.5f, -0.5f,  0.0f, 1.0f
+	};
+	// ë°”í€´ì°½ë¬¸
+
+	// ë°”í€´ì°½ë¬¸ 
+	glm::vec3 wheelColor = glm::vec3(0.1f, 0.1f, 0.1f); // ê²€ì€ìƒ‰
+	glm::vec3 windowColor = glm::vec3(0.2f, 0.2f, 0.3f); // ì§™ì€ íŒŒë€ìƒ‰/íšŒìƒ‰
+
+	//ë°”í€´4ê°œ
 	float wheelXOffset = 0.6f;
 	float wheelZOffset = 0.45f;
-	float wheelYOffset = -0.2f; // ¹ÙÄû´Â ¹Ù´Ú¿¡ °¡±õ°Ô
+	float wheelYOffset = -0.2f; // ë°”í€´ëŠ” ë°”ë‹¥ì— ê°€ê¹ê²Œ
 	float wheelScale = 0.3f;
 
-	//¼¼´Ü½ºÅ¸ÀÏ
+	//ì„¸ë‹¨ìŠ¤íƒ€ì¼
 	CarDesign sedan;
 	sedan.baseScale = 1.0f;
-	//¹Ùµğ±æ°í³³ÀÛ
-	sedan.parts.push_back({ glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.7f, 0.5f, 0.8f), glm::vec3(0.0f) }); // color´Â Car.color »ç¿ë
-	// Ä³ºó/ÁöºØ¾ÕÂÊÀ§
-	sedan.parts.push_back({ glm::vec3(0.1f, 0.35f, 0.0f), glm::vec3(0.8f, 0.4f, 0.7f), glm::vec3(1.0f, 1.0f, 1.0f) }); // Èò»ö ÁöºØ
+	//ë°”ë””ê¸¸ê³ ë‚©ì‘
+	sedan.parts.push_back({ glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.7f, 0.5f, 0.8f), glm::vec3(0.0f) }); // colorëŠ” Car.color ì‚¬ìš©
+	// ìºë¹ˆ/ì§€ë¶•ì•ìª½ìœ„
+	sedan.parts.push_back({ glm::vec3(0.1f, 0.35f, 0.0f), glm::vec3(0.8f, 0.4f, 0.7f), glm::vec3(1.0f, 1.0f, 1.0f) }); // í°ìƒ‰ ì§€ë¶•
 
-	//¾Õ¹ÙÄû
+	//ì•ë°”í€´
 	sedan.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
 	sedan.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
-	//µŞ¹ÙÄû
+	//ë’·ë°”í€´
 	sedan.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
 	sedan.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
 
-	//Ã¢¹® Ãß°¡
-	float windowXOffset = 0.1f; //Ä³ºó Áß¾ÓÀ¸·ÎºÎÅÍÀÇ X ¿ÀÇÁ¼Â
+	//ì°½ë¬¸ ì¶”ê°€
+	float windowXOffset = 0.1f; //ìºë¹ˆ ì¤‘ì•™ìœ¼ë¡œë¶€í„°ì˜ X ì˜¤í”„ì…‹
 	float windowYOffset = 0.35f;
 	float windowScaleX = 0.7f;
 	float windowScaleY = 0.3f;
-	// ¿· Ã¢¹®
+	// ì˜† ì°½ë¬¸
 	sedan.parts.push_back({ glm::vec3(windowXOffset, windowYOffset, 0.45f), glm::vec3(windowScaleX, windowScaleY, 0.1f), windowColor });
 	sedan.parts.push_back({ glm::vec3(windowXOffset, windowYOffset, -0.45f), glm::vec3(windowScaleX, windowScaleY, 0.1f), windowColor });
 	carDesigns.push_back(sedan);
@@ -1752,58 +2026,58 @@ void initGame()
 	//2.suv
 	CarDesign suv_pickup;
 	suv_pickup.baseScale = 1.0f;
-	//¹Ùµğ
-	suv_pickup.parts.push_back({ glm::vec3(0.0f, -0.05f, 0.0f), glm::vec3(1.5f, 0.5f, 0.9f), glm::vec3(0.0f) }); // Car.color »ç¿ë
-	//¾ÕºÎºĞ
-	suv_pickup.parts.push_back({ glm::vec3(0.65f, 0.2f, 0.0f), glm::vec3(0.6f, 0.2f, 0.8f), glm::vec3(0.0f) }); // Car.color »ç¿ë
-	//Ä³ºó/ÁöºØ
-	suv_pickup.parts.push_back({ glm::vec3(0.2f, 0.5f, 0.0f), glm::vec3(0.8f, 0.4f, 0.8f), glm::vec3(1.0f, 1.0f, 1.0f) }); // Èò»ö ÁöºØ
+	//ë°”ë””
+	suv_pickup.parts.push_back({ glm::vec3(0.0f, -0.05f, 0.0f), glm::vec3(1.5f, 0.5f, 0.9f), glm::vec3(0.0f) }); // Car.color ì‚¬ìš©
+	//ì•ë¶€ë¶„
+	suv_pickup.parts.push_back({ glm::vec3(0.65f, 0.2f, 0.0f), glm::vec3(0.6f, 0.2f, 0.8f), glm::vec3(0.0f) }); // Car.color ì‚¬ìš©
+	//ìºë¹ˆ/ì§€ë¶•
+	suv_pickup.parts.push_back({ glm::vec3(0.2f, 0.5f, 0.0f), glm::vec3(0.8f, 0.4f, 0.8f), glm::vec3(1.0f, 1.0f, 1.0f) }); // í°ìƒ‰ ì§€ë¶•
 	suv_pickup.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
 	suv_pickup.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
-	// µŞ¹ÙÄû
+	// ë’·ë°”í€´
 	suv_pickup.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
 	suv_pickup.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
 
-	//Ã¢¹®Ãß°¡
-	// Ã¢¹® (Ãø¸é)
+	//ì°½ë¬¸ì¶”ê°€
+	// ì°½ë¬¸ (ì¸¡ë©´)
 	suv_pickup.parts.push_back({ glm::vec3(0.2f, 0.5f, 0.45f), glm::vec3(0.6f, 0.3f, 0.1f), windowColor });
 	suv_pickup.parts.push_back({ glm::vec3(0.2f, 0.5f, -0.45f), glm::vec3(0.6f, 0.3f, 0.1f), windowColor });
 	carDesigns.push_back(suv_pickup);
 
-	//3. Æ®·°
+	//3. íŠ¸ëŸ­
 	CarDesign truck;
 	truck.baseScale = 1.5f;
-	//¾Õ Ä³ºó
-	truck.parts.push_back({ glm::vec3(0.5f, 0.1f, 0.0f), glm::vec3(0.7f, 0.7f, 0.9f), glm::vec3(0.0f) }); // Car.color »ç¿ë
-	//µŞºÎºĞ
-	truck.parts.push_back({ glm::vec3(-0.7f, 0.2f, 0.0f), glm::vec3(2.0f, 1.2f, 0.95f), glm::vec3(0.9f, 0.9f, 0.9f) }); // È¸»ö È­¹°Ä­
-	//Ä³ºó/ÁöºØ (Èò»ö)
-	truck.parts.push_back({ glm::vec3(0.5f, 0.6f, 0.0f), glm::vec3(0.7f, 0.4f, 0.8f), glm::vec3(1.0f, 1.0f, 1.0f) }); // Èò»ö ÁöºØ
+	//ì• ìºë¹ˆ
+	truck.parts.push_back({ glm::vec3(0.5f, 0.1f, 0.0f), glm::vec3(0.7f, 0.7f, 0.9f), glm::vec3(0.0f) }); // Car.color ì‚¬ìš©
+	//ë’·ë¶€ë¶„
+	truck.parts.push_back({ glm::vec3(-0.7f, 0.2f, 0.0f), glm::vec3(2.0f, 1.2f, 0.95f), glm::vec3(0.9f, 0.9f, 0.9f) }); // íšŒìƒ‰ í™”ë¬¼ì¹¸
+	//ìºë¹ˆ/ì§€ë¶• (í°ìƒ‰)
+	truck.parts.push_back({ glm::vec3(0.5f, 0.6f, 0.0f), glm::vec3(0.7f, 0.4f, 0.8f), glm::vec3(1.0f, 1.0f, 1.0f) }); // í°ìƒ‰ ì§€ë¶•
 	truck.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
 	truck.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
-	//µŞ¹ÙÄû
+	//ë’·ë°”í€´
 	truck.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
 	truck.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
 
-	// Ã¢¹® Ãß°¡
-	// Ã¢¹® (Ãø¸é)
+	// ì°½ë¬¸ ì¶”ê°€
+	// ì°½ë¬¸ (ì¸¡ë©´)
 	truck.parts.push_back({ glm::vec3(0.2f, 0.5f, 0.45f), glm::vec3(0.6f, 0.3f, 0.1f), windowColor });
 	truck.parts.push_back({ glm::vec3(0.2f, 0.5f, -0.45f), glm::vec3(0.6f, 0.3f, 0.1f), windowColor });
 	carDesigns.push_back(truck);
 
-	//4. ÅÃ½Ã
+	//4. íƒì‹œ
 	CarDesign taxi = suv_pickup;
 	taxi.baseScale = 1.0f;
-	//·¥ÇÁ Ãß°¡
-	taxi.parts.push_back({ glm::vec3(0.2f, 0.8f, 0.0f), glm::vec3(0.2f, 0.1f, 0.5f), glm::vec3(1.0f, 1.0f, 0.0f) }); // ³ë¶õ»ö ·¥ÇÁ
+	//ë¨í”„ ì¶”ê°€
+	taxi.parts.push_back({ glm::vec3(0.2f, 0.8f, 0.0f), glm::vec3(0.2f, 0.1f, 0.5f), glm::vec3(1.0f, 1.0f, 0.0f) }); // ë…¸ë€ìƒ‰ ë¨í”„
 	taxi.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
 	taxi.parts.push_back({ glm::vec3(wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
-	// µŞ¹ÙÄû
+	// ë’·ë°”í€´
 	taxi.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
 	taxi.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
 
-	//Ã¢¹®
-	// Ã¢¹® (Ãø¸é)
+	//ì°½ë¬¸
+	// ì°½ë¬¸ (ì¸¡ë©´)
 	taxi.parts.push_back({ glm::vec3(0.2f, 0.5f, 0.45f), glm::vec3(0.6f, 0.3f, 0.1f), windowColor });
 	taxi.parts.push_back({ glm::vec3(0.2f, 0.5f, -0.45f), glm::vec3(0.6f, 0.3f, 0.1f), windowColor });
 	carDesigns.push_back(taxi);
@@ -1834,8 +2108,19 @@ void initGame()
 	glBindVertexArray(vao);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+
+	// [ìˆ˜ì •] 1. ìœ„ì¹˜ ì†ì„± (Location 0)
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
+
+	// [ì¶”ê°€] 2. í…ìŠ¤ì²˜ ì¢Œí‘œ ì†ì„± (Location 2) - strideëŠ” 5, offsetì€ 3
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+	glEnableVertexAttribArray(2);
+
+	loadTexture("river.jpg", &riverTexture);
+	loadTexture("grass.jpg", &grassTexture);
+	loadTexture("wood.jpg", &logTexture);
+	loadTexture("lilypad.jpg", &lilyPadTexture);
 
 }
 
@@ -1885,7 +2170,7 @@ void specialKeyboard(int key, int x, int y)
 			//if (currentTotalLines > 0 && (currentTotalLines % LINES_PER_SEASON) == 0) {
 			// //linesPassedSinceSeasonChange = 0;
 
-			// // ´ÙÀ½ °èÀı·Î ÀüÈ¯
+			// // ë‹¤ìŒ ê³„ì ˆë¡œ ì „í™˜
 			// switch (currentSeason) {
 			// case SPRING: currentSeason = SUMMER; break;
 			// case SUMMER: currentSeason = AUTUMN; break;
@@ -1908,7 +2193,7 @@ void specialKeyboard(int key, int x, int y)
 	glutPostRedisplay();
 }
 
-// ÀÏ¹İ Å°º¸µå ÀÔ·Â Ã³¸®
+// ì¼ë°˜ í‚¤ë³´ë“œ ì…ë ¥ ì²˜ë¦¬
 void keyboard(unsigned char key, int x, int y)
 {
 	if (key == 'q' || key == 'Q') {
@@ -1919,9 +2204,9 @@ void keyboard(unsigned char key, int x, int y)
 		if (isEventActive) {
 			requiredTaps++;
 
-			// °ÔÀÌÁö »ó½Â ·ÎÁ÷ (TAP_PER_SECOND°¡ 10ÀÌ°í ÀÌº¥Æ®°¡ 4ÃÊ¶ó¸é ÃÑ 40¹ø ´©¸£¸é °ÔÀÌÁö°¡ 1.0ÀÌ µÊ)
-			// eventProgress´Â 0.0 ~ 1.0 »çÀÌ °ªÀ¸·Î °è»êµÇ¾î¾ß ÇÕ´Ï´Ù.
-			// 4ÃÊ * TAP_PER_SECOND = ÃÑ ¸ñÇ¥ È½¼ö
+			// ê²Œì´ì§€ ìƒìŠ¹ ë¡œì§ (TAP_PER_SECONDê°€ 10ì´ê³  ì´ë²¤íŠ¸ê°€ 4ì´ˆë¼ë©´ ì´ 40ë²ˆ ëˆ„ë¥´ë©´ ê²Œì´ì§€ê°€ 1.0ì´ ë¨)
+			// eventProgressëŠ” 0.0 ~ 1.0 ì‚¬ì´ ê°’ìœ¼ë¡œ ê³„ì‚°ë˜ì–´ì•¼ í•©ë‹ˆë‹¤.
+			// 4ì´ˆ * TAP_PER_SECOND = ì´ ëª©í‘œ íšŸìˆ˜
 			const float TOTAL_TAPS_REQUIRED = TAP_PER_SECOND * 4.0f;
 			eventProgress = requiredTaps / TOTAL_TAPS_REQUIRED;
 			eventProgress = glm::clamp(eventProgress, 0.0f, 1.1f);
@@ -1930,9 +2215,9 @@ void keyboard(unsigned char key, int x, int y)
 			return;
 		}
 
-		// ¿¬Å¸ ÀÌº¥Æ® ÁßÀÌ ¾Æ´Ò ¶§ ½ºÆäÀÌ½º¹Ù¸¦ ´©¸¥ °æ¿ì
+		// ì—°íƒ€ ì´ë²¤íŠ¸ ì¤‘ì´ ì•„ë‹ ë•Œ ìŠ¤í˜ì´ìŠ¤ë°”ë¥¼ ëˆ„ë¥¸ ê²½ìš°
 		if (!isMoving && !isFlying && !isLanding) {
-			printf("ÇöÀç ½ºÆäÀÌ½º¹Ù´Â ·ÎÄÏ ¶óÀÌµå ÀÌº¥Æ® Áß¿¡¸¸ »ç¿ë °¡´ÉÇÕ´Ï´Ù.\n");
+			printf("í˜„ì¬ ìŠ¤í˜ì´ìŠ¤ë°”ëŠ” ë¡œì¼“ ë¼ì´ë“œ ì´ë²¤íŠ¸ ì¤‘ì—ë§Œ ì‚¬ìš© ê°€ëŠ¥í•©ë‹ˆë‹¤.\n");
 		}
 	}
 }
@@ -1942,6 +2227,7 @@ GLvoid Reshape(int w, int h)
 	glViewport(0, 0, w, h);
 }
 
+// ê¸°ì¡´ filetobuf í•¨ìˆ˜ë¥¼ ì§€ìš°ê³  ì´ ì½”ë“œë¡œ ë®ì–´ì”Œìš°ì„¸ìš”.
 char* filetobuf(const char* file)
 {
 	FILE* fptr;
@@ -1949,8 +2235,17 @@ char* filetobuf(const char* file)
 	char* buf;
 
 	fptr = fopen(file, "rb");
-	if (!fptr)
+	if (!fptr) {
+		// [ì¤‘ìš”] íŒŒì¼ì„ ëª» ì°¾ìœ¼ë©´ ì—ëŸ¬ ë©”ì‹œì§€ë¥¼ ë¹¨ê°„ ê¸€ì”¨ë¡œ ì¶œë ¥í•˜ê³  ë©ˆì¶¥ë‹ˆë‹¤.
+		fprintf(stderr, "--------------------------------------------------------\n");
+		fprintf(stderr, "[ì¹˜ëª…ì  ì˜¤ë¥˜] íŒŒì¼ì„ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤: %s\n", file);
+		fprintf(stderr, "í”„ë¡œì íŠ¸ í´ë”ì— í•´ë‹¹ íŒŒì¼ì´ ìˆëŠ”ì§€ í™•ì¸í•´ì£¼ì„¸ìš”.\n");
+		fprintf(stderr, "--------------------------------------------------------\n");
+		system("pause"); // ì—ëŸ¬ë¥¼ ë³¼ ìˆ˜ ìˆê²Œ ì½˜ì†”ì°½ ì •ì§€
+		exit(EXIT_FAILURE);
 		return NULL;
+	}
+
 	fseek(fptr, 0, SEEK_END);
 	length = ftell(fptr);
 	buf = (char*)malloc(length + 1);
@@ -1977,7 +2272,7 @@ void make_vertexShaders()
 	if (!result)
 	{
 		glGetShaderInfoLog(vertexShader, 512, NULL, errorLog);
-		std::cerr << "ERROR: vertex shader ÄÄÆÄÀÏ ½ÇÆĞ\n" << errorLog << std::endl;
+		std::cerr << "ERROR: vertex shader ì»´íŒŒì¼ ì‹¤íŒ¨\n" << errorLog << std::endl;
 		return;
 	}
 }
@@ -1997,7 +2292,7 @@ void make_fragmentShaders()
 	if (!result)
 	{
 		glGetShaderInfoLog(fragmentShader, 512, NULL, errorLog);
-		std::cerr << "ERROR: frag_shader ÄÄÆÄÀÏ ½ÇÆĞ\n" << errorLog << std::endl;
+		std::cerr << "ERROR: frag_shader ì»´íŒŒì¼ ì‹¤íŒ¨\n" << errorLog << std::endl;
 		return;
 	}
 }
@@ -2020,7 +2315,7 @@ GLuint make_shaderProgram()
 	glGetProgramiv(shaderID, GL_LINK_STATUS, &result);
 	if (!result) {
 		glGetProgramInfoLog(shaderID, 512, NULL, errorLog);
-		std::cerr << "ERROR: shader program ¿¬°á ½ÇÆĞ\n" << errorLog << std::endl;
+		std::cerr << "ERROR: shader program ì—°ê²° ì‹¤íŒ¨\n" << errorLog << std::endl;
 		return false;
 	}
 
@@ -2036,7 +2331,7 @@ void loadDepthShader()
 
 	depthShader = glCreateProgram();
 
-	//½¦ÀÌ´õ·Îµå
+	//ì‰ì´ë”ë¡œë“œ
 	GLuint depthVertexShader = glCreateShader(GL_VERTEX_SHADER);
 	GLchar* dvSource = filetobuf("depthvertex.glsl");
 	glShaderSource(depthVertexShader, 1, &dvSource, NULL);
@@ -2046,7 +2341,7 @@ void loadDepthShader()
 	glGetShaderiv(depthVertexShader, GL_COMPILE_STATUS, &result);
 	if (!result) {
 		glGetShaderInfoLog(depthVertexShader, 512, NULL, errorLog);
-		std::cerr << "ERROR: depth vertex shader ÄÄÆÄÀÏ ½ÇÆĞ\n" << errorLog << std::endl;
+		std::cerr << "ERROR: depth vertex shader ì»´íŒŒì¼ ì‹¤íŒ¨\n" << errorLog << std::endl;
 
 	}
 	GLuint depthFragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
@@ -2058,7 +2353,7 @@ void loadDepthShader()
 	glGetShaderiv(depthFragmentShader, GL_COMPILE_STATUS, &result);
 	if (!result) {
 		glGetShaderInfoLog(depthFragmentShader, 512, NULL, errorLog);
-		std::cerr << "ERROR: depth fragment shader ÄÄÆÄÀÏ ½ÇÆĞ\n" << errorLog << std::endl;
+		std::cerr << "ERROR: depth fragment shader ì»´íŒŒì¼ ì‹¤íŒ¨\n" << errorLog << std::endl;
 	}
 
 	glLinkProgram(depthShader);
@@ -2066,7 +2361,7 @@ void loadDepthShader()
 	glGetProgramiv(depthShader, GL_LINK_STATUS, &result);
 	if (!result) {
 		glGetProgramInfoLog(depthShader, 512, NULL, errorLog);
-		std::cerr << "ERROR: depth shader program ¿¬°á ½ÇÆĞ\n" << errorLog << std::endl;
+		std::cerr << "ERROR: depth shader program ì—°ê²° ì‹¤íŒ¨\n" << errorLog << std::endl;
 	}
 
 	glDeleteShader(depthVertexShader);
