@@ -1,17 +1,17 @@
-#define _CRT_SECURE_NO_WARNINGS 
-#define STB_TRUETYPE_IMPLEMENTATION 
+#define _CRT_SECURE_NO_WARNINGS
+#define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 #include <iostream>
 #include <stdlib.h>
 #include <stdio.h>
 #include <vector>
-#include <map>   
+#include <map>
 #include <ctime>
-#include <algorithm> 
+#include <algorithm>
 #include <string>
-#include <gl/glew.h>				
+#include <gl/glew.h>
 #include <gl/freeglut.h>
-#include <gl/freeglut_ext.h> 
+#include <gl/freeglut_ext.h>
 #include <gl/glm/glm.hpp>
 #include <gl/glm/ext.hpp>
 #include <gl/glm/gtc/matrix_transform.hpp>
@@ -37,8 +37,8 @@ struct Coin {
 //자동차 부품
 struct CarPart {
 	glm::vec3 offset; // 차량 중앙을 기준으로 한 상대적 위치
-	glm::vec3 scale;  // 크기
-	glm::vec3 color;  // 부품의 색상
+	glm::vec3 scale; // 크기
+	glm::vec3 color; // 부품의 색상
 };
 
 // 자동차 모델 정의
@@ -65,34 +65,34 @@ struct SeasonColors {
 };
 //계절 색상 정의
 std::map<GameSeason, SeasonColors> seasonThemes = {
-	{SUMMER, {
-		glm::vec3(0.47f, 0.9f, 0.42f),      // grass (연한 초록)
-		glm::vec3(1.0f, 0.2f, 0.0f),        // treeTrunk (갈색/주황)
-		glm::vec3(0.2f, 0.7f, 0.2f),        // foliageLight (밝은 초록)
-		glm::vec3(0.1f, 0.6f, 0.1f),        // foliageMedium
-		glm::vec3(0.0f, 0.5f, 0.0f)         // foliageDark (진한 초록)
-	}},
-	{AUTUMN, {
-		glm::vec3(0.8f, 0.7f, 0.3f),        // grass (황토색/누런색)
-		glm::vec3(0.6f, 0.25f, 0.05f),      // treeTrunk (진한 갈색)
-		glm::vec3(1.0f, 0.5f, 0.0f),        // foliageLight (주황)
-		glm::vec3(0.8f, 0.3f, 0.1f),        // foliageMedium (빨강/벽돌)
-		glm::vec3(0.5f, 0.1f, 0.1f)         // foliageDark (진한 빨강)
-	}},
-	{WINTER, {
-		glm::vec3(0.9f, 0.95f, 1.0f),       // grass (흰색/옅은 하늘색 눈밭)
-		glm::vec3(0.6f, 0.4f, 0.2f),        // treeTrunk
-		glm::vec3(1.0f, 1.0f, 1.0f),        // foliageLight (하얀 눈 덮인 나뭇잎)
-		glm::vec3(0.9f, 0.9f, 0.9f),        // foliageMedium
-		glm::vec3(0.8f, 0.8f, 0.8f)         // foliageDark
-	}},
-	{SPRING, {
-		glm::vec3(0.47f, 0.9f, 0.42f),        // grass
-		glm::vec3(0.9f, 0.5f, 0.3f),        // treeTrunk
-		glm::vec3(1.0f, 0.7f, 0.8f),        // foliageLight (벚꽃 핑크)
-		glm::vec3(0.8f, 0.5f, 0.6f),        // foliageMedium
-		glm::vec3(0.6f, 0.3f, 0.4f)         // foliageDark
-	}}
+{SUMMER, {
+glm::vec3(0.47f, 0.9f, 0.42f), // grass (연한 초록)
+glm::vec3(1.0f, 0.2f, 0.0f), // treeTrunk (갈색/주황)
+glm::vec3(0.2f, 0.7f, 0.2f), // foliageLight (밝은 초록)
+glm::vec3(0.1f, 0.6f, 0.1f), // foliageMedium
+glm::vec3(0.0f, 0.5f, 0.0f) // foliageDark (진한 초록)
+}},
+{AUTUMN, {
+glm::vec3(0.8f, 0.7f, 0.3f), // grass (황토색/누런색)
+glm::vec3(0.6f, 0.25f, 0.05f), // treeTrunk (진한 갈색)
+glm::vec3(1.0f, 0.5f, 0.0f), // foliageLight (주황)
+glm::vec3(0.8f, 0.3f, 0.1f), // foliageMedium (빨강/벽돌)
+glm::vec3(0.5f, 0.1f, 0.1f) // foliageDark (진한 빨강)
+}},
+{WINTER, {
+glm::vec3(0.9f, 0.95f, 1.0f), // grass (흰색/옅은 하늘색 눈밭)
+glm::vec3(0.6f, 0.4f, 0.2f), // treeTrunk
+glm::vec3(1.0f, 1.0f, 1.0f), // foliageLight (하얀 눈 덮인 나뭇잎)
+glm::vec3(0.9f, 0.9f, 0.9f), // foliageMedium
+glm::vec3(0.8f, 0.8f, 0.8f) // foliageDark
+}},
+{SPRING, {
+glm::vec3(0.47f, 0.9f, 0.42f), // grass
+glm::vec3(0.9f, 0.5f, 0.3f), // treeTrunk
+glm::vec3(1.0f, 0.7f, 0.8f), // foliageLight (벚꽃 핑크)
+glm::vec3(0.8f, 0.5f, 0.6f), // foliageMedium
+glm::vec3(0.6f, 0.3f, 0.4f) // foliageDark
+}}
 };
 const int LINES_PER_SEASON = 30; // 30 라인마다 계절 전환
 int linesPassedSinceSeasonChange = 0; // 계절이 바뀐 후 통과한 라인 수 (minZ 기준)
@@ -115,7 +115,7 @@ struct Particle {
 	glm::vec3 velocity; // 이동 속도 및 방향
 	glm::vec3 color;
 	float scale;
-	float life;         // 수명 (1.0에서 시작해 0.0이 되면 사라짐)
+	float life; // 수명 (1.0에서 시작해 0.0이 되면 사라짐)
 };
 
 // 파티클 관리 벡터
@@ -123,9 +123,9 @@ std::vector<Particle> particles;
 
 // 기차 상태 열거형
 enum TrainState {
-	TRAIN_IDLE,    // 평상시 (아무것도 없음)
+	TRAIN_IDLE, // 평상시 (아무것도 없음)
 	TRAIN_WARNING, // 경고 (신호등 깜빡임)
-	TRAIN_PASSING  // 통과 (기차가 매우 빠르게 지나감)
+	TRAIN_PASSING // 통과 (기차가 매우 빠르게 지나감)
 };
 
 // 기차 구조체
@@ -134,8 +134,8 @@ struct Train {
 	float x;
 	float speed;
 	TrainState state;
-	int timer;       // 상태 변경을 위한 타이머
-	bool isLightOn;  // 신호등 깜빡임용
+	int timer; // 상태 변경을 위한 타이머
+	bool isLightOn; // 신호등 깜빡임용
 };
 
 // 전역 벡터
@@ -161,20 +161,42 @@ GLuint depthFBO, depthMap;
 GLuint depthShader;
 const unsigned int SHADOW_WIDTH = 2048, SHADOW_HEIGHT = 2048;
 
+const float FLY_HEIGHT = 4.0f;
+bool isLanding = false;
+float landingTime = 0.0f;
+const float LANDING_DURATION = 0.5f;
+
 int score = 0;
 int minZ = 0; // 플레이어가 도달한 최대 전진 위치
 int coinCount = 0; // 획득한 코인 개수
 
 int riverRemaining = 0; // 현재 강 구간이 진행 중인지 저장하는 전역 변수
 
+bool isDashing = false;
+float dashTimer = 0.0f; // 대쉬 남은 시간
+const float DASH_DURATION = 1.0f; // 대쉬 지속 시간 (1초)
+const float DASH_COOLDOWN = 3.0f; // 대쉬 재사용 대기 시간 (3초)
+float dashCooldownTimer = 0.0f; // 재사용 대기 시간 타이머
+const int DASH_COST = 7; // 대쉬에 필요한 코인 개수
 glm::vec3 lightPos(-15.0f, 20.0f, 0.0f);
+
+bool isEventActive = false; // 현재 스페이스 연타 이벤트가 활성화되었는가
+float eventDuration = 4.0f; // 연타 이벤트 지속 시간 (4초)
+float eventProgress = 0.0f; // 연타 진행도 (0.0 ~ 1.0)
+const float TAP_PER_SECOND = 10.0f; // 1초당 필요한 연타 횟수 (게이지 상승률)
+int requiredTaps = 0; // 연타 이벤트 중에 눌린 횟수 카운트
+
+bool isFlying = false; // 현재 새를 타고 공중 비행 중인가
+float flyTimer = 0.0f; // 비행 남은 시간
+const float FLY_DURATION = 3.0f; // 비행 지속 시간 (3초)
+const float FLY_SPEED = 0.8f; // 비행 중 전진 속도
+int lastEventScore = 0;
 
 std::map<int, int> mapType; // 0=잔디 1=도로
 std::map<int, std::vector<int>> treeMap;
 std::vector<Car> cars;
 std::vector<CarDesign> carDesigns;
 std::vector<Coin> coins; // 코인 목록
-
 
 // 폰트 관련 전역 변수
 stbtt_bakedchar cdata[96];
@@ -275,9 +297,8 @@ void drawTree(int x, int z, GLuint shader) {
 		model = glm::translate(model, glm::vec3((float)x, 0.5f + (float)i, (float)z));
 		model = glm::scale(model, glm::vec3(0.4f, 1.0f, 0.4f)); // 얇은 기둥
 
-
 		//glUniformMatrix4fv(transLoc, 1, GL_FALSE, glm::value_ptr(model));
-		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model)); // 
+		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model)); //
 
 		if (shader == shaderProgramID) {
 			glVertexAttrib3f(1, colors.treeTrunk.r, colors.treeTrunk.g, colors.treeTrunk.b);
@@ -296,8 +317,7 @@ void drawTree(int x, int z, GLuint shader) {
 				model = glm::translate(model, glm::vec3(x + dx * scale, 1.2f + yOffset * scale, z + dz * scale));
 				model = glm::scale(model, glm::vec3(scale, scale, scale));
 
-
-				glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model)); // 
+				glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model)); //
 
 				if (shader == shaderProgramID) {
 					glm::vec3 foliageColor;
@@ -311,7 +331,6 @@ void drawTree(int x, int z, GLuint shader) {
 		}
 	}
 }
-
 
 void drawCar(const Car& car, GLuint shader) {
 	if (car.designID < 0 || car.designID >= carDesigns.size()) return;
@@ -465,7 +484,7 @@ void generateLane(int z)
 			goto MAKE_GRASS; // 공간이 없으면 잔디로 변경
 		}
 	}
-	// 철길 
+	// 철길
 	else if (randVal < 8) {
 		mapType[z] = 3; // 철길 타입 3번
 
@@ -517,7 +536,7 @@ void drawPart(GLuint shader, glm::mat4 parentModel, glm::vec3 offset, glm::vec3 
 	glDrawArrays(GL_TRIANGLES, 0, 36);
 }
 
-// 닭 캐릭터 그리기 함수 
+// 닭 캐릭터 그리기 함수
 void drawChicken(GLuint shader, glm::mat4 baseModel) {
 
 	// 색상 정의
@@ -546,7 +565,7 @@ void drawChicken(GLuint shader, glm::mat4 baseModel) {
 	drawPart(shader, baseModel, glm::vec3(0.32f, -0.2f, 0.05f), glm::vec3(0.1f, 0.3f, 0.4f), white);
 	drawPart(shader, baseModel, glm::vec3(-0.32f, -0.2f, 0.05f), glm::vec3(0.1f, 0.3f, 0.4f), white);
 
-	// 8. 다리 (Legs) 
+	// 8. 다리 (Legs)
 	drawPart(shader, baseModel, glm::vec3(0.2f, -0.25f, 0.0f), glm::vec3(0.1f, 0.5f, 0.1f), orange);
 	drawPart(shader, baseModel, glm::vec3(-0.2f, -0.25f, 0.0f), glm::vec3(0.1f, 0.5f, 0.1f), orange);
 
@@ -557,10 +576,31 @@ void drawChicken(GLuint shader, glm::mat4 baseModel) {
 	// 9. 꼬리 (Tail)
 	drawPart(shader, baseModel, glm::vec3(0.0f, -0.1f, 0.35f), glm::vec3(0.3f, 0.3f, 0.1f), white);
 }
+void drawBird(GLuint shader, glm::mat4 baseModel) {
+	// 색상 정의 (독수리 같은 갈색/흰색 새)
+	glm::vec3 brown(0.4f, 0.2f, 0.0f);
+	glm::vec3 white(0.9f, 0.9f, 0.9f);
+	glm::vec3 yellow(1.0f, 0.8f, 0.0f);
+
+	// 1. 몸통
+	drawPart(shader, baseModel, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.5f, 0.6f), brown);
+
+	// 2. 머리
+	drawPart(shader, baseModel, glm::vec3(0.5f, 0.15f, 0.0f), glm::vec3(0.4f, 0.4f, 0.4f), white);
+
+	// 3. 부리
+	drawPart(shader, baseModel, glm::vec3(0.7f, 0.15f, 0.0f), glm::vec3(0.2f, 0.1f, 0.1f), yellow);
+
+	// 4. 꼬리
+	drawPart(shader, baseModel, glm::vec3(-0.55f, 0.0f, 0.0f), glm::vec3(0.3f, 0.2f, 0.6f), brown);
+
+	// 5. 날개 (양쪽)
+	drawPart(shader, baseModel, glm::vec3(0.0f, 0.0f, 0.4f), glm::vec3(0.1f, 0.1f, 1.2f), brown);
+	drawPart(shader, baseModel, glm::vec3(0.0f, 0.0f, -0.4f), glm::vec3(0.1f, 0.1f, 1.2f), brown);
+}
 
 void drawCoin(const Coin& coin, GLuint shader) {
 	if (coin.isCollected) return; // 이미 획득했으면 그리지 않음
-
 
 	glm::mat4 baseModel = glm::translate(glm::mat4(1.0f), glm::vec3(coin.x, 0.5f, coin.z));
 
@@ -580,7 +620,6 @@ void drawCoin(const Coin& coin, GLuint shader) {
 	// baseModel에 이미 y=0.5f가 있으므로, 부품 오프셋을 0.1f 위로 올립니다.
 	C_Y_offset = 0.1f;
 	base_Y_offset = 0.0f;
-
 
 	float C_Y_POS = 0.1f; // 코인 베이스 위에 놓일 높이
 	float C_Y_THICKNESS = 0.1f; // C 부품 자체의 두께
@@ -658,7 +697,7 @@ void drawRail(int z, bool isWarning, bool isLightOn, GLuint shader) {
 		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
 		if (shader == shaderProgramID) {
 			if (i % 2 == 0) glVertexAttrib3f(1, 0.9f, 0.9f, 0.9f); // 흰색
-			else            glVertexAttrib3f(1, 0.9f, 0.1f, 0.1f); // 빨간색
+			else glVertexAttrib3f(1, 0.9f, 0.1f, 0.1f); // 빨간색
 		}
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
@@ -749,7 +788,6 @@ void drawLilyPad(const LilyPad& pad, GLuint shader) {
 	drawPart(shader, model, glm::vec3(0.0f), scale, greenColor);
 }
 
-
 void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 {
 
@@ -829,7 +867,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 
 		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(carModel));
 		if (shader == shaderProgramID) {
-			glVertexAttrib3f(1, car.color.r, car.color.g, car.color.b);
+		glVertexAttrib3f(1, car.color.r, car.color.g, car.color.b);
 		}*/
 		//glDrawArrays(GL_TRIANGLES, 0, 36);
 		drawCar(car, shader);
@@ -853,12 +891,11 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 		drawLog(logObj, shader);
 	}
 
-	// 연잎 
+	// 연잎
 	for (const auto& pad : lilyPads) {
 		if (pad.z < currentZ - drawRangeFront || pad.z > currentZ + drawRangeBack) continue;
 		drawLilyPad(pad, shader);
 	}
-
 
 	//코인들
 	for (const auto& coin : coins) {
@@ -874,8 +911,20 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 
 	// 크기 조절 (기존 0.7f)
 	pModel = glm::scale(pModel, glm::vec3(0.7f));
-	drawChicken(shader, pModel);
+	if (isFlying) {
+		// 새를 타고 있을 때는 플레이어 위치와 동일한 위치에 새를 그림
+		glm::mat4 birdModel = pModel;
+		birdModel = glm::translate(birdModel, glm::vec3(0.0f, 0.5f, 0.0f)); // 닭 위에 새를 배치
+		birdModel = glm::scale(birdModel, glm::vec3(1.5f)); // 새 크기 조정
+		drawBird(shader, birdModel);
 
+		// 닭은 새를 '탄' 상태로 살짝 낮춰서 함께 이동하는 효과를 줄 수 있음
+		// 여기서는 간단히 닭의 렌더링을 생략하고 새만 그립니다.
+	}
+	else {
+		// 평소에는 닭을 그림
+		drawChicken(shader, pModel);
+	}
 
 	glDrawArrays(GL_TRIANGLES, 0, 36);
 }
@@ -897,9 +946,9 @@ void drawParticles(GLuint shader) {
 	}
 }
 
-//  테두리 있는 텍스트 그리기 함수
+// 테두리 있는 텍스트 그리기 함수
 void renderTextWithOutline(float x, float y, const char* text) {
-	float offset = 5.0f; // 테두리 두께 
+	float offset = 5.0f; // 테두리 두께
 
 	// 1. 검은색 테두리 그리기 (상하좌우 + 대각선 4방향 = 총 8방향)
 	renderTextTTF(x - offset, y, text, 0.0f, 0.0f, 0.0f); // 좌
@@ -992,7 +1041,6 @@ GLvoid drawScene()
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-
 	// 패스 2: 실제 장면 렌더링
 	glViewport(0, 0, 1280, 960);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1019,6 +1067,58 @@ GLvoid drawScene()
 	// 코인 개수 표시 (우측 상단)
 	std::string coinStr = "COINS: " + std::to_string(coinCount);
 	renderTextWithOutline(1050, 60, coinStr.c_str());
+
+	std::string dashStr;
+	float dashR = 1.0f, dashG = 1.0f, dashB = 0.0f; // 기본 색상 (노랑)
+
+	if (isDashing) {
+		dashStr = "DASH! (" + std::to_string((int)(dashTimer * 10) / 10.0f) + "s)";
+		dashR = 1.0f; dashG = 0.0f; dashB = 0.0f; // 빨강
+	}
+	else if (dashCooldownTimer > 0.0f) {
+		dashStr = "CD: " + std::to_string((int)(dashCooldownTimer * 10) / 10.0f) + "s";
+		dashR = 0.5f; dashG = 0.5f; dashB = 0.5f; // 회색
+	}
+	else if (coinCount >= DASH_COST) {
+		dashStr = "DASH ";
+		dashR = 0.0f; dashG = 1.0f; dashB = 0.0f; // 초록
+	}
+	else {
+		dashStr = "NEED " + std::to_string(DASH_COST - coinCount) + " COINS FOR DASH";
+		dashR = 1.0f; dashG = 0.5f; dashB = 0.0f; // 주황
+	}
+	if (isEventActive) {
+		float barWidth = 600.0f;
+		float barHeight = 40.0f;
+		float centerX = 1280.0f / 2.0f;
+		float centerY = 960.0f - 150.0f; // 화면 위쪽 중앙
+
+		// 1. 배경 (테두리)
+		glUseProgram(0);
+		glDisable(GL_DEPTH_TEST);
+		glBegin(GL_QUADS);
+		glColor3f(0.1f, 0.1f, 0.1f); // 검은색 배경
+		glVertex2f(centerX - barWidth / 2.0f - 5.0f, centerY - barHeight / 2.0f - 5.0f);
+		glVertex2f(centerX + barWidth / 2.0f + 5.0f, centerY - barHeight / 2.0f - 5.0f);
+		glVertex2f(centerX + barWidth / 2.0f + 5.0f, centerY + barHeight / 2.0f + 5.0f);
+		glVertex2f(centerX - barWidth / 2.0f - 5.0f, centerY + barHeight / 2.0f + 5.0f);
+		glEnd();
+
+		// 2. 게이지 채우기
+		float fillWidth = barWidth * glm::clamp(eventProgress, 0.0f, 1.0f);
+		glBegin(GL_QUADS);
+		glColor3f(0.0f, 1.0f, 0.0f); // 초록색 게이지
+		glVertex2f(centerX - barWidth / 2.0f, centerY - barHeight / 2.0f);
+		glVertex2f(centerX - barWidth / 2.0f + fillWidth, centerY - barHeight / 2.0f);
+		glVertex2f(centerX - barWidth / 2.0f + fillWidth, centerY + barHeight / 2.0f);
+		glVertex2f(centerX - barWidth / 2.0f, centerY + barHeight / 2.0f);
+		glEnd();
+
+		// 3. 텍스트 표시
+		renderTextTTF(centerX - 100.0f, 960.0f - centerY - 50.0f, "PRESS SPACE!", 1.0f, 1.0f, 1.0f);
+		glEnable(GL_DEPTH_TEST);
+		glUseProgram(shaderProgramID);
+	}
 
 	glutSwapBuffers();
 }
@@ -1049,7 +1149,9 @@ void timer(int value)
 	float playerZ = playerPos.z;
 	float playerSize = 0.5f;
 
-	// 주인공이 서 있을 높이 
+	bool scoreTargetReached = (score > 0) && (score % 50 == 0);
+
+	// 주인공이 서 있을 높이
 	float restingY = 0.5f;
 
 	// 파티클 물리 업데이트
@@ -1060,178 +1162,330 @@ void timer(int value)
 		if (it->life <= 0.0f || it->scale <= 0.0f) it = particles.erase(it);
 		else ++it;
 	}
-
-	// 통나무 이동 및 순환
-	for (auto& logObj : logs) {
-		logObj.x += logObj.speed;
-		if (logObj.speed > 0 && logObj.x > 20.0f) logObj.x = -20.0f;
-		else if (logObj.speed < 0 && logObj.x < -20.0f) logObj.x = 20.0f;
-
-		bool onLog = (std::abs(playerPos.z - logObj.z) < 0.1f) &&
-			(playerPos.x >= logObj.x - logObj.width / 2.0f - 0.3f) &&
-			(playerPos.x <= logObj.x + logObj.width / 2.0f + 0.3f);
-
-		if (!isMoving && onLog) {
-			playerPos.x += logObj.speed;
-			playerTargetPos.x += logObj.speed;
-			playerStartPos.x += logObj.speed;
-			restingY = 1.1f;
-		}
+	if (dashCooldownTimer > 0.0f) {
+		dashCooldownTimer -= 0.016f;
+		if (dashCooldownTimer < 0.0f) dashCooldownTimer = 0.0f;
 	}
 
-	// [충돌 검사 시작]
-	bool isDead = false; 
+	//if (!isEventActive && !isFlying) {
+	//
+	// // 랜덤 이벤트 발생 조건 체크
+	// if (scoreTargetReached && score > lastEventScore && !isEventActive && !isFlying) {
+	// isEventActive = true;
+	// eventProgress = 0.0f;
+	// requiredTaps = 0;
+	// lastEventScore = score;
+	// printf("!!! 스페이스 연타 이벤트 발생! 4초 안에 성공하세요!\n");
+	//
+	// }
+	//}
 
-	// 자동차 충돌 검사
-	for (auto& car : cars) {
-		car.x += car.speed;
-		if (car.x > 18.0f && car.speed > 0) car.x = -18.0f;
-		if (car.x < -18.0f && car.speed < 0) car.x = 18.0f;
-
-		if (abs(car.z - playerPos.z) < 0.2f && abs(car.x - playerPos.x) < 0.8f) {
-			isDead = true;
+	if (isDashing) {
+		const float DASH_SPEED = 0.5f;
+		playerPos.z -= DASH_SPEED;
+		dashTimer -= 0.016f;
+		int currentZ = (int)std::round(playerPos.z);
+		if (currentZ < minZ) {
+			minZ = currentZ;
+			score++;
+			printf("Score: %d (DASH)\n", score);
 		}
-		if (abs(car.z - playerPos.z) < 0.08f && abs(car.x - playerPos.x) < 1.2f) {
-			isDead = true;
-		}
-	}
+		if (dashTimer <= 0.0f) {
+			isDashing = false;
+			dashCooldownTimer = DASH_COOLDOWN;
+			playerPos.x = (float)std::round(playerPos.x);
+			playerPos.z = (float)std::round(playerPos.z);
 
-	// 익사(물) 판정
-	int pZ = (int)std::round(playerPos.z);
-	if (!isMoving && mapType.count(pZ) && mapType[pZ] == 2) {
-		bool safe = false;
-		// 통나무 체크 
-		for (const auto& logObj : logs) {
-			if (logObj.z == (float)pZ &&
-				playerPos.x >= logObj.x - logObj.width / 2.0f - 0.4f &&
-				playerPos.x <= logObj.x + logObj.width / 2.0f + 0.4f) {
-				safe = true;
-				restingY = 1.1f;
-				break;
+			playerTargetPos = playerPos;
+			printf("대쉬 종료. 쿨다운 시작: %.1f초\n", DASH_COOLDOWN);
+			// 대쉬 종료 직후 이벤트 강제 체크 (스코어 50을 대쉬로 넘어버렸을 때)
+			if (scoreTargetReached && score > lastEventScore && !isEventActive && !isFlying) {
+				isEventActive = true;
+				eventProgress = 0.0f;
+				requiredTaps = 0;
+				lastEventScore = score;
+				printf("!!! 대쉬 종료 직후 스페이스 연타 이벤트 발생! 4초 안에 성공하세요!\n");
 			}
 		}
-		// 연잎 체크
-		if (!safe) {
-			for (const auto& pad : lilyPads) {
-				if (pad.z == (float)pZ && std::abs(playerPos.x - pad.x) < 0.6f) {
-					safe = true;
-					restingY = 0.93f;
+
+	}
+
+	//else {
+	// if (!isMoving && dashCooldownTimer <= 0.0f && coinCount >= DASH_COST) {
+	// if (!isFlying && !isEventActive) {
+	// // 코인 사용
+	// coinCount -= DASH_COST;
+
+	// // 대쉬 상태 시작
+	// isDashing = true;
+	// dashTimer = DASH_DURATION;
+
+	// // 시각적 피드백: 무적 대쉬 발동 파티클
+	// spawnParticles(playerPos, glm::vec3(1.0f, 0.5f, 0.0f), 20, 0.8f);
+	// printf("코인 7개 달성! 무적 대쉬 자동 발동! 남은 시간: %.1f초\n", DASH_DURATION);
+	// }
+	// }
+	//}
+	else if (isFlying) {
+		playerPos.z -= FLY_SPEED; // Z축 마이너스 방향 (앞으로) 이동
+		playerPos.y = 3.0f; // 공중 높이 고정 (3.0f)
+
+		flyTimer -= 0.016f;
+
+		int currentZ = (int)std::round(playerPos.z);
+		if (currentZ < minZ) {
+			minZ = currentZ;
+			score++;
+			// 점수 획득 시 파티클 효과 추가 가능
+		}
+
+		// 비행 종료
+		if (flyTimer <= 0.0f) {
+			isFlying = false;
+			// 땅으로 착지, 현재 칸의 정중앙에 고정
+			playerPos.x = (float)std::round(playerPos.x);
+			playerPos.z = (float)std::round(playerPos.z);
+			playerTargetPos = playerPos;
+			printf("로켓 라이드 종료! 다시 땅으로 착지합니다.\n");
+		}
+	}
+
+	else if (isEventActive) {
+		eventDuration -= 0.016f;
+
+		// 목표 게이지: 1초에 TAP_PER_SECOND 횟수를 누르면 게이지가 1.0이 됩니다.
+		float targetProgress = requiredTaps / (TAP_PER_SECOND * (4.0f - eventDuration));
+		eventProgress = glm::clamp(eventProgress, 0.0f, targetProgress);
+
+		// 성공 조건: 4초 동안 필요한 총 횟수 (예: 4초 * 10회/초 = 40회)
+		if (eventProgress >= 1.0f) {
+			isEventActive = false;
+			isFlying = true;
+			flyTimer = FLY_DURATION;
+			printf("로켓 라이드 성공! 새를 타고 비행합니다!\n");
+			// 새와 함께 날아갈 때 효과 파티클
+			spawnParticles(playerPos + glm::vec3(0, 1.0f, 0), glm::vec3(1.0f, 0.5f, 0.0f), 50, 1.5f);
+		}
+		// 실패 조건
+		else if (eventDuration <= 0.0f) {
+			isEventActive = false;
+			eventProgress = 0.0f;
+			printf("로켓 라이드 실패! 다음 기회를 노리세요.\n");
+		}
+
+		// 이벤트 중에는 일반 이동 로직을 건너뜁니다.
+	}
+	else {
+		// 1. 대쉬 자동 발동 조건 (isFlying, isEventActive가 아닐 때만 발동되도록 조건을 올림)
+		if (!isMoving && dashCooldownTimer <= 0.0f && coinCount >= DASH_COST) {
+
+			// **NOTE:** 이 로직이 위 isDashing 블록 밖에 있으므로 isDashing이 false일 때 실행됨.
+			// isFlying, isEventActive 체크는 이미 밖에서 else로 처리되었지만 명시적으로 넣음.
+			if (!isFlying && !isEventActive) {
+				coinCount -= DASH_COST;
+				isDashing = true;
+				dashTimer = DASH_DURATION;
+
+				spawnParticles(playerPos, glm::vec3(1.0f, 0.5f, 0.0f), 20, 0.8f);
+				printf("코인 7개 달성! 무적 대쉬 자동 발동! 남은 시간: %.1f초\n", DASH_DURATION);
+			}
+		}
+
+		// 2. 랜덤 이벤트 발생 조건 체크 (isMoving이 false로 풀리는 다음 프레임에 안전하게 체크)
+		if (scoreTargetReached && score > lastEventScore && !isMoving) {
+			isEventActive = true;
+			eventProgress = 0.0f;
+			requiredTaps = 0;
+			lastEventScore = score;
+			printf("!!! 스페이스 연타 이벤트 발생! 4초 안에 성공하세요!\n");
+		}
+		if (!isDashing) {
+			// 통나무 이동 및 순환
+			for (auto& logObj : logs) {
+				logObj.x += logObj.speed;
+				if (logObj.speed > 0 && logObj.x > 20.0f) logObj.x = -20.0f;
+				else if (logObj.speed < 0 && logObj.x < -20.0f) logObj.x = 20.0f;
+
+				bool onLog = (std::abs(playerPos.z - logObj.z) < 0.1f) &&
+					(playerPos.x >= logObj.x - logObj.width / 2.0f - 0.3f) &&
+					(playerPos.x <= logObj.x + logObj.width / 2.0f + 0.3f);
+
+				if (!isMoving && onLog) {
+					playerPos.x += logObj.speed;
+					playerTargetPos.x += logObj.speed;
+					playerStartPos.x += logObj.speed;
+					restingY = 1.1f;
 					break;
 				}
 			}
-		}
-		if (!safe) isDead = true;
-		if (playerPos.x < -16.0f || playerPos.x > 16.0f) isDead = true;
-	}
 
-	// 기차 충돌 검사
-	for (auto& t : trains) {
-		switch (t.state) {
-		case TRAIN_IDLE:
-			t.timer--;
-			if (t.timer <= 0) {
-				t.state = TRAIN_WARNING;
-				t.timer = 120;
-			}
-			break;
-		case TRAIN_WARNING:
-			t.timer--;
-			if ((t.timer / 10) % 2 == 0) t.isLightOn = true;
-			else t.isLightOn = false;
+			// [충돌 검사 시작]
+			bool isDead = false;
+			if (!isDashing && !isFlying) {
+				// 자동차 충돌 검사
+				for (auto& car : cars) {
+					car.x += car.speed;
+					if (car.x > 18.0f && car.speed > 0) car.x = -18.0f;
+					if (car.x < -18.0f && car.speed < 0) car.x = 18.0f;
 
-			if (t.timer <= 0) {
-				t.state = TRAIN_PASSING;
-				t.x = -60.0f;
-				t.speed = 3.0f;
-			}
-			break;
-		case TRAIN_PASSING:
-			t.x += t.speed;
-
-			// 충돌 체크
-			{
-				int playerGridZ = (int)std::round(playerPos.z);
-				int trainGridZ = (int)std::round(t.z);
-
-				if (playerGridZ == trainGridZ) {
-					if (playerPos.x > t.x - 9.0f && playerPos.x < t.x + 9.0f) {
+					if (abs(car.z - playerPos.z) < 0.2f && abs(car.x - playerPos.x) < 0.8f) {
 						isDead = true;
-						printf("기차에 치임!\n");
+					}
+					if (abs(car.z - playerPos.z) < 0.08f && abs(car.x - playerPos.x) < 1.2f) {
+						isDead = true;
+					}
+				}
+
+				// 익사(물) 판정
+				int pZ = (int)std::round(playerPos.z);
+				if (!isMoving && mapType.count(pZ) && mapType[pZ] == 2) {
+					bool safe = false;
+					// 통나무 체크
+					for (const auto& logObj : logs) {
+						if (logObj.z == (float)pZ &&
+							playerPos.x >= logObj.x - logObj.width / 2.0f - 0.4f &&
+							playerPos.x <= logObj.x + logObj.width / 2.0f + 0.4f) {
+							safe = true;
+							restingY = 1.1f;
+							break;
+						}
+					}
+					// 연잎 체크
+					if (!safe) {
+						for (const auto& pad : lilyPads) {
+							if (pad.z == (float)pZ && std::abs(playerPos.x - pad.x) < 0.6f) {
+								safe = true;
+								restingY = 0.93f;
+								break;
+							}
+						}
+					}
+					if (!safe) isDead = true;
+					if (playerPos.x < -16.0f || playerPos.x > 16.0f) isDead = true;
+				}
+
+				// 기차 충돌 검사
+				for (auto& t : trains) {
+					switch (t.state) {
+					case TRAIN_IDLE:
+						t.timer--;
+						if (t.timer <= 0) {
+							t.state = TRAIN_WARNING;
+							t.timer = 120;
+						}
+						break;
+					case TRAIN_WARNING:
+						t.timer--;
+						if ((t.timer / 10) % 2 == 0) t.isLightOn = true;
+						else t.isLightOn = false;
+
+						if (t.timer <= 0) {
+							t.state = TRAIN_PASSING;
+							t.x = -60.0f;
+							t.speed = 3.0f;
+						}
+						break;
+					case TRAIN_PASSING:
+						t.x += t.speed;
+
+						// 충돌 체크
+						if (t.state == TRAIN_PASSING)
+						{
+							int playerGridZ = (int)std::round(playerPos.z);
+							int trainGridZ = (int)std::round(t.z);
+
+							if (playerGridZ == trainGridZ) {
+								if (playerPos.x > t.x - 9.0f && playerPos.x < t.x + 9.0f) {
+									isDead = true;
+									printf("기차에 치임!\n");
+								}
+							}
+						}
+
+						if (t.x > 60.0f) {
+							t.state = TRAIN_IDLE;
+							t.timer = rand() % 300 + 200;
+						}
+						break;
 					}
 				}
 			}
 
-			if (t.x > 60.0f) {
-				t.state = TRAIN_IDLE;
-				t.timer = rand() % 300 + 200;
+			if (isDead) {
+				playerPos = glm::vec3(0.0f, 0.5f, 0.0f);
+				playerTargetPos = playerPos;
+				playerStartPos = playerPos;
+				isMoving = false;
+				isDashing = false; // 대쉬 상태 초기화
+				dashTimer = 0.0f;
+				dashCooldownTimer = 0.0f;
+				score = 0;
+				minZ = 0;
+				coinCount = 0;
+				cars.clear();
+				logs.clear();
+				lilyPads.clear();
+				treeMap.clear();
+				mapType.clear();
+				trains.clear();
+				particles.clear();
+				for (int z = -10; z < 10; ++z) generateLane(z);
+
+				glutPostRedisplay();
+				glutTimerFunc(16, timer, 0);
+				return;
+
 			}
-			break;
-		}
-	}
 
-	if (isDead) {
-		playerPos = glm::vec3(0.0f, 0.5f, 0.0f);
-		playerTargetPos = playerPos;
-		playerStartPos = playerPos;
-		isMoving = false;
-		score = 0;
-		minZ = 0;
-		coinCount = 0;
-		cars.clear();
-		logs.clear();
-		lilyPads.clear();
-		treeMap.clear();
-		mapType.clear();
-		trains.clear();
-		particles.clear();
-		for (int z = -10; z < 10; ++z) generateLane(z);
-
-		glutPostRedisplay();
-		glutTimerFunc(16, timer, 0);
-		return;
-	}
-
-	// 점프 중이 아닐 때 높이 적용
-	if (!isMoving) {
-		playerPos.y = restingY;
-		playerStartPos.y = restingY;
-	}
-
-	// 코인 로직
-	for (auto& coin : coins) {
-		if (coin.isCollected) continue;
-		if (std::abs(coin.z - playerZ) < playerSize && std::abs(coin.x - playerX) < playerSize) {
-			coin.isCollected = true;
-			coinCount++;
-			printf("Coin collected! Total: %d\n", coinCount);
-			spawnParticles(glm::vec3(coin.x, 0.5f, coin.z), glm::vec3(1.0f, 0.9f, 0.0f), 10, 0.3f);
-		}
-	}
-
-	// 점프 애니메이션
-	if (isMoving) {
-		moveTime += 0.016f;
-		float t = glm::clamp(moveTime / MOVE_DURATION, 0.0f, 1.0f);
-
-		playerPos.x = glm::mix(playerStartPos.x, playerTargetPos.x, t);
-		playerPos.z = glm::mix(playerStartPos.z, playerTargetPos.z, t);
-
-		float jumpY = JUMP_HEIGHT * 4.0f * t * (1.0f - t);
-		playerPos.y = 0.5f + jumpY;
-
-		if (t >= 1.0f) {
-			playerPos = playerTargetPos;
-			isMoving = false;
-
-			int landZ = (int)std::round(playerPos.z);
-			if (mapType.count(landZ) && mapType[landZ] == 2) {
-				glm::vec3 particleColor = glm::vec3(0.0f, 0.5f, 1.0f);
-				spawnParticles(playerPos, particleColor, 8, 0.2f);
+			// 코인 로직
+			for (auto& coin : coins) {
+				if (coin.isCollected) continue;
+				if (std::abs(coin.z - playerZ) < playerSize && std::abs(coin.x - playerX) < playerSize) {
+					coin.isCollected = true;
+					coinCount++;
+					printf("Coin collected! Total: %d\n", coinCount);
+					spawnParticles(glm::vec3(coin.x, 0.5f, coin.z), glm::vec3(1.0f, 0.9f, 0.0f), 10, 0.3f);
+				}
 			}
+
+			// 점프 애니메이션 (대쉬 중에는 일반 점프를 막아야 함. isDashing은 isMoving과 동시에 실행되지 않도록 보장)
+			if (isMoving) {
+				moveTime += 0.016f;
+				float t = glm::clamp(moveTime / MOVE_DURATION, 0.0f, 1.0f);
+
+				playerPos.x = glm::mix(playerStartPos.x, playerTargetPos.x, t);
+				playerPos.z = glm::mix(playerStartPos.z, playerTargetPos.z, t);
+
+				float jumpY = JUMP_HEIGHT * 4.0f * t * (1.0f - t);
+				playerPos.y = 0.5f + jumpY;
+
+				if (t >= 1.0f) {
+					playerPos = playerTargetPos;
+					isMoving = false;
+
+					int landZ = (int)std::round(playerPos.z);
+					if (mapType.count(landZ) && mapType[landZ] == 2) {
+						glm::vec3 particleColor = glm::vec3(0.0f, 0.5f, 1.0f);
+						spawnParticles(playerPos, particleColor, 8, 0.2f);
+					}
+				}
+			}
+			// 점프 중이 아닐 때 높이 적용
+			if (!isMoving && !isDashing) {
+				playerPos.y = restingY;
+				playerStartPos.y = restingY;
+			}
+			if (!isMoving && !isDashing && !isFlying) {
+				playerPos.y = restingY;
+				playerStartPos.y = restingY;
+			}
+
 		}
+
 	}
 	glutPostRedisplay();
 	glutTimerFunc(16, timer, 0);
+
 }
 
 // 폰트 초기화 함수
@@ -1266,27 +1520,26 @@ void initFont(const char* filename, float pixelHeight) {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 }
 
-
 void initGame()
 {
 	transLoc = glGetUniformLocation(shaderProgramID, "trans");
 	//for (int z = -10; z < 10; ++z) generateLane(z);
 
 	float vertices[] = {
-		-0.5f, -0.5f,  0.5f,  0.5f, -0.5f,  0.5f,  0.5f,  0.5f,  0.5f,
-		 0.5f,  0.5f,  0.5f, -0.5f,  0.5f,  0.5f, -0.5f, -0.5f,  0.5f,
-		-0.5f, -0.5f, -0.5f, -0.5f,  0.5f, -0.5f,  0.5f,  0.5f, -0.5f,
-		 0.5f,  0.5f, -0.5f,  0.5f, -0.5f, -0.5f, -0.5f, -0.5f, -0.5f,
-		-0.5f,  0.5f,  0.5f, -0.5f,  0.5f, -0.5f, -0.5f, -0.5f, -0.5f,
-		-0.5f, -0.5f, -0.5f, -0.5f, -0.5f,  0.5f, -0.5f,  0.5f,  0.5f,
-		 0.5f,  0.5f,  0.5f,  0.5f, -0.5f,  0.5f,  0.5f, -0.5f, -0.5f,
-		 0.5f, -0.5f, -0.5f,  0.5f,  0.5f, -0.5f,  0.5f,  0.5f,  0.5f,
-		-0.5f,  0.5f, -0.5f, -0.5f,  0.5f,  0.5f,  0.5f,  0.5f,  0.5f,
-		 0.5f,  0.5f,  0.5f,  0.5f,  0.5f, -0.5f, -0.5f,  0.5f, -0.5f,
-		-0.5f, -0.5f, -0.5f,  0.5f, -0.5f, -0.5f,  0.5f, -0.5f,  0.5f,
-		 0.5f, -0.5f,  0.5f, -0.5f, -0.5f,  0.5f, -0.5f, -0.5f, -0.5f
+	-0.5f, -0.5f, 0.5f, 0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 0.5f,
+	0.5f, 0.5f, 0.5f, -0.5f, 0.5f, 0.5f, -0.5f, -0.5f, 0.5f,
+	-0.5f, -0.5f, -0.5f, -0.5f, 0.5f, -0.5f, 0.5f, 0.5f, -0.5f,
+	0.5f, 0.5f, -0.5f, 0.5f, -0.5f, -0.5f, -0.5f, -0.5f, -0.5f,
+	-0.5f, 0.5f, 0.5f, -0.5f, 0.5f, -0.5f, -0.5f, -0.5f, -0.5f,
+	-0.5f, -0.5f, -0.5f, -0.5f, -0.5f, 0.5f, -0.5f, 0.5f, 0.5f,
+	0.5f, 0.5f, 0.5f, 0.5f, -0.5f, 0.5f, 0.5f, -0.5f, -0.5f,
+	0.5f, -0.5f, -0.5f, 0.5f, 0.5f, -0.5f, 0.5f, 0.5f, 0.5f,
+	-0.5f, 0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f,
+	0.5f, 0.5f, 0.5f, 0.5f, 0.5f, -0.5f, -0.5f, 0.5f, -0.5f,
+	-0.5f, -0.5f, -0.5f, 0.5f, -0.5f, -0.5f, 0.5f, -0.5f, 0.5f,
+	0.5f, -0.5f, 0.5f, -0.5f, -0.5f, 0.5f, -0.5f, -0.5f, -0.5f
 	};
-	// 바퀴창문 
+	// 바퀴창문
 	glm::vec3 wheelColor = glm::vec3(0.1f, 0.1f, 0.1f); // 검은색
 	glm::vec3 windowColor = glm::vec3(0.2f, 0.2f, 0.3f); // 짙은 파란색/회색
 
@@ -1311,7 +1564,7 @@ void initGame()
 	sedan.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
 	sedan.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
 
-	//창문 추가 
+	//창문 추가
 	float windowXOffset = 0.1f; //캐빈 중앙으로부터의 X 오프셋
 	float windowYOffset = 0.35f;
 	float windowScaleX = 0.7f;
@@ -1321,7 +1574,7 @@ void initGame()
 	sedan.parts.push_back({ glm::vec3(windowXOffset, windowYOffset, -0.45f), glm::vec3(windowScaleX, windowScaleY, 0.1f), windowColor });
 	carDesigns.push_back(sedan);
 
-	//2.suv 
+	//2.suv
 	CarDesign suv_pickup;
 	suv_pickup.baseScale = 1.0f;
 	//바디
@@ -1357,7 +1610,7 @@ void initGame()
 	truck.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, wheelZOffset), glm::vec3(wheelScale), wheelColor });
 	truck.parts.push_back({ glm::vec3(-wheelXOffset, wheelYOffset, -wheelZOffset), glm::vec3(wheelScale), wheelColor });
 
-	//  창문 추가
+	// 창문 추가
 	// 창문 (측면)
 	truck.parts.push_back({ glm::vec3(0.2f, 0.5f, 0.45f), glm::vec3(0.6f, 0.3f, 0.1f), windowColor });
 	truck.parts.push_back({ glm::vec3(0.2f, 0.5f, -0.45f), glm::vec3(0.6f, 0.3f, 0.1f), windowColor });
@@ -1401,7 +1654,6 @@ void initGame()
 	glReadBuffer(GL_NONE);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-
 	glGenVertexArrays(1, &vao);
 	glGenBuffers(1, &vbo);
 	glBindVertexArray(vao);
@@ -1409,7 +1661,6 @@ void initGame()
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
-
 
 }
 
@@ -1422,12 +1673,11 @@ bool isTreeAt(int x, int z) {
 
 void specialKeyboard(int key, int x, int y)
 {
-	if (isMoving) return;
 
+	if (isMoving || isDashing) return;
 
 	int nextX = (int)std::round(playerPos.x);
 	int nextZ = (int)std::round(playerPos.z);
-
 
 	switch (key) {
 	case GLUT_KEY_UP:
@@ -1457,19 +1707,18 @@ void specialKeyboard(int key, int x, int y)
 
 			int currentTotalLines = -minZ;
 
-
 			//if (currentTotalLines > 0 && (currentTotalLines % LINES_PER_SEASON) == 0) {
-			//	//linesPassedSinceSeasonChange = 0;
+			// //linesPassedSinceSeasonChange = 0;
 
-			//	// 다음 계절로 전환
-			//	switch (currentSeason) {
-			//	case SPRING: currentSeason = SUMMER; break;
-			//	case SUMMER: currentSeason = AUTUMN; break;
-			//	case AUTUMN: currentSeason = WINTER; break;
-			//	case WINTER: currentSeason = SPRING; break;
-			//	}
-			//	
-			//	printf("Season changed to %d (Lines passed: %d)\n", currentSeason, LINES_PER_SEASON);
+			// // 다음 계절로 전환
+			// switch (currentSeason) {
+			// case SPRING: currentSeason = SUMMER; break;
+			// case SUMMER: currentSeason = AUTUMN; break;
+			// case AUTUMN: currentSeason = WINTER; break;
+			// case WINTER: currentSeason = SPRING; break;
+			// }
+			//
+			// printf("Season changed to %d (Lines passed: %d)\n", currentSeason, LINES_PER_SEASON);
 			//}
 
 		}
@@ -1477,7 +1726,6 @@ void specialKeyboard(int key, int x, int y)
 		playerStartPos = playerPos;
 
 		playerTargetPos = glm::vec3((float)nextX, 0.5f, (float)nextZ);
-
 
 		isMoving = true;
 		moveTime = 0.0f;
@@ -1490,6 +1738,27 @@ void keyboard(unsigned char key, int x, int y)
 {
 	if (key == 'q' || key == 'Q') {
 		exit(0);
+	}
+
+	if (key == ' ') {
+		if (isEventActive) {
+			requiredTaps++;
+
+			// 게이지 상승 로직 (TAP_PER_SECOND가 10이고 이벤트가 4초라면 총 40번 누르면 게이지가 1.0이 됨)
+			// eventProgress는 0.0 ~ 1.0 사이 값으로 계산되어야 합니다.
+			// 4초 * TAP_PER_SECOND = 총 목표 횟수
+			const float TOTAL_TAPS_REQUIRED = TAP_PER_SECOND * 4.0f;
+			eventProgress = requiredTaps / TOTAL_TAPS_REQUIRED;
+			eventProgress = glm::clamp(eventProgress, 0.0f, 1.1f);
+
+			printf("Tap! Current Progress: %.2f\n", eventProgress);
+			return;
+		}
+
+		// 연타 이벤트 중이 아닐 때 스페이스바를 누른 경우
+		if (!isMoving && !isFlying) {
+			printf("현재 스페이스바는 로켓 라이드 이벤트 중에만 사용 가능합니다.\n");
+		}
 	}
 }
 
@@ -1599,7 +1868,6 @@ void loadDepthShader()
 	glCompileShader(depthVertexShader);
 	glAttachShader(depthShader, depthVertexShader);
 
-
 	glGetShaderiv(depthVertexShader, GL_COMPILE_STATUS, &result);
 	if (!result) {
 		glGetShaderInfoLog(depthVertexShader, 512, NULL, errorLog);
@@ -1612,7 +1880,6 @@ void loadDepthShader()
 	glCompileShader(depthFragmentShader);
 	glAttachShader(depthShader, depthFragmentShader);
 
-
 	glGetShaderiv(depthFragmentShader, GL_COMPILE_STATUS, &result);
 	if (!result) {
 		glGetShaderInfoLog(depthFragmentShader, 512, NULL, errorLog);
@@ -1620,7 +1887,6 @@ void loadDepthShader()
 	}
 
 	glLinkProgram(depthShader);
-
 
 	glGetProgramiv(depthShader, GL_LINK_STATUS, &result);
 	if (!result) {
