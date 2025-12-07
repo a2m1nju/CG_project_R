@@ -1026,11 +1026,18 @@ void renderTextTTF(float x, float y, const char* text, float r, float g, float b
 	glLoadIdentity();
 
 	glDisable(GL_DEPTH_TEST);
-	glEnable(GL_TEXTURE_2D);
+
+
+	glActiveTexture(GL_TEXTURE1);
+	glDisable(GL_TEXTURE_2D);   // 유닛 1 끄기
+
+	glActiveTexture(GL_TEXTURE0);
+	glEnable(GL_TEXTURE_2D);    // 유닛 0 켜기 (폰트 텍스처용)
+
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-	glActiveTexture(GL_TEXTURE0);
+	// 이미 위에서 활성화했으므로 glActiveTexture(GL_TEXTURE0)는 생략 가능하지만 명시적으로 둡니다.
 	glBindTexture(GL_TEXTURE_2D, fontTexture);
 
 	glBegin(GL_QUADS);
@@ -1893,5 +1900,3 @@ void loadDepthShader()
 	glDeleteShader(depthVertexShader);
 	glDeleteShader(depthFragmentShader);
 }
-
-// 테스트용
