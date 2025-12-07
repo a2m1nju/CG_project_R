@@ -205,8 +205,6 @@ glm::vec3 birdTargetPos;
 float birdLeaveTime = 0.0f;
 const float BIRD_LEAVE_DURATION = 1.0f; // 새가 떠나는 데 걸리는 시간
 
-
-
 std::map<int, int> mapType; // 0=잔디 1=도로
 std::map<int, std::vector<int>> treeMap;
 std::vector<Car> cars;
@@ -235,7 +233,7 @@ void drawTree(int x, int z); // 복셀 나무 그리기 함수
 void renderTextTTF(float x, float y, const char* text, float r, float g, float b);
 void keyboard(unsigned char key, int x, int y);
 void loadDepthShader();
-void drawCloud(const Cloud& cloud, GLuint shader); //  drawCloud가 다른 곳에서 호출된다면 추가
+void drawCloud(const Cloud& cloud, GLuint shader); // drawCloud가 다른 곳에서 호출된다면 추가
 void drawClouds(GLuint shader); // <<<<< 필수 추가 사항
 
 GLuint shaderProgramID;
@@ -950,7 +948,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 		// 새 퇴장 로직에서 계산된 위치를 사용합니다 (여기서는 currentBirdPos를 직접 사용할 수 없어 단순화)
 		// 임시로, birdStartPos를 사용하여 현재 새 위치를 다시 계산해야 합니다.
 		// **이 코드는 GLSL 쉐이더가 아닌 C++에서 모델 행렬을 계산하므로,
-		//   currentBirdPos 계산 로직을 drawScene 내부에 재현해야 합니다.**
+		// currentBirdPos 계산 로직을 drawScene 내부에 재현해야 합니다.**
 
 		// C++에서 애니메이션 위치 재현
 		float t = glm::clamp(birdLeaveTime / BIRD_LEAVE_DURATION, 0.0f, 1.0f);
@@ -1063,28 +1061,27 @@ void drawCloud(const Cloud& cloud, GLuint shader) {
 			for (int dz = -1; dz <= 1; dz++) {
 				// 구름 중심에서 약간 랜덤하게 퍼지도록
 				if (rand() % 100 > 60) continue;
-	
-	glm::mat4 model = glm::mat4(1.0f);
-	glm::vec3 offset = glm::vec3(
-		dx * cloud.scale * 0.4f,
-		dy * cloud.scale * 0.3f,
-		dz * cloud.scale * 0.4f
-	);
-	model = glm::translate(model, cloud.position);
-	model = glm::scale(model, glm::vec3(cloud.scale * 1.5f, cloud.scale * 0.8f, cloud.scale * 1.5f)); // 약간 납작하게
 
-	glm::vec3 cloudColor = glm::vec3(0.95f, 0.95f, 0.95f); // 밝은 회색/흰색
+				glm::mat4 model = glm::mat4(1.0f);
+				glm::vec3 offset = glm::vec3(
+					dx * cloud.scale * 0.4f,
+					dy * cloud.scale * 0.3f,
+					dz * cloud.scale * 0.4f
+				);
+				model = glm::translate(model, cloud.position);
+				model = glm::scale(model, glm::vec3(cloud.scale * 1.5f, cloud.scale * 0.8f, cloud.scale * 1.5f)); // 약간 납작하게
 
-	glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
-	if (shader == shaderProgramID) {
-		glVertexAttrib3f(1, cloudColor.r, cloudColor.g, cloudColor.b);
-	}
-	glDrawArrays(GL_TRIANGLES, 0, 36);
+				glm::vec3 cloudColor = glm::vec3(0.95f, 0.95f, 0.95f); // 밝은 회색/흰색
+
+				glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
+				if (shader == shaderProgramID) {
+					glVertexAttrib3f(1, cloudColor.r, cloudColor.g, cloudColor.b);
+				}
+				glDrawArrays(GL_TRIANGLES, 0, 36);
 			}
 		}
 	}
 }
-
 
 void drawClouds(GLuint shader) {
 	for (const auto& cloud : clouds) {
@@ -1104,7 +1101,6 @@ GLvoid drawScene()
 		cameraTarget.y = 0.5f;
 		view = glm::lookAt(cameraTarget + glm::vec3(2, 16, 10), cameraTarget, glm::vec3(0, 1, 0));
 
-		
 	}
 	else {
 		// 평소 시점
@@ -1149,7 +1145,7 @@ GLvoid drawScene()
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, depthMap);
 	glUniform1i(glGetUniformLocation(shaderProgramID, "shadowMap"), 0);
-	//  비행 중일 때는 지면 오브젝트 렌더링 건너뛰기
+	// 비행 중일 때는 지면 오브젝트 렌더링 건너뛰기
 	if (!isFlying && !isLanding) {
 		renderObjects(shaderProgramID, proj * view);
 	}
@@ -1159,7 +1155,7 @@ GLvoid drawScene()
 	// 파티클 그리기 호출
 	drawParticles(shaderProgramID);
 
-	//  구름 렌더링 호출
+	// 구름 렌더링 호출
 	if (isFlying || isLanding) {
 		drawClouds(shaderProgramID);
 	}
@@ -1287,7 +1283,7 @@ void timer(int value)
 		if (dashCooldownTimer < 0.0f) dashCooldownTimer = 0.0f;
 	}
 
-	//  구름 물리 업데이트 
+	// 구름 물리 업데이트
 	for (auto it = clouds.begin(); it != clouds.end(); ) {
 		it->position.x += it->speed * 0.016f; // 옆으로 흐르는 움직임
 		it->position.z += FLY_SPEED * 0.016f * 0.5f; // 비행 속도의 절반으로 뒤로 흐름 (공중감 증대)
@@ -1306,14 +1302,14 @@ void timer(int value)
 	//if (!isEventActive && !isFlying) {
 	//
 	// // 랜덤 이벤트 발생 조건 체크
-	 if (scoreTargetReached && score > lastEventScore && !isEventActive && !isFlying) {
-	 isEventActive = true;
-	 eventProgress = 0.0f;
-	 requiredTaps = 0;
-	 lastEventScore = score;
-	 printf("!!! 스페이스 연타 이벤트 발생! 4초 안에 성공하세요!\n");
-	
-	 }
+	if (scoreTargetReached && score > lastEventScore && !isEventActive && !isFlying) {
+		isEventActive = true;
+		eventProgress = 0.0f;
+		requiredTaps = 0;
+		lastEventScore = score;
+		printf("!!! 스페이스 연타 이벤트 발생! 4초 안에 성공하세요!\n");
+
+	}
 	//}
 
 	if (isDashing) {
@@ -1500,7 +1496,7 @@ void timer(int value)
 
 			// [충돌 검사 시작]
 			bool isDead = false;
-			if (!isDashing && !isFlying&&!isLanding) {
+			if (!isDashing && !isFlying && !isLanding) {
 				// 자동차 충돌 검사
 				for (auto& car : cars) {
 					car.x += car.speed;
@@ -1654,7 +1650,7 @@ void timer(int value)
 				playerPos.y = restingY;
 				playerStartPos.y = restingY;
 			}
-			if (!isMoving && !isDashing && !isFlying&&!isLanding) {
+			if (!isMoving && !isDashing && !isFlying && !isLanding) {
 				playerPos.y = restingY;
 				playerStartPos.y = restingY;
 			}
@@ -1935,7 +1931,7 @@ void keyboard(unsigned char key, int x, int y)
 		}
 
 		// 연타 이벤트 중이 아닐 때 스페이스바를 누른 경우
-		if (!isMoving && !isFlying &&!isLanding) {
+		if (!isMoving && !isFlying && !isLanding) {
 			printf("현재 스페이스바는 로켓 라이드 이벤트 중에만 사용 가능합니다.\n");
 		}
 	}
