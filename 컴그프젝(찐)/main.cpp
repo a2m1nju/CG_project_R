@@ -207,6 +207,12 @@ glm::vec3 birdTargetPos;
 float birdLeaveTime = 0.0f;
 const float BIRD_LEAVE_DURATION = 1.0f; // 새가 떠나는 데 걸리는 시간
 
+// 핀 조명 이벤트
+bool isNightMode = false;       // 현재 핀 조명 모드인가?
+float nightModeTimer = 0.0f;    // 핀 조명 지속 시간
+float nightEventCooldown = 10.0f; // 다음 이벤트 발생까지 남은 시간
+const float NIGHT_DURATION = 5.0f; // 한 번 켜지면 5초간 지속
+
 std::map<int, int> mapType; // 0=잔디 1=도로
 std::map<int, std::vector<int>> treeMap;
 std::vector<Car> cars;
@@ -331,7 +337,6 @@ GameSeason getSeasonByZ(int z) {
 	return SUMMER; // 안전장치
 }
 
-// 퍼지는 모양 대신 위로 쌓아올린 박스형 나무
 void drawTree(int x, int z, GLuint shader) {
 
 	const SeasonColors& colors = seasonThemes[getSeasonByZ(z)];
@@ -1180,6 +1185,7 @@ void drawClouds(GLuint shader) {
 		drawCloud(cloud, shader);
 	}
 }
+
 GLvoid drawScene()
 {
 	glm::vec3 cameraTarget = playerPos;
@@ -1219,7 +1225,7 @@ GLvoid drawScene()
 	// 패스 2: 실제 장면 렌더링
 	glViewport(0, 0, 1280, 960);
 	if (isFlying || isLanding || isBirdLeaving) {
-		// 하늘색 (약간 밝은 파란색)
+		// 하늘색 
 		glClearColor(0.53f, 0.81f, 0.98f, 1.0f);
 	}
 	else {
@@ -1233,6 +1239,13 @@ GLvoid drawScene()
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "view"), 1, GL_FALSE, glm::value_ptr(view));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
 	glUniform3fv(glGetUniformLocation(shaderProgramID, "lightPos"), 1, &lightPos[0]);
+
+	// 핀 조명 유니폼 값 전달
+	int spotlightVal = isNightMode ? 1 : 0;
+	glUniform1i(glGetUniformLocation(shaderProgramID, "enableSpotlight"), spotlightVal);
+	glUniform3fv(glGetUniformLocation(shaderProgramID, "spotlightPos"), 1, glm::value_ptr(playerPos));
+
+	glActiveTexture(GL_TEXTURE0);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, depthMap);
@@ -1281,7 +1294,6 @@ GLvoid drawScene()
 	}
 
 	// 텍스트는 화면 중앙 하단에 가깝게 표시 (예: Y=900)
-	// 텍스트를 그릴 때는 Outline 함수 대신 직접 renderTextTTF를 사용하여 색상을 적용합니다.
 	if (isEventActive) {
 		float barWidth = 600.0f;
 		float barHeight = 40.0f;
@@ -1341,6 +1353,32 @@ void spawnParticles(glm::vec3 pos, glm::vec3 color, int count, float speedScale)
 
 void timer(int value)
 {
+	// 핀 조명 랜덤 이벤트 로직
+	if (isNightMode) {
+		// 밤 모드 지속 시간 감소
+		nightModeTimer -= 0.016f;
+		if (nightModeTimer <= 0.0f) {
+			isNightMode = false;
+			nightEventCooldown = (rand() % 10) + 10.0f; // 10~20초 후 다시 기회
+			printf("핀 조명 이벤트 종료! 다시 밝아집니다.\n");
+		}
+	}
+	else {
+		// 쿨타임 감소
+		if (nightEventCooldown > 0.0f) {
+			nightEventCooldown -= 0.016f;
+		}
+		else {
+			// 쿨타임이 끝났으면 1% 확률(매 프레임)로 발동
+			// (1초에 60번 호출되므로 꽤 자주 체크됨)
+			if (rand() % 500 < 1) { // 확률 조절: 500분의 1
+				isNightMode = true;
+				nightModeTimer = NIGHT_DURATION;
+				printf("!!! 갑자기 어두워집니다! 핀 조명 이벤트 발동! !!!\n");
+			}
+		}
+	}
+
 	float playerX = playerPos.x;
 	float playerZ = playerPos.z;
 	float playerSize = 0.5f;
@@ -1914,11 +1952,11 @@ void initGame()
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-	// [수정] 1. 위치 속성 (Location 0)
+	// 1. 위치 속성 (Location 0)
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
 
-	// [추가] 2. 텍스처 좌표 속성 (Location 2) - stride는 5, offset은 3
+	// 2. 텍스처 좌표 속성 (Location 2) - stride는 5, offset은 3
 	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
 	glEnableVertexAttribArray(2);
 
