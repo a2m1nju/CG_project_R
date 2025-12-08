@@ -94,7 +94,6 @@ float glitchTimer = 0.0f;
 
 bool isGiantMode = false;
 float giantTimer = 0.0f;
-//float giantGauge = 0.0f;
 
 bool isNightMode = false;
 float nightModeTimer = 0.0f;

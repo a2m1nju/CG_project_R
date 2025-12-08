@@ -932,42 +932,6 @@ GLvoid drawScene()
 		std::string coinStr = "COINS: " + std::to_string(coinCount);
 		renderTextWithOutline(1050, 60, coinStr.c_str());
 
-		/*
-		glUseProgram(0);
-		glDisable(GL_DEPTH_TEST);
-
-		float barX = 150.0f;
-		float barY = 900.0f;
-		float barW = 200.0f;
-		float barH = 20.0f;
-
-		glBegin(GL_QUADS);
-		glColor3f(0.3f, 0.3f, 0.3f);
-		glVertex2f(barX - barW / 2, barY - barH / 2);
-		glVertex2f(barX + barW / 2, barY - barH / 2);
-		glVertex2f(barX + barW / 2, barY + barH / 2);
-		glVertex2f(barX - barW / 2, barY + barH / 2);
-		glEnd();
-
-		float fill = (giantGauge / 100.0f) * barW;
-		glBegin(GL_QUADS);
-		if (giantGauge >= 100.0f) glColor3f(1.0f, 0.2f, 0.2f);
-		else glColor3f(1.0f, 1.0f, 0.0f); 
-
-		glVertex2f(barX - barW / 2, barY - barH / 2);
-		glVertex2f(barX - barW / 2 + fill, barY - barH / 2);
-		glVertex2f(barX - barW / 2 + fill, barY + barH / 2);
-		glVertex2f(barX - barW / 2, barY + barH / 2);
-		glEnd();
-
-		renderTextWithOutline(barX - 60, barY - 30, "GIANT GAUGE");
-		if (giantGauge >= 100.0f && !isGiantMode) {
-			renderTextWithOutline(barX - 50, barY - 60, "[PRESS G!]");
-		}
-
-		glEnable(GL_DEPTH_TEST);
-		*/
-
 		if (isLandingSuccess) {
 			renderTextWithOutline(1280 / 2 - 100, 200, "SAFE LANDING!");
 		}
