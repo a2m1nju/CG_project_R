@@ -229,6 +229,10 @@ bool isNightWarning = false;        // 현재 경고 중인가?
 float nightWarningTimer = 0.0f;     // 경고 지속 시간
 const float WARNING_DURATION = 3.0f; // 3초 동안 경고 후 암전
 
+// 기차 카메라 흔들림 관련 변수
+float shakeTimer = 0.0f;      // 흔들림 지속 시간
+float shakeMagnitude = 0.0f;  // 흔들림 강도 (0.0 ~ 1.0)
+
 std::map<int, int> mapType; // 0=잔디 1=도로
 std::map<int, std::vector<int>> treeMap;
 std::vector<Car> cars;
@@ -333,12 +337,8 @@ int main(int argc, char** argv)
 GameSeason getSeasonByZ(int z) {
 	//z는 음수 -> 양수로 변환
 	int linesPassed = -z;
-
-	// 현재 계절 시작점 (minZ = 0)을 기준으로 라인 수를 계산합니다.
-	// linesPassed / LINES_PER_SEASON 의 몫을 구하면, 몇 번 계절이 바뀌었는지 알 수 있습니다.
 	int seasonIndex = (linesPassed / LINES_PER_SEASON) % 4; // 0, 1, 2, 3 로 순환
 
-	// 초기 계절 SUMMER (0)을 기준으로 인덱스를 조정하여 계절을 반환합니다.
 	// SUMMBER=1, AUTUMN=2, WINTER=3, SPRING=0
 
 	// 초기 계절: SUMMER (0~29라인)
@@ -1204,6 +1204,18 @@ void drawClouds(GLuint shader) {
 
 GLvoid drawScene()
 {
+	// 1. 카메라 흔들림 오프셋 계산
+	glm::vec3 shakeOffset(0.0f, 0.0f, 0.0f);
+
+	// 흔들림 타이머가 작동 중이면 랜덤 좌표 생성
+	if (shakeTimer > 0.0f) {
+		float rx = ((rand() % 100) / 50.0f - 1.0f) * shakeMagnitude; // -mag ~ +mag
+		float ry = ((rand() % 100) / 50.0f - 1.0f) * shakeMagnitude;
+		float rz = ((rand() % 100) / 50.0f - 1.0f) * shakeMagnitude;
+		shakeOffset = glm::vec3(rx, ry, rz);
+	}
+
+	// 2. 뷰 행렬 생성 
 	glm::vec3 cameraTarget = playerPos;
 	cameraTarget.y = 0.5f;
 
@@ -1211,17 +1223,18 @@ GLvoid drawScene()
 
 	glm::mat4 view;
 	if (isFlying || isLanding || isBirdLeaving) {
-		glm::vec3 cameraTarget = playerPos;
-		cameraTarget.y = 0.5f;
-		view = glm::lookAt(cameraTarget + glm::vec3(2, 16, 10), cameraTarget, glm::vec3(0, 1, 0));
-
+		// 비행 시점 (흔들림 추가)
+		view = glm::lookAt(cameraTarget + glm::vec3(2, 16, 10) + shakeOffset,
+			cameraTarget + shakeOffset,
+			glm::vec3(0, 1, 0));
 	}
 	else {
-		// 평소 시점
-		glm::vec3 cameraTarget = playerPos;
-		cameraTarget.y = 0.5f;
-		view = glm::lookAt(cameraTarget + glm::vec3(2, 12, 10), cameraTarget, glm::vec3(0, 1, 0));
+		// 평소 시점 (흔들림 추가)
+		view = glm::lookAt(cameraTarget + glm::vec3(2, 12, 10) + shakeOffset,
+			cameraTarget + shakeOffset,
+			glm::vec3(0, 1, 0));
 	}
+
 	glm::mat4 lightProjection = glm::ortho(-50.f, 50.f, -50.f, 50.f, 1.f, 100.f);
 	glm::mat4 lightView = glm::lookAt(lightPos, cameraTarget, glm::vec3(0, 1, 0)); // playerPos -> cameraTarget
 	glm::mat4 lightSpaceMatrix = lightProjection * lightView;
@@ -1290,7 +1303,6 @@ GLvoid drawScene()
 		// 계절마다 설정된 크기(모양) 적용
 		model = glm::scale(model, wp.scaleVec);
 
-		// 꽃잎이나 낙엽은 떨어질 때 빙글빙글 돌면 더 예쁩니다 
 		model = glm::rotate(model, wp.swayPhase, glm::vec3(0.5f, 1.0f, 0.2f));
 
 		glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "model"), 1, GL_FALSE, glm::value_ptr(model));
@@ -1347,7 +1359,7 @@ GLvoid drawScene()
 		dashR = 1.0f; dashG = 0.5f; dashB = 0.0f; // 주황
 	}
 
-	// 텍스트는 화면 중앙 하단에 가깝게 표시 (예: Y=900)
+	// 텍스트는 화면 중앙 하단에 가깝게 표시
 	if (isEventActive) {
 		float barWidth = 600.0f;
 		float barHeight = 40.0f;
@@ -1407,6 +1419,15 @@ void spawnParticles(glm::vec3 pos, glm::vec3 color, int count, float speedScale)
 
 void timer(int value)
 {
+	// 카메라 흔들림 시간 감소 로직
+	if (shakeTimer > 0.0f) {
+		shakeTimer -= 0.016f;
+		if (shakeTimer <= 0.0f) {
+			shakeTimer = 0.0f;
+			shakeMagnitude = 0.0f; // 시간이 다 되면 흔들림 멈춤
+		}
+	}
+
 	// 핀 조명 로직
 	// 1. 경고 단계
 	if (isNightWarning) {
@@ -1435,9 +1456,8 @@ void timer(int value)
 			nightEventCooldown -= 0.016f;
 		}
 		else {
-			// 확률 체크 (테스트를 위해 확률을 좀 높여두셔도 됩니다)
+			// 확률 체크
 			if (rand() % 500 < 1) {
-				// 바로 어두워지는 게 아니라 '경고' 모드 진입
 				isNightWarning = true;
 				nightWarningTimer = WARNING_DURATION;
 				printf("!!! 정전 경고 발령 !!!\n");
@@ -1701,6 +1721,14 @@ void timer(int value)
 				break;
 			case TRAIN_PASSING:
 				t.x += t.speed;
+
+				if (t.x > -20.0f && t.x < 25.0f &&
+					!isFlying && !isLanding &&
+					std::abs(t.z - playerPos.z) < 10.0f) {
+
+					shakeTimer = 0.1f;
+					shakeMagnitude = 0.2f;
+				}
 
 				// 충돌 체크
 				if (t.state == TRAIN_PASSING)
