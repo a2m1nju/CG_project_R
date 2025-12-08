@@ -1503,32 +1503,32 @@ void timer(int value)
 		if (dashCooldownTimer < 0.0f) dashCooldownTimer = 0.0f;
 	}
 
-	// 바람 이벤트 로직 (깔끔한 버전)
+	// 바람 이벤트 로직
 
 	if (isWindActive) {
 		windTimer -= 0.016f;
 
-		// 1. 플레이어 밀림 (나무 충돌 체크)
+		// 플레이어 밀림 로직
 		if (!isMoving && !isFlying && !isLanding) {
 
-			// 예상되는 다음 X 위치 계산
 			float nextX = playerPos.x + windForce;
 			int currentZ = (int)std::round(playerPos.z);
-
-			// 바람 방향에 따른 몸통 충돌 오프셋 (+0.4 또는 -0.4)
 			float bodyOffset = (windForce > 0) ? 0.4f : -0.4f;
 
-			// 내가 밀려날 곳의 그리드 좌표 확인
 			int checkGridX = (int)std::round(nextX + bodyOffset);
 
-			if (!isTreeAt(checkGridX, currentZ)) {
+			bool isOnRiver = (mapType.count(currentZ) && mapType[currentZ] == 2);
+
+			bool isTreeBlocking = isTreeAt(checkGridX, currentZ);
+
+			if (!isOnRiver && !isTreeBlocking) {
 				playerPos.x += windForce;
 				playerStartPos.x += windForce;
 				playerTargetPos.x += windForce;
 			}
 		}
 
-		// 4. 바람 파티클 효과 (유지)
+		// 파티클 효과 
 		if (rand() % 10 < 3) {
 			float spawnX = (windForce > 0) ? -20.0f : 20.0f;
 			float spawnZ = playerPos.z + (rand() % 40 - 20);
@@ -1553,12 +1553,11 @@ void timer(int value)
 		}
 	}
 	else {
-		if (!isFlying && !isEventActive && !isNightMode && rand() % 300 < 1) {
+		// 바람이 불지 않을 때 -> 랜덤 확률 발생 
+		if (!isFlying && !isEventActive && !isNightMode && rand() % 800 < 1) {
 			isWindActive = true;
-			windTimer = WIND_DURATION; 
-
+			windTimer = WIND_DURATION;
 			windForce = (rand() % 2 == 0 ? 0.04f : -0.04f);
-
 			printf("!!! 강풍 경보 !!! 방향: %s\n", (windForce > 0 ? "오른쪽 >>>" : "<<< 왼쪽"));
 		}
 	}
