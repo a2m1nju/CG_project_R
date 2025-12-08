@@ -172,7 +172,8 @@ std::vector<WeatherParticle> weatherParticles;
 enum ItemType {
 	ITEM_SHIELD, // 보호막 (파란색)
 	ITEM_MAGNET, // 자석 (빨간색)
-	ITEM_CLOCK   // 시간 느려짐 (하늘색)
+	ITEM_CLOCK,   // 시간 느려짐 (하늘색)
+	ITEM_POTION  //  성장 물약 (보라색)
 };
 
 // [추가] 아이템 구조체
@@ -709,8 +710,8 @@ void generateLane(int z)
 					Item newItem;
 					newItem.x = (float)spawnX;
 					newItem.z = (float)z;
-					// 랜덤 아이템 타입 (0, 1, 2 중 하나)
-					newItem.type = (ItemType)(rand() % 3);
+					// 랜덤 아이템 타입 (0, 1, 2, 3중 하나)
+					newItem.type = (ItemType)(rand() % 4);
 					items.push_back(newItem);
 				}
 				// 나머지 확률로 코인 생성 (기존 로직)
@@ -855,26 +856,124 @@ void drawCoin(const Coin& coin, GLuint shader) {
 		glm::vec3(C_span - C_thick / 2.0f, C_Y_THICKNESS, C_thick), redColor_C);
 }
 
+//  방패 그리기
+void drawShieldModel(GLuint shader, glm::mat4 baseModel) {
+	// 1. 방패 테두리/판 (은색/회색)
+	drawPart(shader, baseModel, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.6f, 0.7f, 0.1f), glm::vec3(0.7f, 0.7f, 0.8f));
+
+	// 2. 방패 내부 (파란색)
+	drawPart(shader, baseModel, glm::vec3(0.0f, 0.0f, 0.06f), glm::vec3(0.45f, 0.55f, 0.1f), glm::vec3(0.0f, 0.0f, 1.0f));
+
+	// 3. 십자가 문양 (흰색)
+	// 세로 줄
+	drawPart(shader, baseModel, glm::vec3(0.0f, 0.0f, 0.12f), glm::vec3(0.15f, 0.45f, 0.05f), glm::vec3(1.0f, 1.0f, 1.0f));
+	// 가로 줄
+	drawPart(shader, baseModel, glm::vec3(0.0f, 0.05f, 0.12f), glm::vec3(0.35f, 0.15f, 0.05f), glm::vec3(1.0f, 1.0f, 1.0f));
+
+	// 4. 손잡이 (뒤쪽)
+	drawPart(shader, baseModel, glm::vec3(0.0f, 0.0f, -0.1f), glm::vec3(0.2f, 0.2f, 0.1f), glm::vec3(0.4f, 0.2f, 0.0f));
+}
+
+//  자석 그리기 
+void drawMagnetModel(GLuint shader, glm::mat4 baseModel) {
+	glm::vec3 red(1.0f, 0.0f, 0.0f);
+	glm::vec3 silver(0.8f, 0.8f, 0.9f);
+
+	// 1. 왼쪽 기둥 (위쪽 빨강)
+	drawPart(shader, baseModel, glm::vec3(-0.2f, 0.1f, 0.0f), glm::vec3(0.15f, 0.3f, 0.15f), red);
+	// 1-2. 왼쪽 팁 (아래쪽 은색)
+	drawPart(shader, baseModel, glm::vec3(-0.2f, -0.15f, 0.0f), glm::vec3(0.15f, 0.15f, 0.15f), silver);
+
+	// 2. 오른쪽 기둥 (위쪽 빨강)
+	drawPart(shader, baseModel, glm::vec3(0.2f, 0.1f, 0.0f), glm::vec3(0.15f, 0.3f, 0.15f), red);
+	// 2-2. 오른쪽 팁 (아래쪽 은색)
+	drawPart(shader, baseModel, glm::vec3(0.2f, -0.15f, 0.0f), glm::vec3(0.15f, 0.15f, 0.15f), silver);
+
+	// 3. 위쪽 연결부 (빨강) - U자의 굽은 부분
+	drawPart(shader, baseModel, glm::vec3(0.0f, 0.25f, 0.0f), glm::vec3(0.55f, 0.15f, 0.15f), red);
+}
+
+//  물약 그리기 (플라스크 모양)
+void drawPotionModel(GLuint shader, glm::mat4 baseModel) {
+	glm::vec3 purple(0.6f, 0.0f, 0.8f);
+	glm::vec3 glassWhite(0.9f, 0.9f, 1.0f); // 약간 투명한 느낌의 흰색
+	glm::vec3 cork(0.6f, 0.4f, 0.2f); // 코르크 마개 색
+
+	// 1. 물약 액체 (아래쪽 뚱뚱한 부분)
+	drawPart(shader, baseModel, glm::vec3(0.0f, -0.15f, 0.0f), glm::vec3(0.4f, 0.35f, 0.4f), purple);
+
+	// 2. 병 목 (가운데 얇은 부분)
+	drawPart(shader, baseModel, glm::vec3(0.0f, 0.15f, 0.0f), glm::vec3(0.15f, 0.25f, 0.15f), glassWhite);
+
+	// 3. 병 입구 (목 위쪽 테두리)
+	drawPart(shader, baseModel, glm::vec3(0.0f, 0.3f, 0.0f), glm::vec3(0.2f, 0.05f, 0.2f), glassWhite);
+
+	// 4. 코르크 마개
+	drawPart(shader, baseModel, glm::vec3(0.0f, 0.35f, 0.0f), glm::vec3(0.12f, 0.1f, 0.12f), cork);
+}
+//  시계 그리기 (자명종 스타일)
+void drawClockModel(GLuint shader, glm::mat4 baseModel) {
+	glm::vec3 cyan(0.0f, 0.8f, 0.8f); // 메인 색상 (하늘색 계열)
+	glm::vec3 white(1.0f, 1.0f, 1.0f); // 시계 판
+	glm::vec3 black(0.1f, 0.1f, 0.1f); // 바늘
+	glm::vec3 silver(0.7f, 0.7f, 0.8f); // 다리, 벨 꼭다리
+
+	// 1. 시계 몸통 (테두리) - 하늘색 두꺼운 네모
+	drawPart(shader, baseModel, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.5f, 0.5f, 0.2f), cyan);
+
+	// 2. 시계 판 (흰색 앞면) - 몸통 앞쪽에 얇게 붙임
+	drawPart(shader, baseModel, glm::vec3(0.0f, 0.0f, 0.11f), glm::vec3(0.4f, 0.4f, 0.05f), white);
+
+	// 3. 시계 바늘 (검은색) - 시계 판 위에 얇게 붙임
+	// 분침 (위로 긴 거, 12시 방향)
+	drawPart(shader, baseModel, glm::vec3(0.0f, 0.1f, 0.15f), glm::vec3(0.05f, 0.25f, 0.05f), black);
+	// 시침 (오른쪽으로 짧은 거, 3시 방향)
+	drawPart(shader, baseModel, glm::vec3(0.1f, 0.0f, 0.15f), glm::vec3(0.2f, 0.05f, 0.05f), black);
+
+	// 4. 자명종 벨 (위에 두 개)
+	// 왼쪽 벨 몸통
+	drawPart(shader, baseModel, glm::vec3(-0.2f, 0.3f, 0.0f), glm::vec3(0.15f, 0.1f, 0.15f), cyan);
+	// 오른쪽 벨 몸통
+	drawPart(shader, baseModel, glm::vec3(0.2f, 0.3f, 0.0f), glm::vec3(0.15f, 0.1f, 0.15f), cyan);
+	// 왼쪽 벨 꼭다리 (은색 작은 점)
+	drawPart(shader, baseModel, glm::vec3(-0.2f, 0.35f, 0.0f), glm::vec3(0.05f, 0.05f, 0.05f), silver);
+	// 오른쪽 벨 꼭다리
+	drawPart(shader, baseModel, glm::vec3(0.2f, 0.35f, 0.0f), glm::vec3(0.05f, 0.05f, 0.05f), silver);
+
+	// 5. 다리 (아래 두 개) - 은색으로 받침대 표현
+	drawPart(shader, baseModel, glm::vec3(-0.15f, -0.3f, 0.0f), glm::vec3(0.08f, 0.1f, 0.08f), silver);
+	drawPart(shader, baseModel, glm::vec3(0.15f, -0.3f, 0.0f), glm::vec3(0.08f, 0.1f, 0.08f), silver);
+}
 // 아이템 그리기 함수
 void drawItem(const Item& item, GLuint shader) {
 	if (item.isCollected) return;
-
+	// 아이템의 기본 위치와 회전 설정
 	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(item.x, 0.5f, item.z));
-	model = glm::rotate(model, glm::radians(item.rotation), glm::vec3(0.0f, 1.0f, 0.0f)); // 회전
-	model = glm::scale(model, glm::vec3(0.4f)); // 크기 0.4
+	model = glm::rotate(model, glm::radians(item.rotation), glm::vec3(0.0f, 1.0f, 0.0f));
 
-	glm::vec3 color;
-	if (item.type == ITEM_SHIELD) color = glm::vec3(0.0f, 0.5f, 1.0f); // 파랑
-	else if (item.type == ITEM_MAGNET) color = glm::vec3(1.0f, 0.0f, 0.0f); // 빨강
-	else if (item.type == ITEM_CLOCK) color = glm::vec3(0.0f, 1.0f, 1.0f); // 하늘색
-
-	// 큐브 모양 아이템
-	glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
-	if (shader == shaderProgramID) {
-		glVertexAttrib3f(1, color.r, color.g, color.b);
+	// 아이템 종류에 따라 다른 모양 그리기
+	if (item.type == ITEM_SHIELD) {
+		// 방패는 크기를 약간 키움
+		model = glm::scale(model, glm::vec3(1.2f));
+		drawShieldModel(shader, model);
 	}
-	glDrawArrays(GL_TRIANGLES, 0, 36);
+	else if (item.type == ITEM_MAGNET) {
+		// 자석은 U자 형태가 잘 보이게 180도 돌려서 배치하거나 크기 조정
+		model = glm::scale(model, glm::vec3(1.3f));
+		// 자석은 기본적으로 세워져서 U자가 보이도록 각도 조정 
+		 
+		drawMagnetModel(shader, model);
+	}
+	else if (item.type == ITEM_POTION) {
+		model = glm::scale(model, glm::vec3(1.2f));
+		drawPotionModel(shader, model);
+	}
+	else if (item.type == ITEM_CLOCK) {
+		model = glm::scale(model, glm::vec3(1.2f)); // 다른 아이템들과 크기 비슷하게 맞춤
+		drawClockModel(shader, model);
+	}
 }
+
 
 // 철길 및 신호등 그리기
 void drawRail(int z, bool isWarning, bool isLightOn, GLuint shader) {
@@ -1859,6 +1958,14 @@ void timer(int value)
 			printf("!!! 치명적인 오류 발생! 조작 체계 손상 !!!\n");
 		}
 	}
+	if (isGiantMode) {
+		giantTimer -= 0.016f; // 시간 감소
+		if (giantTimer <= 0.0f) {
+			isGiantMode = false; // 거대화 해제
+			giantTimer = 0.0f;
+			printf(">>> 거대화 모드 종료! 원래대로 돌아옵니다. <<<\n");
+		}
+	}
 
 	// 카메라 흔들림 시간 감소 로직
 	if (shakeTimer > 0.0f) {
@@ -1976,17 +2083,21 @@ void timer(int value)
 			PlaySound(TEXT("item.wav"), NULL, SND_ASYNC | SND_FILENAME);
 
 			// [핵심 수정] 종류 불문하고 아이템을 먹으면 게이지 20% 충전!
-			if (!isGiantMode) {
-				giantGauge += 20.0f; // 1개당 20점 (5개면 100점)
-				if (giantGauge > 100.0f) giantGauge = 100.0f;
-
-				printf("아이템 획득! 현재 게이지: %.0f%%\n", giantGauge);
-
-				if (giantGauge >= 100.0f) {
-					printf(">>> 거인화 준비 완료! G키를 누르세요! <<<\n");
-				}
+			if (item.type == ITEM_POTION) {
+				if (!isGiantMode && !isFlying) {
+				isGiantMode = true;
+				giantTimer = 8.0f; // 8초간 지속
+				printf(">>> 성장 물약 획득! 거대화 발동! <<<\n");
+				spawnParticles(playerPos, glm::vec3(0.6f, 0.0f, 0.8f), 30, 1.5f); // 보라색 파티클
 			}
-			if (item.type == ITEM_SHIELD) {
+				else{
+				// 이미 거인이라면 시간 연장
+			giantTimer += 5.0f;
+			printf(">>> 성장 물약 획득! 시간 연장! <<<\n");
+		}
+				
+			}
+			else if (item.type == ITEM_SHIELD) {
 				hasShield = true;
 				printf("아이템 획득: 보호막!\n");
 				spawnParticles(playerPos, glm::vec3(0.0f, 0.5f, 1.0f), 20, 1.0f);
@@ -2914,7 +3025,7 @@ void keyboard(unsigned char key, int x, int y)
 		}
 	}
 
-	if (key == '4' || key == '5' || key == '6') {
+	if (key == '4' || key == '5' || key == '6' || key == '8') {
 		Item newItem;
 		newItem.x = (float)std::round(playerPos.x);       // 현재 내 라인
 		newItem.z = (float)std::round(playerPos.z) - 2.0f; // 2칸 앞 (진행방향)
@@ -2933,7 +3044,10 @@ void keyboard(unsigned char key, int x, int y)
 			newItem.type = ITEM_CLOCK;
 			printf(">>> 치트: 시계(Slow) 아이템 생성!\n");
 		}
-
+		else if (key == '8') { // [추가] 물약 생성 치트
+			newItem.type = ITEM_POTION;
+			printf(">>> 치트: 성장 물약(Potion) 아이템 생성!\n");
+		}
 		items.push_back(newItem);
 	}
 	if (key == '7') {
