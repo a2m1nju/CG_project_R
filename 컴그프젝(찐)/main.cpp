@@ -154,6 +154,17 @@ struct Cloud {
 };
 std::vector<Cloud> clouds; // 전역 구름 벡터
 
+// 날씨 파티클 구조체 
+struct WeatherParticle {
+	glm::vec3 pos;       // 위치
+	glm::vec3 color;     // 색상 (계절별로 다름)
+	glm::vec3 scaleVec;  // 크기/모양 (눈은 정육면체, 꽃잎은 납작하게)
+	float speed;         // 떨어지는 속도
+	float sway;          // 흔들림 정도
+	float swayPhase;     // 흔들림 주기
+};
+std::vector<WeatherParticle> weatherParticles;
+
 // 전역 변수
 GLuint vao, vbo;
 GLuint transLoc;
@@ -1270,6 +1281,27 @@ GLvoid drawScene()
 		drawClouds(shaderProgramID);
 	}
 
+	// 날씨 파티클 렌더링 (봄/가을/겨울 통합)
+	glUseProgram(shaderProgramID);
+	for (const auto& wp : weatherParticles) {
+		glm::mat4 model = glm::mat4(1.0f);
+		model = glm::translate(model, wp.pos);
+
+		// 계절마다 설정된 크기(모양) 적용
+		model = glm::scale(model, wp.scaleVec);
+
+		// 꽃잎이나 낙엽은 떨어질 때 빙글빙글 돌면 더 예쁩니다 
+		model = glm::rotate(model, wp.swayPhase, glm::vec3(0.5f, 1.0f, 0.2f));
+
+		glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "model"), 1, GL_FALSE, glm::value_ptr(model));
+
+		// 파티클마다 고유의 색상 적용
+		glVertexAttrib3f(1, wp.color.r, wp.color.g, wp.color.b);
+
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+	}
+
+
 	// 점수 표시 (좌측 상단)
 	std::string scoreStr = "SCORE: " + std::to_string(score);
 	renderTextWithOutline(20, 60, scoreStr.c_str());
@@ -1278,25 +1310,20 @@ GLvoid drawScene()
 	std::string coinStr = "COINS: " + std::to_string(coinCount);
 	renderTextWithOutline(1050, 60, coinStr.c_str());
 
-	// 경고 메시지 출력 (화면 중앙에 빨간 글씨로 깜빡임)
+	// 경고 메시지 출력 
 	if (isNightWarning) {
 		// 0.2초 간격으로 깜빡거리게 만들기
-		// (int)(timer * 5) % 2 가 0일 때만 글씨를 그림
 		if ((int)(nightWarningTimer * 5) % 2 == 0) {
 
 			// 화면 중앙 좌표 계산 (대략)
 			float centerX = 1280.0f / 2.0f;
 			float centerY = 960.0f / 2.0f;
 
-			// 텍스트 출력 (renderTextTTF 직접 사용해서 빨간색 적용)
-			// renderTextWithOutline을 써도 되지만, 빨간색 강조를 위해 직접 호출합니다.
-
 			// 그림자(검은색)
 			renderTextTTF(centerX - 150.0f + 3.0f, centerY + 3.0f, "WARNING: BLACKOUT!", 0.0f, 0.0f, 0.0f);
 			// 본문(빨간색)
 			renderTextTTF(centerX - 150.0f, centerY, "WARNING: BLACKOUT!", 1.0f, 0.0f, 0.0f);
 
-			// 한글 폰트가 지원된다면: "경고: 정전이 발생합니다!" 라고 쓰셔도 됩니다.
 		}
 	}
 
@@ -1783,6 +1810,65 @@ void timer(int value)
 		if (!isMoving && !isDashing) {
 			playerPos.y = restingY;
 			playerStartPos.y = restingY;
+		}
+	}
+
+
+	// 계절별 날씨 파티클 생성 로직
+	// 1. 현재 플레이어 위치의 계절 확인
+	int currentPZ = (int)std::round(playerPos.z);
+	GameSeason nowSeason = getSeasonByZ(currentPZ);
+
+	if (nowSeason != SUMMER) {
+		for (int i = 0; i < 3; ++i) {
+			WeatherParticle wp;
+
+			// 위치: 플레이어 주변 랜덤 
+			float rangeX = ((rand() % 500) / 10.0f) - 25.0f;
+			float rangeZ = ((rand() % 500) / 10.0f) - 25.0f;
+			wp.pos = glm::vec3(playerPos.x + rangeX, 15.0f, playerPos.z + rangeZ);
+
+			wp.swayPhase = (rand() % 100) / 10.0f; // 랜덤 시작 위상
+
+			// 계절별 속성 설정
+			if (nowSeason == SPRING) {
+				// 봄: 벚꽃
+				wp.color = glm::vec3(0.9f, 0.4f, 0.6f); // 연분홍
+				wp.scaleVec = glm::vec3(0.15f, 0.02f, 0.15f); 
+				wp.speed = 0.03f + (rand() % 5) / 100.0f; 
+			}
+			else if (nowSeason == AUTUMN) {
+				// 가을: 낙엽
+				float rVar = (rand() % 3) / 10.0f; // 색상 약간 다르게
+				wp.color = glm::vec3(0.7f + rVar, 0.35f, 0.05f); 
+				wp.scaleVec = glm::vec3(0.2f, 0.02f, 0.2f); 
+				wp.speed = 0.06f + (rand() % 5) / 100.0f; 
+			}
+			else if (nowSeason == WINTER) {
+				// 겨울: 눈 
+				wp.color = glm::vec3(1.0f, 1.0f, 1.0f); // 순백색
+				wp.scaleVec = glm::vec3(0.12f, 0.12f, 0.12f);
+				wp.speed = 0.1f + (rand() % 10) / 100.0f; 
+			}
+
+			weatherParticles.push_back(wp);
+		}
+	}
+
+	// 3. 파티클 업데이트 
+	for (auto it = weatherParticles.begin(); it != weatherParticles.end(); ) {
+		it->pos.y -= it->speed; // 하강
+
+		// 흔들리는 효과
+		it->swayPhase += 0.05f;
+		it->pos.x += sin(it->swayPhase) * 0.03f;
+
+		// 바닥 근처까지 오면 삭제
+		if (it->pos.y < -1.0f) {
+			it = weatherParticles.erase(it);
+		}
+		else {
+			++it;
 		}
 	}
 
