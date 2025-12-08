@@ -236,6 +236,15 @@ const float BIRD_LEAVE_DURATION = 1.0f; // 새가 떠나는 데 걸리는 시간
 float recoveryTimer = 0.0f; //착륙 후 무적 타이머(죽는 것 방지)
 bool isLandingSuccess = false;
 
+int introState = 1;
+
+GLuint logoTexture;          // 로고 텍스처 ID
+float introTimer = 0.0f;     // 시간 흐름 (사용 안 할 수도 있음)
+float logoX = -1300.0f;      // 현재 로고 위치
+float logoTargetX = 640.0f;  // 목표 위치 (화면 중앙)
+float logoStartX = -1300.0f; // 시작 위치 (퇴장할 때 돌아갈 곳)
+float logoY = 600.0f;
+
 // 핀 조명 이벤트
 bool isNightMode = false;       // 현재 핀 조명 모드인가?
 float nightModeTimer = 0.0f;    // 핀 조명 지속 시간
@@ -1281,6 +1290,56 @@ void drawClouds(GLuint shader) {
 	}
 }
 
+void drawLogo() {
+	// 1. 3D 설정 잠시 끄기 (조명, 깊이 테스트 해제)
+	glDisable(GL_LIGHTING);
+	glDisable(GL_DEPTH_TEST);
+	glUseProgram(0); // 쉐이더 해제 (이미지 원본 색상 사용)
+
+	// 2. 2D 좌표계로 전환 (Orthographic Projection)
+	glMatrixMode(GL_PROJECTION);
+	glPushMatrix(); // 기존 3D 카메라 저장
+	glLoadIdentity();
+	gluOrtho2D(0, 1280, 0, 960); // 화면 해상도에 맞춘 2D 좌표
+
+	glMatrixMode(GL_MODELVIEW);
+	glPushMatrix();
+	glLoadIdentity();
+
+	// 3. 투명 배경 적용 (PNG 알파값 사용)
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	// 4. 텍스처 바인딩 및 그리기
+	glEnable(GL_TEXTURE_2D);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, logoTexture);
+
+	glColor3f(1.0f, 1.0f, 1.0f); // 색상 간섭 없게 흰색으로 설정
+
+	float w = 700.0f; // 로고 가로 크기 (적절히 조절하세요)
+	float h = 500.0f; // 로고 세로 크기
+
+	// logoX 변수를 따라 움직임
+	glBegin(GL_QUADS);
+	glTexCoord2f(0.0f, 0.0f); glVertex2f(logoX - w / 2, logoY - h / 2); // 좌하
+	glTexCoord2f(1.0f, 0.0f); glVertex2f(logoX + w / 2, logoY - h / 2); // 우하
+	glTexCoord2f(1.0f, 1.0f); glVertex2f(logoX + w / 2, logoY + h / 2); // 우상
+	glTexCoord2f(0.0f, 1.0f); glVertex2f(logoX - w / 2, logoY + h / 2); // 좌상
+	glEnd();
+
+	// 5. 설정 복구 (다시 3D 그릴 준비)
+	glDisable(GL_TEXTURE_2D);
+	glDisable(GL_BLEND);
+	glEnable(GL_DEPTH_TEST); // 깊이 테스트 다시 켜기
+	// glEnable(GL_LIGHTING); // 조명은 drawScene에서 다시 켜므로 생략 가능
+
+	glMatrixMode(GL_PROJECTION);
+	glPopMatrix(); // 3D 카메라 복구
+	glMatrixMode(GL_MODELVIEW);
+	glPopMatrix();
+}
+
 GLvoid drawScene()
 {
 	// 1. 카메라 흔들림 오프셋 계산
@@ -1533,6 +1592,29 @@ GLvoid drawScene()
 		// 하늘색 텍스트로 중앙 상단에 표시
 		renderTextWithOutline(1280 / 2 - 150, 800, windStr.c_str());
 	}
+	if (introState != 0) {
+		drawLogo();
+
+		// 대기 상태(2)일 때만 안내 문구 표시
+		if (introState == 2) {
+			// 깜빡이는 효과 (timer 이용)
+			static float blinkTimer = 0.0f;
+			blinkTimer += 0.05f;
+			if (sin(blinkTimer) > 0) {
+				renderTextWithOutline(1280 / 2 - 150, 700, "PRESS ANY KEY!");
+			}
+		}
+	}
+
+	// 게임 플레이 상태(0)라면 게임 UI(점수 등) 그리기
+	if (introState == 0) {
+		std::string scoreStr = "SCORE: " + std::to_string(score);
+		renderTextWithOutline(20, 60, scoreStr.c_str());
+		// ... (나머지 코인, 아이템 UI 등 기존 코드) ...
+		if (isLandingSuccess) {
+			renderTextWithOutline(1280 / 2 - 100, 200, "SAFE LANDING!");
+		}
+	}
 
 	glutSwapBuffers();
 }
@@ -1559,6 +1641,42 @@ void spawnParticles(glm::vec3 pos, glm::vec3 color, int count, float speedScale)
 
 void timer(int value)
 {
+	// [인트로 애니메이션 로직]
+	if (introState != 0) { // 0(게임 중)이 아니면 인트로 로직 수행
+
+		// 상태 1: 로고 등장 (왼쪽 -> 중앙)
+		if (introState == 1) {
+			// 부드럽게 감속하며 이동 (Lerp)
+			logoX = logoX + (logoTargetX - logoX) * 0.05f;
+
+			// 목표 지점에 거의 도달했으면?
+			if (std::abs(logoX - logoTargetX) < 1.0f) {
+				logoX = logoTargetX; // 위치 고정
+				introState = 2;      // '대기' 상태로 전환
+				printf("로고 도착! 클릭 대기 중...\n");
+			}
+		}
+		// 상태 2: 대기 (아무것도 안 함, 마우스 클릭 기다림)
+		else if (introState == 2) {
+			// (옵션) 둥둥 떠있는 효과를 주려면 여기서 logoY를 sin함수로 건드리면 됨
+		}
+		// 상태 3: 로고 퇴장 (중앙 -> 왼쪽, 들어온 방향 반대로)
+		else if (introState == 3) {
+			// 시작 지점(왼쪽)으로 다시 이동
+			logoX = logoX + (logoStartX - logoX) * 0.05f;
+
+			// 화면 밖으로 완전히 나갔으면?
+			if (std::abs(logoX - logoStartX) < 10.0f) {
+				introState = 0; // 인트로 종료, 게임 시작!
+				printf("인트로 완전 종료! 게임 시작!\n");
+			}
+		}
+
+		// 인트로 중에도 배경은 계속 움직여야 하므로 return 안 함!
+	}
+	
+	
+	
 	// 카메라 흔들림 시간 감소 로직
 	if (shakeTimer > 0.0f) {
 		shakeTimer -= 0.016f;
@@ -2445,6 +2563,7 @@ void initGame()
 	loadTexture("grass.jpg", &grassTexture);
 	loadTexture("wood.jpg", &logTexture);
 	loadTexture("lilypad.jpg", &lilyPadTexture);
+	loadTexture("logo.png", &logoTexture);
 
 }
 
@@ -2457,6 +2576,16 @@ bool isTreeAt(int x, int z) {
 
 void specialKeyboard(int key, int x, int y)
 {
+	// [수정] 인트로 상태 처리
+	if (introState != 0) {
+		// 대기 상태(2)일 때 키를 누르면 -> 퇴장 상태(3)로 변경
+		if (introState == 2) {
+			introState = 3;
+			printf("방향키 입력 감지! 게임 시작!\n");
+		}
+		return; // 인트로 중에는 닭 움직임 방지
+	}
+
 	if (isMoving) return;
 	if (isMoving || isDashing) return;
 
@@ -2522,6 +2651,15 @@ void keyboard(unsigned char key, int x, int y)
 {
 	if (key == 'q' || key == 'Q') {
 		exit(0);
+	}
+	// [수정] 인트로 상태 처리
+	if (introState != 0) {
+		// 대기 상태(2)일 때 키를 누르면 -> 퇴장 상태(3)로 변경
+		if (introState == 2) {
+			introState = 3;
+			printf("키 입력 감지! 게임 시작!\n");
+		}
+		return; // 인트로 중에는 게임 조작(아이템 등) 방지
 	}
 
 	if (key == ' ') {
