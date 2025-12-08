@@ -245,6 +245,9 @@ float logoTargetX = 640.0f;  // 목표 위치 (화면 중앙)
 float logoStartX = -1300.0f; // 시작 위치 (퇴장할 때 돌아갈 곳)
 float logoY = 600.0f;
 
+bool isGlitchMode = false;
+float glitchTimer = 0.0f;
+
 // 핀 조명 이벤트
 bool isNightMode = false;       // 현재 핀 조명 모드인가?
 float nightModeTimer = 0.0f;    // 핀 조명 지속 시간
@@ -1386,7 +1389,7 @@ GLvoid drawScene()
 	glUniformMatrix4fv(glGetUniformLocation(depthShader, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
 
 	
-		renderObjects(depthShader, lightSpaceMatrix);
+	renderObjects(depthShader, lightSpaceMatrix);
 	
 	
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -1403,6 +1406,7 @@ GLvoid drawScene()
 	}
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glUseProgram(shaderProgramID);
+	glUniform1i(glGetUniformLocation(shaderProgramID, "isGlitch"), isGlitchMode ? 1 : 0);
 
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "projection"), 1, GL_FALSE, glm::value_ptr(proj));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "view"), 1, GL_FALSE, glm::value_ptr(view));
@@ -1509,8 +1513,8 @@ GLvoid drawScene()
 			float centerY = 960.0f / 2.0f;
 
 			// 그림자 + 본문
-			renderTextTTF(centerX - 150.0f + 3.0f, centerY + 3.0f, "WARNING: BLACKOUT!", 0.0f, 0.0f, 0.0f);
-			renderTextTTF(centerX - 150.0f, centerY, "WARNING: BLACKOUT!", 1.0f, 0.0f, 0.0f);
+			renderTextTTF(centerX - 200.0f + 3.0f, centerY + 3.0f, "WARNING: BLACKOUT!", 0.0f, 0.0f, 0.0f);
+			renderTextTTF(centerX - 200.0f, centerY, "WARNING: BLACKOUT!", 1.0f, 0.0f, 0.0f);
 		}
 	}
 	// 비행 중 텍스트 UI
@@ -1615,6 +1619,12 @@ GLvoid drawScene()
 			renderTextWithOutline(1280 / 2 - 100, 200, "SAFE LANDING!");
 		}
 	}
+	if (isGlitchMode) {
+		// 빨간색으로 경고 (색상 반전되면 파란색으로 보일 수 있음)
+		float centerX = 1280.0f / 2.0f;
+		float centerY = 960.0f / 2.0f; // 화면 정중앙 높이 (480.0f)
+		renderTextWithOutline(centerX - 470.0f, centerY, "SYSTEM ERROR: CONTROLS REVERSED!");
+	}
 
 	glutSwapBuffers();
 }
@@ -1674,7 +1684,29 @@ void timer(int value)
 
 		// 인트로 중에도 배경은 계속 움직여야 하므로 return 안 함!
 	}
-	
+	// [글리치 모드 로직]
+	if (isGlitchMode) {
+		glitchTimer -= 0.016f;
+
+		// 1. 지속적인 화면 흔들림 (고장난 느낌)
+		shakeTimer = 0.1f;       // 계속 흔들림 유지
+		shakeMagnitude = 0.15f;  // 강도 설정
+
+		// 2. 종료 체크
+		if (glitchTimer <= 0.0f) {
+			isGlitchMode = false;
+			printf("시스템 복구 완료. 정상 모드로 돌아옵니다.\n");
+		}
+	}
+	else {
+		// [발동 조건] 
+		// 예: 점수가 50점 넘고, 랜덤 확률(0.1%)로 갑자기 발생
+		if ( !isFlying && !isEventActive && (rand() % 1000 < 2)) {
+			isGlitchMode = true;
+			glitchTimer = 5.0f; // 5초간 지속
+			printf("!!! 치명적인 오류 발생! 조작 체계 손상 !!!\n");
+		}
+	}
 	
 	
 	// 카메라 흔들림 시간 감소 로직
@@ -2589,6 +2621,16 @@ void specialKeyboard(int key, int x, int y)
 	if (isMoving) return;
 	if (isMoving || isDashing) return;
 
+	// [추가] 글리치 모드일 때 키 입력 뒤집기! (핵심)
+	if (isGlitchMode) {
+		switch (key) {
+		case GLUT_KEY_UP:    key = GLUT_KEY_DOWN; break;
+		case GLUT_KEY_DOWN:  key = GLUT_KEY_UP; break;
+		case GLUT_KEY_LEFT:  key = GLUT_KEY_RIGHT; break;
+		case GLUT_KEY_RIGHT: key = GLUT_KEY_LEFT; break;
+		}
+	}
+
 	int nextX = (int)std::round(playerPos.x);
 	int nextZ = (int)std::round(playerPos.z);
 
@@ -2731,6 +2773,11 @@ void keyboard(unsigned char key, int x, int y)
 		}
 
 		items.push_back(newItem);
+	}
+	if (key == '7') {
+		isGlitchMode = !isGlitchMode;
+		if (isGlitchMode) glitchTimer = 5.0f;
+		printf("치트: 글리치 모드 전환\n");
 	}
 }
 

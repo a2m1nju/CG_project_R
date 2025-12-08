@@ -20,6 +20,8 @@ uniform vec2 uvScale;
 uniform int enableSpotlight;   // 1이면 핀 조명 켜짐, 0이면 꺼짐
 uniform vec3 spotlightPos;     // 주인공(빛의 중심) 위치
 
+uniform int isGlitch;
+
 float ShadowCalc(vec4 fragLightSpace)
 {
     vec3 projCoords = fragLightSpace.xyz / fragLightSpace.w;
@@ -72,6 +74,10 @@ void main()
         
         // 전체적으로 어둡게 만들고, 스팟 조명 효과를 더함
         finalColor = finalColor * (0.0 + spotEffect * 1.5); 
+    }
+    // [추가] 글리치 모드면 색상 반전 (1.0 - color)
+    if (isGlitch == 1) {
+        finalColor = vec3(1.0 - finalColor.r, 1.0 - finalColor.g, 1.0 - finalColor.b);
     }
 
     // 최종 색상을 출력 변수에 저장
