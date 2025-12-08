@@ -9,6 +9,7 @@
 #pragma comment(lib, "glew32.lib")
 #pragma comment(lib, "freeglut.lib")
 #pragma comment(lib, "winmm.lib")
+#pragma comment(lib, "glew32.lib")
 #pragma warning(disable: 4711 4710 4100)
 
 void Reshape(int w, int h)
