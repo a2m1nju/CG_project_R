@@ -1474,7 +1474,7 @@ void timer(int value)
 		}
 		else {
 			// 확률 체크
-			if (rand() % 500 < 1) {
+			if (rand() % 1500 < 1) {
 				isNightWarning = true;
 				nightWarningTimer = WARNING_DURATION;
 				printf("!!! 정전 경고 발령 !!!\n");
@@ -1836,9 +1836,34 @@ void timer(int value)
 			isDashing = false; // 대쉬 상태 초기화
 			dashTimer = 0.0f;
 			dashCooldownTimer = 0.0f;
+
+			// 바람 이벤트 초기화
+			isWindActive = false;
+			windTimer = 0.0f;
+			windForce = 0.0f;
+
+			// 핀 조명(암전) 이벤트 초기화
+			isNightMode = false;
+			isNightWarning = false;
+			nightModeTimer = 0.0f;
+			nightWarningTimer = 0.0f;
+			nightEventCooldown = 10.0f; 
+
+			// 로켓/연타 이벤트 초기화
+			isEventActive = false;
+			eventProgress = 0.0f;
+			requiredTaps = 0;
+			lastEventScore = 0; 
+
+			// 비행 상태 초기화 (혹시 날다가 죽었을 경우 대비)
+			isFlying = false;
+			isLanding = false;
+			isBirdLeaving = false;
+
 			score = 0;
 			minZ = 0;
 			coinCount = 0;
+
 			cars.clear();
 			logs.clear();
 			lilyPads.clear();
@@ -1846,6 +1871,8 @@ void timer(int value)
 			mapType.clear();
 			trains.clear();
 			particles.clear();
+			weatherParticles.clear();
+
 			for (int z = -10; z < 10; ++z) generateLane(z);
 
 			glutPostRedisplay();
@@ -2290,6 +2317,20 @@ void keyboard(unsigned char key, int x, int y)
 		// 연타 이벤트 중이 아닐 때 스페이스바를 누른 경우
 		if (!isMoving && !isFlying && !isLanding) {
 			printf("현재 스페이스바는 로켓 라이드 이벤트 중에만 사용 가능합니다.\n");
+		}
+	}
+
+	if (key == '2') {
+		if (!isNightMode && !isNightWarning) {
+			isNightWarning = true;
+			nightWarningTimer = 3.0f; // 3초간 경고 후 암전
+			printf(">>> 테스트: 핀 조명(암전) 이벤트 강제 활성화! >>>\n");
+		}
+		else {
+			isNightWarning = false;
+			isNightMode = false;
+			nightModeTimer = 0.0f;
+			printf("테스트: 핀 조명 이벤트 강제 종료.\n");
 		}
 	}
 
