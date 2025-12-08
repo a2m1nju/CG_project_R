@@ -222,7 +222,7 @@ const float BIRD_LEAVE_DURATION = 1.0f; // 새가 떠나는 데 걸리는 시간
 bool isNightMode = false;       // 현재 핀 조명 모드인가?
 float nightModeTimer = 0.0f;    // 핀 조명 지속 시간
 float nightEventCooldown = 10.0f; // 다음 이벤트 발생까지 남은 시간
-const float NIGHT_DURATION = 15.0f; // 한 번 켜지면 5초간 지속
+const float NIGHT_DURATION = 10.0f;
 
 // 핀 조명 경고(예고) 관련 변수
 bool isNightWarning = false;        // 현재 경고 중인가?
@@ -232,6 +232,12 @@ const float WARNING_DURATION = 3.0f; // 3초 동안 경고 후 암전
 // 기차 카메라 흔들림 관련 변수
 float shakeTimer = 0.0f;      // 흔들림 지속 시간
 float shakeMagnitude = 0.0f;  // 흔들림 강도 (0.0 ~ 1.0)
+
+// 바람 이벤트 관련 변수
+bool isWindActive = false;      // 바람이 불고 있는가?
+float windTimer = 0.0f;         // 바람 지속 시간
+float windForce = 0.0f;         // 바람의 세기 및 방향 (+는 우측, -는 좌측)
+const float WIND_DURATION = 6.0f; // 바람 지속 시간 (6초)
 
 std::map<int, int> mapType; // 0=잔디 1=도로
 std::map<int, std::vector<int>> treeMap;
@@ -1394,6 +1400,17 @@ GLvoid drawScene()
 		glEnable(GL_DEPTH_TEST);
 		glUseProgram(shaderProgramID);
 	}
+
+	// 바람 경고 UI
+	if (isWindActive) {
+		std::string windStr;
+		if (windForce > 0) windStr = ">>> STRONG WIND >>>";
+		else windStr = "<<< STRONG WIND <<<";
+
+		// 하늘색 텍스트
+		renderTextWithOutline(1280 / 2 - 150, 800, windStr.c_str());
+	}
+
 	glutSwapBuffers();
 }
 
@@ -1484,6 +1501,66 @@ void timer(int value)
 	if (dashCooldownTimer > 0.0f) {
 		dashCooldownTimer -= 0.016f;
 		if (dashCooldownTimer < 0.0f) dashCooldownTimer = 0.0f;
+	}
+
+	// 바람 이벤트 로직 (깔끔한 버전)
+
+	if (isWindActive) {
+		windTimer -= 0.016f;
+
+		// 1. 플레이어 밀림 (나무 충돌 체크)
+		if (!isMoving && !isFlying && !isLanding) {
+
+			// 예상되는 다음 X 위치 계산
+			float nextX = playerPos.x + windForce;
+			int currentZ = (int)std::round(playerPos.z);
+
+			// 바람 방향에 따른 몸통 충돌 오프셋 (+0.4 또는 -0.4)
+			float bodyOffset = (windForce > 0) ? 0.4f : -0.4f;
+
+			// 내가 밀려날 곳의 그리드 좌표 확인
+			int checkGridX = (int)std::round(nextX + bodyOffset);
+
+			if (!isTreeAt(checkGridX, currentZ)) {
+				playerPos.x += windForce;
+				playerStartPos.x += windForce;
+				playerTargetPos.x += windForce;
+			}
+		}
+
+		// 4. 바람 파티클 효과 (유지)
+		if (rand() % 10 < 3) {
+			float spawnX = (windForce > 0) ? -20.0f : 20.0f;
+			float spawnZ = playerPos.z + (rand() % 40 - 20);
+			float spawnY = (rand() % 10) + 2.0f;
+
+			glm::vec3 pPos(spawnX, spawnY, spawnZ);
+			glm::vec3 pColor(0.9f, 0.95f, 1.0f);
+
+			Particle p;
+			p.position = pPos;
+			p.velocity = glm::vec3(windForce * 50.0f, -0.1f, 0.0f);
+			p.color = pColor;
+			p.scale = 0.1f;
+			p.life = 0.8f;
+			particles.push_back(p);
+		}
+
+		// 바람 종료 체크
+		if (windTimer <= 0.0f) {
+			isWindActive = false;
+			printf("바람이 멈췄습니다.\n");
+		}
+	}
+	else {
+		if (!isFlying && !isEventActive && !isNightMode && rand() % 300 < 1) {
+			isWindActive = true;
+			windTimer = WIND_DURATION; 
+
+			windForce = (rand() % 2 == 0 ? 0.04f : -0.04f);
+
+			printf("!!! 강풍 경보 !!! 방향: %s\n", (windForce > 0 ? "오른쪽 >>>" : "<<< 왼쪽"));
+		}
 	}
 
 	if (isDashing) {
@@ -2214,6 +2291,19 @@ void keyboard(unsigned char key, int x, int y)
 		// 연타 이벤트 중이 아닐 때 스페이스바를 누른 경우
 		if (!isMoving && !isFlying && !isLanding) {
 			printf("현재 스페이스바는 로켓 라이드 이벤트 중에만 사용 가능합니다.\n");
+		}
+	}
+
+	if (key == '3') {
+		if (!isWindActive) {
+			isWindActive = true;
+			windTimer = 6.0f; // 6초 지속
+			windForce = 0.04f; // 오른쪽으로 밀기
+			printf(">>> 테스트: 강풍 강제 활성화! >>>\n");
+		}
+		else {
+			isWindActive = false;
+			printf("테스트: 강풍 강제 종료.\n");
 		}
 	}
 }
