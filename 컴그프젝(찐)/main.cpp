@@ -248,6 +248,11 @@ float logoY = 600.0f;
 bool isGlitchMode = false;
 float glitchTimer = 0.0f;
 
+// [진격의 거인 모드 변수]
+bool isGiantMode = false;
+float giantTimer = 0.0f;
+float giantGauge = 0.0f; // 0 ~ 100.0 (100이면 발동 가능)
+
 // 핀 조명 이벤트
 bool isNightMode = false;       // 현재 핀 조명 모드인가?
 float nightModeTimer = 0.0f;    // 핀 조명 지속 시간
@@ -954,7 +959,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 	int currentZ = (int)std::round(playerPos.z);
 	int drawRangeFront = 30;
 	int drawRangeBack = 10;
-
+	float groundWidth = 300.0f;
 	//// [수정 2] 구름 그리기 전에 텍스처 끄기 설정 추가
 	//if (isFlying || isLanding) {
 	//	if (shader == shaderProgramID) {
@@ -971,8 +976,10 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 			// 바닥(Lane) 모델 행렬 설정
 			glm::mat4 model = glm::mat4(1.0f);
 			model = glm::translate(model, glm::vec3(0.0f, -0.5f, (float)z));
-			model = glm::scale(model, glm::vec3(31.0f, 1.0f, 1.0f)); // 가로로 31배 확대
-
+			//model = glm::scale(model, glm::vec3(31.0f, 1.0f, 1.0f)); // 가로로 31배 확대
+			// [수정] 바닥 가로 길이를 31.0f -> 200.0f로 대폭 늘립니다! (검은 공간 제거)
+			
+			model = glm::scale(model, glm::vec3(groundWidth, 1.0f, 1.0f));
 			glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
 			if (shader == shaderProgramID) {
@@ -985,7 +992,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 					glUniform1i(texLoc, 1); // 샘플러에 1번 유닛 지정
 					glUniform1i(useTexLoc, 1); // 텍스처 사용 ON
 
-					glUniform2f(uvScaleLoc, 31.0f, 1.0f);
+					glUniform2f(uvScaleLoc, groundWidth/2.0f, 1.0f);
 
 					glVertexAttrib3f(1, 1.0f, 1.0f, 1.0f);
 				}
@@ -996,7 +1003,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 					glUniform1i(texLoc, 1);
 					glUniform1i(useTexLoc, 1); // 텍스처 사용 ON
 
-					glUniform2f(uvScaleLoc, 31.0f, 1.0f);
+					glUniform2f(uvScaleLoc, groundWidth/2.0f, 1.0f);
 
 					glVertexAttrib3f(1, colors.grass.r, colors.grass.g, colors.grass.b);
 				}
@@ -1026,7 +1033,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 			if (mapType[z] == 1) {
 				glm::vec3 lineScale = glm::vec3(1.0f, 0.02f, 0.15f);
 
-				for (float x = -15.0f; x <= 15.0f; x += 5.0f) {
+				for (float x = -groundWidth / 2; x <= groundWidth / 2; x += 5.0f) {
 					glm::mat4 lineModel = glm::mat4(1.0f);
 					lineModel = glm::translate(lineModel, glm::vec3(x, 0.01f, (float)z));
 					lineModel = glm::scale(lineModel, lineScale);
@@ -1132,7 +1139,8 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 	// 플레이어 (닭)
 	glm::mat4 pModel = glm::translate(glm::mat4(1.0f), playerPos);
 	pModel = glm::rotate(pModel, glm::radians(playerRotation), glm::vec3(0.0f, 1.0f, 0.0f));
-	pModel = glm::scale(pModel, glm::vec3(0.7f));
+	float scale = isGiantMode ? 3.5f : 0.7f;
+	pModel = glm::scale(pModel, glm::vec3(scale));
 	if (isFlying) {
 		glm::mat4 birdModel = pModel;
 		birdModel = glm::translate(birdModel, glm::vec3(0.0f, 0.5f, 0.0f));
@@ -1158,6 +1166,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 	}
 
 	glDrawArrays(GL_TRIANGLES, 0, 36);
+    
 }   
 
 
@@ -1363,7 +1372,13 @@ GLvoid drawScene()
 	glm::mat4 proj = glm::perspective(glm::radians(45.0f), 1280.f / 960.f, 0.1f, 100.f);
 
 	glm::mat4 view;
-	if (isFlying || isLanding || isBirdLeaving) {
+	if (isGiantMode) {
+		// 거인 모드: 훨씬 높고(25), 뒤로(15) 뺍니다.
+		view = glm::lookAt(cameraTarget + glm::vec3(0, 18, 16) + shakeOffset,
+			cameraTarget + shakeOffset,
+			glm::vec3(0, 1, 0));
+	}
+	else if (isFlying || isLanding || isBirdLeaving) {
 		// 비행 시점 (흔들림 추가)
 		view = glm::lookAt(cameraTarget + glm::vec3(2, 16, 10) + shakeOffset,
 			cameraTarget + shakeOffset,
@@ -1614,7 +1629,45 @@ GLvoid drawScene()
 	if (introState == 0) {
 		std::string scoreStr = "SCORE: " + std::to_string(score);
 		renderTextWithOutline(20, 60, scoreStr.c_str());
-		// ... (나머지 코인, 아이템 UI 등 기존 코드) ...
+		// 2. 코인 표시
+		std::string coinStr = "COINS: " + std::to_string(coinCount);
+		renderTextWithOutline(1050, 60, coinStr.c_str());
+		glUseProgram(0);
+		glDisable(GL_DEPTH_TEST);
+
+		float barX = 150.0f;
+		float barY = 900.0f;
+		float barW = 200.0f;
+		float barH = 20.0f;
+
+		// 배경(회색)
+		glBegin(GL_QUADS);
+		glColor3f(0.3f, 0.3f, 0.3f);
+		glVertex2f(barX - barW / 2, barY - barH / 2);
+		glVertex2f(barX + barW / 2, barY - barH / 2);
+		glVertex2f(barX + barW / 2, barY + barH / 2);
+		glVertex2f(barX - barW / 2, barY + barH / 2);
+		glEnd();
+
+		// 게이지(노랑 -> 빨강)
+		float fill = (giantGauge / 100.0f) * barW;
+		glBegin(GL_QUADS);
+		if (giantGauge >= 100.0f) glColor3f(1.0f, 0.2f, 0.2f); // 완충 시 빨강
+		else glColor3f(1.0f, 1.0f, 0.0f); // 충전 중 노랑
+
+		glVertex2f(barX - barW / 2, barY - barH / 2);
+		glVertex2f(barX - barW / 2 + fill, barY - barH / 2);
+		glVertex2f(barX - barW / 2 + fill, barY + barH / 2);
+		glVertex2f(barX - barW / 2, barY + barH / 2);
+		glEnd();
+
+		renderTextWithOutline(barX - 60, barY - 30, "GIANT GAUGE");
+		if (giantGauge >= 100.0f && !isGiantMode) {
+			renderTextWithOutline(barX - 50, barY - 60, "[PRESS G!]");
+		}
+
+		glEnable(GL_DEPTH_TEST);
+	
 		if (isLandingSuccess) {
 			renderTextWithOutline(1280 / 2 - 100, 200, "SAFE LANDING!");
 		}
@@ -1628,6 +1681,7 @@ GLvoid drawScene()
 
 	glutSwapBuffers();
 }
+
 
 // 파티클 생성 함수
 // pos: 발생 위치, color: 색상, count: 개수, speedScale: 퍼지는 속도 계수
@@ -1823,6 +1877,17 @@ void timer(int value)
 		if (std::abs(item.z - playerPos.z) < 0.5f && std::abs(item.x - playerPos.x) < 0.5f) {
 			item.isCollected = true;
 
+			// [핵심 수정] 종류 불문하고 아이템을 먹으면 게이지 20% 충전!
+			if (!isGiantMode) {
+				giantGauge += 20.0f; // 1개당 20점 (5개면 100점)
+				if (giantGauge > 100.0f) giantGauge = 100.0f;
+
+				printf("아이템 획득! 현재 게이지: %.0f%%\n", giantGauge);
+
+				if (giantGauge >= 100.0f) {
+					printf(">>> 거인화 준비 완료! G키를 누르세요! <<<\n");
+				}
+			}
 			if (item.type == ITEM_SHIELD) {
 				hasShield = true;
 				printf("아이템 획득: 보호막!\n");
@@ -2078,11 +2143,11 @@ void timer(int value)
 		// [충돌 검사 시작]
 		bool isDead = false;
 		//무적 판정 조건 변수
-		bool isInvincible = isDashing || (recoveryTimer > 0.0f) || hasShield;
+		bool isInvincible = isDashing || (recoveryTimer > 0.0f) || hasShield || isGiantMode;
 
 		// 자동차 충돌
 		for (auto& car : cars) {
-			// [수정] 슬로우 효과 적용
+			//  슬로우 효과 적용
 			car.x += car.speed * globalSpeedRate;
 			if (car.x > 18.0f && car.speed > 0) car.x = -18.0f;
 			if (car.x < -18.0f && car.speed < 0) car.x = 18.0f;
@@ -2092,7 +2157,19 @@ void timer(int value)
 				(abs(car.z - playerPos.z) < 0.08f && abs(car.x - playerPos.x) < 1.2f);
 
 			if (hit) {
-				if (hasShield) {
+				if (isGiantMode) {
+					// 쾅 하는 파티클 효과
+					spawnParticles(glm::vec3(car.x, 0.5f, car.z), car.color, 30, 1.5f);
+
+					// 차를 화면 밖으로 세게 밀어버림 (날라가는 효과 흉내)
+					if (car.x > playerPos.x) car.x += 30.0f; // 오른쪽으로 날림
+					else car.x -= 30.0f; // 왼쪽으로 날림
+
+					score += 5; // 파괴 점수
+					shakeTimer = 0.1f; shakeMagnitude = 0.2f; // 타격감
+					printf("거인의 발차기! 자동차 파괴!\n");
+				}
+			else if (hasShield) {
 					hasShield = false; // 보호막 소모
 					spawnParticles(playerPos, glm::vec3(0.5f, 0.5f, 1.0f), 30, 2.0f); // 파란 파티클
 					printf("보호막이 충돌을 막았습니다!\n");
@@ -2109,36 +2186,43 @@ void timer(int value)
 		int pZ = (int)std::round(playerPos.z);
 		if (!isMoving && mapType.count(pZ) && mapType[pZ] == 2) {
 			bool safe = false;
-			// 통나무 체크
-			for (const auto& logObj : logs) {
-				if (logObj.z == (float)pZ &&
-					playerPos.x >= logObj.x - logObj.width / 2.0f - 0.4f &&
-					playerPos.x <= logObj.x + logObj.width / 2.0f + 0.4f) {
-					safe = true;
-					restingY = 1.1f;
-					break;
-				}
+			if (isGiantMode) {
+				safe = true;
+				restingY = 0.5f; // 물에 잠기지 않고 바닥 높이 유지
 			}
-			// 연잎 체크
-			if (!safe) {
-				for (const auto& pad : lilyPads) {
-					if (pad.z == (float)pZ && std::abs(playerPos.x - pad.x) < 0.6f) {
+
+			else {
+				// 통나무 체크
+				for (const auto& logObj : logs) {
+					if (logObj.z == (float)pZ &&
+						playerPos.x >= logObj.x - logObj.width / 2.0f - 0.4f &&
+						playerPos.x <= logObj.x + logObj.width / 2.0f + 0.4f) {
 						safe = true;
-						restingY = 0.93f;
+						restingY = 1.1f;
 						break;
 					}
-				
 				}
+				// 연잎 체크
+				if (!safe) {
+					for (const auto& pad : lilyPads) {
+						if (pad.z == (float)pZ && std::abs(playerPos.x - pad.x) < 0.6f) {
+							safe = true;
+							restingY = 0.93f;
+							break;
+						}
+
+					}
+				}
+				if (!safe) {
+					if (isInvincible) {
+						restingY = 0.5f;
+					}
+					else {
+						isDead = true;
+					}
+				}
+				if (playerPos.x < -16.0f || playerPos.x > 16.0f) isDead = true;
 			}
-			if (!safe) {
-				if (isInvincible) {
-					restingY = 0.5f;
-				}
-				else {
-					isDead = true;
-				}
-			}
-			if (playerPos.x < -16.0f || playerPos.x > 16.0f) isDead = true;
 		}
 
 		// 기차 충돌 검사
@@ -2181,8 +2265,18 @@ void timer(int value)
 
 					if (playerGridZ == trainGridZ) {
 						if (playerPos.x > t.x - 9.0f && playerPos.x < t.x + 9.0f) {
-							isDead = true;
-							printf("기차에 치임!\n");
+							if (isGiantMode) {
+								spawnParticles(playerPos, glm::vec3(1.0f, 0.0f, 0.0f), 50, 2.0f); // 폭발 파티클
+								shakeTimer = 0.3f; shakeMagnitude = 0.5f; // 강한 흔들림
+								score += 10; // 기차 파괴 보너스
+								printf("거인이 기차를 막아섰습니다!\n");
+								// 기차는 멈추거나 사라지게 하려면 여기서 t.x를 조작하면 됩니다.
+								// 예: t.x = 100.0f; (화면 밖으로 치워버리기)
+							}
+							else {
+								isDead = true;
+								printf("기차에 치임!\n");
+							}
 						}
 					}
 				}
@@ -2608,7 +2702,7 @@ bool isTreeAt(int x, int z) {
 
 void specialKeyboard(int key, int x, int y)
 {
-	// [수정] 인트로 상태 처리
+	//  인트로 상태 처리
 	if (introState != 0) {
 		// 대기 상태(2)일 때 키를 누르면 -> 퇴장 상태(3)로 변경
 		if (introState == 2) {
@@ -2778,6 +2872,14 @@ void keyboard(unsigned char key, int x, int y)
 		isGlitchMode = !isGlitchMode;
 		if (isGlitchMode) glitchTimer = 5.0f;
 		printf("치트: 글리치 모드 전환\n");
+	}
+	if (key == 'g' || key == 'G') {
+		// 게이지가 꽉 찼고, 현재 거인이 아니고, 비행 중이 아닐 때
+		if ( !isGiantMode && !isFlying && introState == 0) {
+			isGiantMode = true;
+			giantTimer = 8.0f; // 8초간 지속
+			printf(">>> 진격의 거인 모드 발동! <<<\n");
+		}
 	}
 }
 
