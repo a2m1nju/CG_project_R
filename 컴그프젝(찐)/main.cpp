@@ -11,6 +11,8 @@
 #include <ctime>
 #include <algorithm>
 #include <string>
+#include <Windows.h>
+#include <mmsystem.h>
 #include <gl/glew.h>
 #include <gl/freeglut.h>
 #include <gl/freeglut_ext.h>
@@ -21,6 +23,7 @@
 #pragma comment(lib, "opengl32.lib")
 #pragma comment(lib, "glew32.lib")
 #pragma comment(lib, "freeglut.lib")
+#pragma comment(lib, "winmm.lib")
 #pragma warning(disable: 4711 4710 4100)
 
 // 구조체 정의
@@ -281,6 +284,10 @@ float magnetTimer = 0.0f;        // 자석 남은 시간
 bool isSlowActive = false;       // 슬로우 모션 활성화 여부
 float slowTimer = 0.0f;          // 슬로우 모션 남은 시간
 
+// 게임 오버 상태 변수
+bool isGameOver = false;
+
+
 std::map<int, int> mapType; // 0=잔디 1=도로
 std::map<int, std::vector<int>> treeMap;
 std::vector<Car> cars;
@@ -346,6 +353,66 @@ void loadTexture(const char* path, GLuint* textureID) {
 	stbi_image_free(data);
 }
 
+// 게임 재시작 시 변수 초기화 함수
+void resetGame() {
+	playerPos = glm::vec3(0.0f, 0.5f, 0.0f);
+	playerTargetPos = playerPos;
+	playerStartPos = playerPos;
+	isMoving = false;
+	isDashing = false;
+	dashTimer = 0.0f;
+	dashCooldownTimer = 0.0f;
+
+	// 각종 이벤트 초기화
+	isWindActive = false;
+	windTimer = 0.0f;
+	windForce = 0.0f;
+
+	isNightMode = false;
+	isNightWarning = false;
+	nightModeTimer = 0.0f;
+	nightWarningTimer = 0.0f;
+	nightEventCooldown = 10.0f;
+
+	isEventActive = false;
+	eventProgress = 0.0f;
+	requiredTaps = 0;
+	lastEventScore = 0;
+
+	// 아이템 초기화
+	items.clear();
+	hasShield = false;
+	isMagnetActive = false;
+	isSlowActive = false;
+	magnetTimer = 0.0f;
+	slowTimer = 0.0f;
+
+	isFlying = false;
+	isLanding = false;
+	isBirdLeaving = false;
+
+	score = 0;
+	minZ = 0;
+	coinCount = 0;
+
+	// 벡터 비우기
+	cars.clear();
+	logs.clear();
+	lilyPads.clear();
+	treeMap.clear();
+	mapType.clear();
+	trains.clear();
+	particles.clear();
+	weatherParticles.clear();
+
+	// 맵 재생성
+	for (int z = -10; z < 10; ++z) generateLane(z);
+
+	// 상태 복구
+	isGameOver = false;
+	isGlitchMode = false;
+}
+
 int main(int argc, char** argv)
 {
 	srand((unsigned int)time(NULL));
@@ -372,6 +439,9 @@ int main(int argc, char** argv)
 	initFont("Cafe24PROUP.ttf", 60.0f);
 
 	glEnable(GL_DEPTH_TEST);
+
+	// 배경음악 재생
+	mciSendString(TEXT("play bgm.wav"), NULL, 0, NULL);
 
 	glutDisplayFunc(drawScene);
 	glutReshapeFunc(Reshape);
@@ -978,7 +1048,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 			model = glm::translate(model, glm::vec3(0.0f, -0.5f, (float)z));
 			//model = glm::scale(model, glm::vec3(31.0f, 1.0f, 1.0f)); // 가로로 31배 확대
 			// [수정] 바닥 가로 길이를 31.0f -> 200.0f로 대폭 늘립니다! (검은 공간 제거)
-			
+
 			model = glm::scale(model, glm::vec3(groundWidth, 1.0f, 1.0f));
 			glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
@@ -992,7 +1062,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 					glUniform1i(texLoc, 1); // 샘플러에 1번 유닛 지정
 					glUniform1i(useTexLoc, 1); // 텍스처 사용 ON
 
-					glUniform2f(uvScaleLoc, groundWidth/2.0f, 1.0f);
+					glUniform2f(uvScaleLoc, groundWidth / 2.0f, 1.0f);
 
 					glVertexAttrib3f(1, 1.0f, 1.0f, 1.0f);
 				}
@@ -1003,7 +1073,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 					glUniform1i(texLoc, 1);
 					glUniform1i(useTexLoc, 1); // 텍스처 사용 ON
 
-					glUniform2f(uvScaleLoc, groundWidth/2.0f, 1.0f);
+					glUniform2f(uvScaleLoc, groundWidth / 2.0f, 1.0f);
 
 					glVertexAttrib3f(1, colors.grass.r, colors.grass.g, colors.grass.b);
 				}
@@ -1136,38 +1206,38 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 		}
 	}
 
-	// 플레이어 (닭)
-	glm::mat4 pModel = glm::translate(glm::mat4(1.0f), playerPos);
-	pModel = glm::rotate(pModel, glm::radians(playerRotation), glm::vec3(0.0f, 1.0f, 0.0f));
-	float scale = isGiantMode ? 3.5f : 0.7f;
-	pModel = glm::scale(pModel, glm::vec3(scale));
-	if (isFlying) {
-		glm::mat4 birdModel = pModel;
-		birdModel = glm::translate(birdModel, glm::vec3(0.0f, 0.5f, 0.0f));
-		birdModel = glm::scale(birdModel, glm::vec3(1.5f));
-		drawBird(shader, birdModel);
+	if (!isGameOver) {
+		// 플레이어 (닭)
+		glm::mat4 pModel = glm::translate(glm::mat4(1.0f), playerPos);
+		pModel = glm::rotate(pModel, glm::radians(playerRotation), glm::vec3(0.0f, 1.0f, 0.0f));
+		float scale = isGiantMode ? 3.5f : 0.7f;
+		pModel = glm::scale(pModel, glm::vec3(scale));
 
-		// 2. 닭 그리기 (새 위에 탑승)
-		glm::mat4 chickenOnBird = pModel;
-		chickenOnBird = glm::translate(chickenOnBird, glm::vec3(0.0f, 1.0f, 0.0f)); // 새 등 위로 올림
-		drawChicken(shader, chickenOnBird);
-	}
-	else if (isBirdLeaving) {
-		drawChicken(shader, pModel); // 플레이어 그리기
-		glm::mat4 birdModel = glm::mat4(1.0f);
-		float t = glm::clamp(birdLeaveTime / BIRD_LEAVE_DURATION, 0.0f, 1.0f);
-		glm::vec3 currentBirdPos = glm::mix(birdStartPos, birdTargetPos, t);
-		birdModel = glm::translate(birdModel, currentBirdPos);
-		birdModel = glm::scale(birdModel, glm::vec3(1.5f));
-		drawBird(shader, birdModel);
-	}
-	else {
-		drawChicken(shader, pModel);
-	}
+		if (isFlying) {
+			glm::mat4 birdModel = pModel;
+			birdModel = glm::translate(birdModel, glm::vec3(0.0f, 0.5f, 0.0f));
+			birdModel = glm::scale(birdModel, glm::vec3(1.5f));
+			drawBird(shader, birdModel);
 
-	glDrawArrays(GL_TRIANGLES, 0, 36);
-    
-}   
+			// 2. 닭 그리기 (새 위에 탑승)
+			glm::mat4 chickenOnBird = pModel;
+			chickenOnBird = glm::translate(chickenOnBird, glm::vec3(0.0f, 1.0f, 0.0f)); // 새 등 위로 올림
+			drawChicken(shader, chickenOnBird);
+		}
+		else if (isBirdLeaving) {
+			drawChicken(shader, pModel); // 플레이어 그리기
+			glm::mat4 birdModel = glm::mat4(1.0f);
+			float t = glm::clamp(birdLeaveTime / BIRD_LEAVE_DURATION, 0.0f, 1.0f);
+			glm::vec3 currentBirdPos = glm::mix(birdStartPos, birdTargetPos, t);
+			birdModel = glm::translate(birdModel, currentBirdPos);
+			birdModel = glm::scale(birdModel, glm::vec3(1.5f));
+			drawBird(shader, birdModel);
+		}
+		else {
+			drawChicken(shader, pModel);
+		}
+	}
+}
 
 
 
@@ -1403,10 +1473,10 @@ GLvoid drawScene()
 
 	glUniformMatrix4fv(glGetUniformLocation(depthShader, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
 
-	
+
 	renderObjects(depthShader, lightSpaceMatrix);
-	
-	
+
+
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	// [패스 2] 실제 장면 렌더링 (Main Render Pass)
@@ -1452,7 +1522,7 @@ GLvoid drawScene()
 
 		}
 	}
-	
+
 	int currentZ = (int)std::round(playerPos.z);
 	int drawRangeFront = 30;
 	int drawRangeBack = 10;
@@ -1490,7 +1560,7 @@ GLvoid drawScene()
 			glDrawArrays(GL_TRIANGLES, 0, 36);
 		}
 	}
-	
+
 
 	// [UI 렌더링] 
 	// 1. 점수 표시
@@ -1667,7 +1737,7 @@ GLvoid drawScene()
 		}
 
 		glEnable(GL_DEPTH_TEST);
-	
+
 		if (isLandingSuccess) {
 			renderTextWithOutline(1280 / 2 - 100, 200, "SAFE LANDING!");
 		}
@@ -1677,6 +1747,23 @@ GLvoid drawScene()
 		float centerX = 1280.0f / 2.0f;
 		float centerY = 960.0f / 2.0f; // 화면 정중앙 높이 (480.0f)
 		renderTextWithOutline(centerX - 470.0f, centerY, "SYSTEM ERROR: CONTROLS REVERSED!");
+	}
+
+	// 게임 오버 UI 렌더링
+	if (isGameOver) {
+		float centerX = 1280.0f / 2.0f;
+		float centerY = 960.0f / 2.0f;
+
+		// 중앙에 GAME OVER (빨간색 큰 글씨 느낌)
+		// 텍스트 위치는 대략적으로 잡았습니다. 글자 수에 맞춰 조정하세요.
+		renderTextWithOutline(centerX - 150.0f, centerY - 50.0f, "GAME OVER");
+
+		// 아래에 안내 문구 (깜빡이는 효과)
+		static float blink = 0.0f;
+		blink += 0.05f;
+		if (sin(blink) > 0) {
+			renderTextWithOutline(centerX - 350.0f, centerY + 50.0f, "PRESS ANY KEY TO RESTART");
+		}
 	}
 
 	glutSwapBuffers();
@@ -1710,34 +1797,45 @@ void timer(int value)
 
 		// 상태 1: 로고 등장 (왼쪽 -> 중앙)
 		if (introState == 1) {
-			// 부드럽게 감속하며 이동 (Lerp)
 			logoX = logoX + (logoTargetX - logoX) * 0.05f;
-
-			// 목표 지점에 거의 도달했으면?
 			if (std::abs(logoX - logoTargetX) < 1.0f) {
-				logoX = logoTargetX; // 위치 고정
+				logoX = logoTargetX;
 				introState = 2;      // '대기' 상태로 전환
 				printf("로고 도착! 클릭 대기 중...\n");
 			}
 		}
-		// 상태 2: 대기 (아무것도 안 함, 마우스 클릭 기다림)
+		// 상태 2: 대기
 		else if (introState == 2) {
-			// (옵션) 둥둥 떠있는 효과를 주려면 여기서 logoY를 sin함수로 건드리면 됨
+			// 대기 중 효과 (필요 시 추가)
 		}
-		// 상태 3: 로고 퇴장 (중앙 -> 왼쪽, 들어온 방향 반대로)
+		// 상태 3: 로고 퇴장 (중앙 -> 왼쪽)
 		else if (introState == 3) {
-			// 시작 지점(왼쪽)으로 다시 이동
 			logoX = logoX + (logoStartX - logoX) * 0.05f;
-
-			// 화면 밖으로 완전히 나갔으면?
 			if (std::abs(logoX - logoStartX) < 10.0f) {
 				introState = 0; // 인트로 종료, 게임 시작!
 				printf("인트로 완전 종료! 게임 시작!\n");
 			}
 		}
 
-		// 인트로 중에도 배경은 계속 움직여야 하므로 return 안 함!
+		glutPostRedisplay();
+		glutTimerFunc(16, timer, 0);
+		return;
 	}
+
+	if (isGameOver) {
+		for (auto it = particles.begin(); it != particles.end(); ) {
+			it->position += it->velocity;
+			it->life -= 0.05f;
+			it->scale -= 0.005f;
+			if (it->life <= 0.0f || it->scale <= 0.0f) it = particles.erase(it);
+			else ++it;
+		}
+
+		glutPostRedisplay();
+		glutTimerFunc(16, timer, 0);
+		return;
+	}
+
 	// [글리치 모드 로직]
 	if (isGlitchMode) {
 		glitchTimer -= 0.016f;
@@ -1755,14 +1853,13 @@ void timer(int value)
 	else {
 		// [발동 조건] 
 		// 예: 점수가 50점 넘고, 랜덤 확률(0.1%)로 갑자기 발생
-		if ( !isFlying && !isEventActive && (rand() % 1000 < 2)) {
+		if (!isFlying && !isEventActive && (rand() % 5000 < 2)) {
 			isGlitchMode = true;
 			glitchTimer = 5.0f; // 5초간 지속
 			printf("!!! 치명적인 오류 발생! 조작 체계 손상 !!!\n");
 		}
 	}
-	
-	
+
 	// 카메라 흔들림 시간 감소 로직
 	if (shakeTimer > 0.0f) {
 		shakeTimer -= 0.016f;
@@ -1876,6 +1973,7 @@ void timer(int value)
 		if (item.isCollected) continue;
 		if (std::abs(item.z - playerPos.z) < 0.5f && std::abs(item.x - playerPos.x) < 0.5f) {
 			item.isCollected = true;
+			PlaySound(TEXT("item.wav"), NULL, SND_ASYNC | SND_FILENAME);
 
 			// [핵심 수정] 종류 불문하고 아이템을 먹으면 게이지 20% 충전!
 			if (!isGiantMode) {
@@ -2014,7 +2112,7 @@ void timer(int value)
 	//}
 	else if (isFlying) {
 		playerPos.z -= FLY_SPEED; // Z축 마이너스 방향 (앞으로) 이동
-		playerPos.y = 3.0f+ sin(flyTimer * 5.0f) * 0.5f; // 공중 높이 고정 (3.0f)
+		playerPos.y = 3.0f + sin(flyTimer * 5.0f) * 0.5f; // 공중 높이 고정 (3.0f)
 
 		flyTimer -= 0.016f;
 
@@ -2169,7 +2267,7 @@ void timer(int value)
 					shakeTimer = 0.1f; shakeMagnitude = 0.2f; // 타격감
 					printf("거인의 발차기! 자동차 파괴!\n");
 				}
-			else if (hasShield) {
+				else if (hasShield) {
 					hasShield = false; // 보호막 소모
 					spawnParticles(playerPos, glm::vec3(0.5f, 0.5f, 1.0f), 30, 2.0f); // 파란 파티클
 					printf("보호막이 충돌을 막았습니다!\n");
@@ -2290,64 +2388,24 @@ void timer(int value)
 		}
 
 		if (isDead) {
-			playerPos = glm::vec3(0.0f, 0.5f, 0.0f);
-			playerTargetPos = playerPos;
-			playerStartPos = playerPos;
-			isMoving = false;
-			isDashing = false; // 대쉬 상태 초기화
-			dashTimer = 0.0f;
-			dashCooldownTimer = 0.0f;
 
-			// 바람 이벤트 초기화
-			isWindActive = false;
-			windTimer = 0.0f;
-			windForce = 0.0f;
+			if (isGameOver) {
+				glutPostRedisplay();
+				glutTimerFunc(16, timer, 0);
+				return;
+			}
 
-			// 핀 조명(암전) 이벤트 초기화
-			isNightMode = false;
-			isNightWarning = false;
-			nightModeTimer = 0.0f;
-			nightWarningTimer = 0.0f;
-			nightEventCooldown = 10.0f;
+			// 파티클 생성 (개수는 취향껏 조절)
+			spawnParticles(playerPos, glm::vec3(1.0f, 1.0f, 1.0f), 10, 1.0f);
+			spawnParticles(playerPos, glm::vec3(1.0f, 0.2f, 0.2f), 5, 1.0f);
+			spawnParticles(playerPos, glm::vec3(1.0f, 0.6f, 0.0f), 5, 1.0f);
 
-			// 로켓/연타 이벤트 초기화
-			isEventActive = false;
-			eventProgress = 0.0f;
-			requiredTaps = 0;
-			lastEventScore = 0;
-
-			// 4. 아이템
-			items.clear();
-			hasShield = false;
-			isMagnetActive = false;
-			isSlowActive = false;
-			magnetTimer = 0.0f;
-			slowTimer = 0.0f;
-
-			// 비행 상태 초기화 (혹시 날다가 죽었을 경우 대비)
-			isFlying = false;
-			isLanding = false;
-			isBirdLeaving = false;
-
-			score = 0;
-			minZ = 0;
-			coinCount = 0;
-
-			cars.clear();
-			logs.clear();
-			lilyPads.clear();
-			treeMap.clear();
-			mapType.clear();
-			trains.clear();
-			particles.clear();
-			weatherParticles.clear();
-
-			for (int z = -10; z < 10; ++z) generateLane(z);
+			isGameOver = true; // 게임 오버 플래그 설정
+			printf("GAME OVER!\n");
 
 			glutPostRedisplay();
 			glutTimerFunc(16, timer, 0);
 			return;
-
 		}
 
 		// 코인 로직
@@ -2356,6 +2414,7 @@ void timer(int value)
 			if (std::abs(coin.z - playerZ) < playerSize && std::abs(coin.x - playerX) < playerSize) {
 				coin.isCollected = true;
 				coinCount++;
+				PlaySound(TEXT("coin.wav"), NULL, SND_ASYNC | SND_FILENAME);
 				printf("Coin collected! Total: %d\n", coinCount);
 				spawnParticles(glm::vec3(coin.x, 0.5f, coin.z), glm::vec3(1.0f, 0.9f, 0.0f), 10, 0.3f);
 			}
@@ -2778,6 +2837,8 @@ void specialKeyboard(int key, int x, int y)
 
 		isMoving = true;
 		moveTime = 0.0f;
+
+		PlaySound(TEXT("footstep.wav"), NULL, SND_ASYNC | SND_FILENAME);
 	}
 	glutPostRedisplay();
 }
@@ -2785,6 +2846,13 @@ void specialKeyboard(int key, int x, int y)
 // 일반 키보드 입력 처리
 void keyboard(unsigned char key, int x, int y)
 {
+	// 게임 오버 시 아무 키나 누르면 재시작
+	if (isGameOver) {
+		resetGame();
+		printf("Game Restarted!\n");
+		return;
+	}
+
 	if (key == 'q' || key == 'Q') {
 		exit(0);
 	}
@@ -2875,7 +2943,7 @@ void keyboard(unsigned char key, int x, int y)
 	}
 	if (key == 'g' || key == 'G') {
 		// 게이지가 꽉 찼고, 현재 거인이 아니고, 비행 중이 아닐 때
-		if ( !isGiantMode && !isFlying && introState == 0) {
+		if (!isGiantMode && !isFlying && introState == 0) {
 			isGiantMode = true;
 			giantTimer = 8.0f; // 8초간 지속
 			printf(">>> 진격의 거인 모드 발동! <<<\n");
