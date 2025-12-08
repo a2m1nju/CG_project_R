@@ -226,13 +226,15 @@ int lastEventScore = 0;
 const float FLY_HEIGHT = 8.0f;
 bool isLanding = false;
 float landingTime = 0.3f;
-const float LANDING_DURATION = 0.5f;
+const float LANDING_DURATION = 1.5f;
 
 bool isBirdLeaving = false;
 glm::vec3 birdStartPos;
 glm::vec3 birdTargetPos;
 float birdLeaveTime = 0.0f;
 const float BIRD_LEAVE_DURATION = 1.0f; // 새가 떠나는 데 걸리는 시간
+float recoveryTimer = 0.0f; //착륙 후 무적 타이머(죽는 것 방지)
+bool isLandingSuccess = false;
 
 // 핀 조명 이벤트
 bool isNightMode = false;       // 현재 핀 조명 모드인가?
@@ -949,168 +951,169 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 	//	}
 	//	drawClouds(shader);
 	//}
+	if (!isFlying) {
+		for (int z = currentZ - drawRangeFront; z <= currentZ + drawRangeBack; ++z) {
+			generateLane(z);
+			const SeasonColors& colors = seasonThemes[getSeasonByZ(z)];
 
-	for (int z = currentZ - drawRangeFront; z <= currentZ + drawRangeBack; ++z) {
-		generateLane(z);
-		const SeasonColors& colors = seasonThemes[getSeasonByZ(z)];
+			// 바닥(Lane) 모델 행렬 설정
+			glm::mat4 model = glm::mat4(1.0f);
+			model = glm::translate(model, glm::vec3(0.0f, -0.5f, (float)z));
+			model = glm::scale(model, glm::vec3(31.0f, 1.0f, 1.0f)); // 가로로 31배 확대
 
-		// 바닥(Lane) 모델 행렬 설정
-		glm::mat4 model = glm::mat4(1.0f);
-		model = glm::translate(model, glm::vec3(0.0f, -0.5f, (float)z));
-		model = glm::scale(model, glm::vec3(31.0f, 1.0f, 1.0f)); // 가로로 31배 확대
+			glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
-		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
+			if (shader == shaderProgramID) {
+				// 텍스처 매핑 분기 처리 (강 vs 잔디 vs 기타)
 
-		if (shader == shaderProgramID) {
-			// 텍스처 매핑 분기 처리 (강 vs 잔디 vs 기타)
+				// CASE 1: 강 (River)
+				if (mapType[z] == 2) {
+					glActiveTexture(GL_TEXTURE1);
+					glBindTexture(GL_TEXTURE_2D, riverTexture); // 강 텍스처 바인딩
+					glUniform1i(texLoc, 1); // 샘플러에 1번 유닛 지정
+					glUniform1i(useTexLoc, 1); // 텍스처 사용 ON
 
-			// CASE 1: 강 (River)
-			if (mapType[z] == 2) {
-				glActiveTexture(GL_TEXTURE1);
-				glBindTexture(GL_TEXTURE_2D, riverTexture); // 강 텍스처 바인딩
-				glUniform1i(texLoc, 1); // 샘플러에 1번 유닛 지정
-				glUniform1i(useTexLoc, 1); // 텍스처 사용 ON
+					glUniform2f(uvScaleLoc, 31.0f, 1.0f);
 
-				glUniform2f(uvScaleLoc, 31.0f, 1.0f);
-
-				glVertexAttrib3f(1, 1.0f, 1.0f, 1.0f);
-			}
-			// CASE 2: 잔디 (Grass)
-			else if (mapType[z] == 0) {
-				glActiveTexture(GL_TEXTURE1);
-				glBindTexture(GL_TEXTURE_2D, grassTexture); // 잔디 텍스처 바인딩
-				glUniform1i(texLoc, 1);
-				glUniform1i(useTexLoc, 1); // 텍스처 사용 ON
-
-				glUniform2f(uvScaleLoc, 31.0f, 1.0f);
-
-				glVertexAttrib3f(1, colors.grass.r, colors.grass.g, colors.grass.b);
-			}
-			// CASE 3: 도로 또는 철길 (Road / Rail)
-			else {
-				// 텍스처 끄기 & 스케일 초기화
-				glUniform1i(useTexLoc, 0);
-				glUniform2f(uvScaleLoc, 1.0f, 1.0f);
-
-				// 기존 색상 로직
-				if (mapType[z] == 1) { // 도로
-					glVertexAttrib3f(1, 0.2f, 0.2f, 0.2f);
+					glVertexAttrib3f(1, 1.0f, 1.0f, 1.0f);
 				}
-				else if (mapType[z] == 3) { // 철길 바닥
-					glVertexAttrib3f(1, 0.5f, 0.5f, 0.55f);
+				// CASE 2: 잔디 (Grass)
+				else if (mapType[z] == 0) {
+					glActiveTexture(GL_TEXTURE1);
+					glBindTexture(GL_TEXTURE_2D, grassTexture); // 잔디 텍스처 바인딩
+					glUniform1i(texLoc, 1);
+					glUniform1i(useTexLoc, 1); // 텍스처 사용 ON
+
+					glUniform2f(uvScaleLoc, 31.0f, 1.0f);
+
+					glVertexAttrib3f(1, colors.grass.r, colors.grass.g, colors.grass.b);
 				}
+				// CASE 3: 도로 또는 철길 (Road / Rail)
+				else {
+					// 텍스처 끄기 & 스케일 초기화
+					glUniform1i(useTexLoc, 0);
+					glUniform2f(uvScaleLoc, 1.0f, 1.0f);
+
+					// 기존 색상 로직
+					if (mapType[z] == 1) { // 도로
+						glVertexAttrib3f(1, 0.2f, 0.2f, 0.2f);
+					}
+					else if (mapType[z] == 3) { // 철길 바닥
+						glVertexAttrib3f(1, 0.5f, 0.5f, 0.55f);
+					}
+				}
+			}
+			glDrawArrays(GL_TRIANGLES, 0, 36);
+
+			if (shader == shaderProgramID) {
+				glUniform1i(useTexLoc, 0); // 텍스처 끄기
+				glUniform2f(uvScaleLoc, 1.0f, 1.0f); // UV 스케일 원상복구
+			}
+
+			// 차선 그리기
+			if (mapType[z] == 1) {
+				glm::vec3 lineScale = glm::vec3(1.0f, 0.02f, 0.15f);
+
+				for (float x = -15.0f; x <= 15.0f; x += 5.0f) {
+					glm::mat4 lineModel = glm::mat4(1.0f);
+					lineModel = glm::translate(lineModel, glm::vec3(x, 0.01f, (float)z));
+					lineModel = glm::scale(lineModel, lineScale);
+
+					glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(lineModel));
+
+					if (shader == shaderProgramID) {
+						glVertexAttrib3f(1, 0.3f, 0.3f, 0.3f);
+					}
+					glDrawArrays(GL_TRIANGLES, 0, 36);
+				}
+			}
+
+			// 철길 구조물 그리기
+			if (mapType[z] == 3) {
+				bool isWarning = false;
+				bool isLightOn = false;
+				for (const auto& t : trains) {
+					if ((int)t.z == z) {
+						isWarning = (t.state == TRAIN_WARNING || t.state == TRAIN_PASSING);
+						isLightOn = t.isLightOn;
+						break;
+					}
+				}
+				drawRail(z, isWarning, isLightOn, shader);
+			}
+
+			// 나무 그리기
+			if (treeMap.count(z)) {
+				for (int treeX : treeMap[z]) drawTree(treeX, z, shader);
 			}
 		}
-		glDrawArrays(GL_TRIANGLES, 0, 36);
 
-		if (shader == shaderProgramID) {
-			glUniform1i(useTexLoc, 0); // 텍스처 끄기
-			glUniform2f(uvScaleLoc, 1.0f, 1.0f); // UV 스케일 원상복구
-		}
+		// 2. 동적 오브젝트 그리기
+		if (!isFlying && !isLanding) {
+			// 자동차
+			for (const auto& car : cars) {
+				if (car.z < currentZ - drawRangeFront || car.z > currentZ + drawRangeBack) continue;
+				drawCar(car, shader);
+			}
 
-		// 차선 그리기
-		if (mapType[z] == 1) {
-			glm::vec3 lineScale = glm::vec3(1.0f, 0.02f, 0.15f);
+			// 기차
+			for (const auto& train : trains) {
+				if (train.z < currentZ - drawRangeFront || train.z > currentZ + drawRangeBack) continue;
+				if (train.state == TRAIN_PASSING) {
+					drawTrain(train, shader);
+				}
+			}
 
-			for (float x = -15.0f; x <= 15.0f; x += 5.0f) {
-				glm::mat4 lineModel = glm::mat4(1.0f);
-				lineModel = glm::translate(lineModel, glm::vec3(x, 0.01f, (float)z));
-				lineModel = glm::scale(lineModel, lineScale);
+			// 통나무
+			for (const auto& logObj : logs) {
+				if (logObj.z < currentZ - drawRangeFront || logObj.z > currentZ + drawRangeBack) continue;
 
-				glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(lineModel));
+				// 쉐이더가 메인 쉐이더일 때만 텍스처 적용
+				if (shader == shaderProgramID) {
+					glActiveTexture(GL_TEXTURE1);
+					glBindTexture(GL_TEXTURE_2D, logTexture); // 통나무 텍스처 바인딩
+					glUniform1i(texLoc, 1); // 샘플러 1번 사용 설정
+					glUniform1i(useTexLoc, 1); // 텍스처 사용 ON
+
+					glUniform2f(uvScaleLoc, logObj.width, 1.0f);
+				}
+
+				drawLog(logObj, shader);
 
 				if (shader == shaderProgramID) {
-					glVertexAttrib3f(1, 0.3f, 0.3f, 0.3f);
-				}
-				glDrawArrays(GL_TRIANGLES, 0, 36);
-			}
-		}
-
-		// 철길 구조물 그리기
-		if (mapType[z] == 3) {
-			bool isWarning = false;
-			bool isLightOn = false;
-			for (const auto& t : trains) {
-				if ((int)t.z == z) {
-					isWarning = (t.state == TRAIN_WARNING || t.state == TRAIN_PASSING);
-					isLightOn = t.isLightOn;
-					break;
+					glUniform1i(useTexLoc, 0);
+					glUniform2f(uvScaleLoc, 1.0f, 1.0f); // 스케일 초기화
 				}
 			}
-			drawRail(z, isWarning, isLightOn, shader);
-		}
 
-		// 나무 그리기
-		if (treeMap.count(z)) {
-			for (int treeX : treeMap[z]) drawTree(treeX, z, shader);
-		}
-	}
+			// 연잎
+			for (const auto& pad : lilyPads) {
+				if (pad.z < currentZ - drawRangeFront || pad.z > currentZ + drawRangeBack) continue;
 
-	// 2. 동적 오브젝트 그리기
-	if (!isFlying && !isLanding) {
-		// 자동차
-		for (const auto& car : cars) {
-			if (car.z < currentZ - drawRangeFront || car.z > currentZ + drawRangeBack) continue;
-			drawCar(car, shader);
-		}
+				// [추가] 쉐이더가 메인 쉐이더일 때만 텍스처 적용
+				if (shader == shaderProgramID) {
+					glActiveTexture(GL_TEXTURE1);
+					glBindTexture(GL_TEXTURE_2D, lilyPadTexture); // 연잎 텍스처 바인딩
+					glUniform1i(texLoc, 1); // 샘플러 1번 사용 설정
+					glUniform1i(useTexLoc, 1); // 텍스처 사용 ON
 
-		// 기차
-		for (const auto& train : trains) {
-			if (train.z < currentZ - drawRangeFront || train.z > currentZ + drawRangeBack) continue;
-			if (train.state == TRAIN_PASSING) {
-				drawTrain(train, shader);
-			}
-		}
+					glUniform2f(uvScaleLoc, 1.0f, 1.0f); // UV 스케일 1:1
+				}
 
-		// 통나무
-		for (const auto& logObj : logs) {
-			if (logObj.z < currentZ - drawRangeFront || logObj.z > currentZ + drawRangeBack) continue;
+				drawLilyPad(pad, shader);
 
-			// 쉐이더가 메인 쉐이더일 때만 텍스처 적용
-			if (shader == shaderProgramID) {
-				glActiveTexture(GL_TEXTURE1);
-				glBindTexture(GL_TEXTURE_2D, logTexture); // 통나무 텍스처 바인딩
-				glUniform1i(texLoc, 1); // 샘플러 1번 사용 설정
-				glUniform1i(useTexLoc, 1); // 텍스처 사용 ON
-
-				glUniform2f(uvScaleLoc, logObj.width, 1.0f);
+				// [추가] 텍스처 사용 해제 및 초기화
+				if (shader == shaderProgramID) {
+					glUniform1i(useTexLoc, 0);
+					glUniform2f(uvScaleLoc, 1.0f, 1.0f);
+				}
 			}
 
-			drawLog(logObj, shader);
-
-			if (shader == shaderProgramID) {
-				glUniform1i(useTexLoc, 0);
-				glUniform2f(uvScaleLoc, 1.0f, 1.0f); // 스케일 초기화
+			// 코인
+			for (const auto& coin : coins) {
+				if (coin.z < currentZ - drawRangeFront || coin.z > currentZ + drawRangeBack) continue;
+				drawCoin(coin, shader);
 			}
-		}
-
-		// 연잎
-		for (const auto& pad : lilyPads) {
-			if (pad.z < currentZ - drawRangeFront || pad.z > currentZ + drawRangeBack) continue;
-
-			// [추가] 쉐이더가 메인 쉐이더일 때만 텍스처 적용
-			if (shader == shaderProgramID) {
-				glActiveTexture(GL_TEXTURE1);
-				glBindTexture(GL_TEXTURE_2D, lilyPadTexture); // 연잎 텍스처 바인딩
-				glUniform1i(texLoc, 1); // 샘플러 1번 사용 설정
-				glUniform1i(useTexLoc, 1); // 텍스처 사용 ON
-
-				glUniform2f(uvScaleLoc, 1.0f, 1.0f); // UV 스케일 1:1
-			}
-
-			drawLilyPad(pad, shader);
-
-			// [추가] 텍스처 사용 해제 및 초기화
-			if (shader == shaderProgramID) {
-				glUniform1i(useTexLoc, 0);
-				glUniform2f(uvScaleLoc, 1.0f, 1.0f);
-			}
-		}
-
-		// 코인
-		for (const auto& coin : coins) {
-			if (coin.z < currentZ - drawRangeFront || coin.z > currentZ + drawRangeBack) continue;
-			drawCoin(coin, shader);
 		}
 	}
 
@@ -1123,8 +1126,14 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 		birdModel = glm::translate(birdModel, glm::vec3(0.0f, 0.5f, 0.0f));
 		birdModel = glm::scale(birdModel, glm::vec3(1.5f));
 		drawBird(shader, birdModel);
+
+		// 2. 닭 그리기 (새 위에 탑승)
+		glm::mat4 chickenOnBird = pModel;
+		chickenOnBird = glm::translate(chickenOnBird, glm::vec3(0.0f, 1.0f, 0.0f)); // 새 등 위로 올림
+		drawChicken(shader, chickenOnBird);
 	}
 	else if (isBirdLeaving) {
+		drawChicken(shader, pModel); // 플레이어 그리기
 		glm::mat4 birdModel = glm::mat4(1.0f);
 		float t = glm::clamp(birdLeaveTime / BIRD_LEAVE_DURATION, 0.0f, 1.0f);
 		glm::vec3 currentBirdPos = glm::mix(birdStartPos, birdTargetPos, t);
@@ -1137,7 +1146,10 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 	}
 
 	glDrawArrays(GL_TRIANGLES, 0, 36);
-}
+}   
+
+
+
 
 // 파티클 렌더링 함수
 void drawParticles(GLuint shader) {
@@ -1314,13 +1326,15 @@ GLvoid drawScene()
 
 	glUniformMatrix4fv(glGetUniformLocation(depthShader, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
 
-	renderObjects(depthShader, lightSpaceMatrix);
-
+	
+		renderObjects(depthShader, lightSpaceMatrix);
+	
+	
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	// [패스 2] 실제 장면 렌더링 (Main Render Pass)
 	glViewport(0, 0, 1280, 960);
-	if (isFlying || isLanding || isBirdLeaving) {
+	if (isFlying) {
 		// 하늘색 
 		glClearColor(0.53f, 0.81f, 0.98f, 1.0f);
 	}
@@ -1345,9 +1359,22 @@ GLvoid drawScene()
 	glBindTexture(GL_TEXTURE_2D, depthMap);
 	glUniform1i(glGetUniformLocation(shaderProgramID, "shadowMap"), 0);
 
-	// 맵 오브젝트 렌더링 (비행 중에는 바닥 그리기 생략 가능하지만, 여기선 그림자 때문에 그림)
 	renderObjects(shaderProgramID, proj * view);
+	if (!isFlying) {
+		renderObjects(shaderProgramID, proj * view);
 
+		// 아이템 그리기
+		int currentZ = (int)std::round(playerPos.z);
+		int drawRangeFront = 30;
+		int drawRangeBack = 10;
+		for (auto& item : items) {
+			if (item.z < currentZ - drawRangeFront || item.z > currentZ + drawRangeBack) continue;
+			item.rotation += 2.0f;
+			drawItem(item, shaderProgramID);
+
+		}
+	}
+	
 	int currentZ = (int)std::round(playerPos.z);
 	int drawRangeFront = 30;
 	int drawRangeBack = 10;
@@ -1367,22 +1394,25 @@ GLvoid drawScene()
 	}
 
 	// 날씨 파티클 렌더링 (봄/가을/겨울 통합)
-	glUseProgram(shaderProgramID);
-	for (const auto& wp : weatherParticles) {
-		glm::mat4 model = glm::mat4(1.0f);
-		model = glm::translate(model, wp.pos);
+	if (!isFlying) {
+		glUseProgram(shaderProgramID);
+		for (const auto& wp : weatherParticles) {
+			glm::mat4 model = glm::mat4(1.0f);
+			model = glm::translate(model, wp.pos);
 
-		// 계절마다 설정된 크기(모양) 적용
-		model = glm::scale(model, wp.scaleVec);
-		model = glm::rotate(model, wp.swayPhase, glm::vec3(0.5f, 1.0f, 0.2f));
+			// 계절마다 설정된 크기(모양) 적용
+			model = glm::scale(model, wp.scaleVec);
+			model = glm::rotate(model, wp.swayPhase, glm::vec3(0.5f, 1.0f, 0.2f));
 
-		glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "model"), 1, GL_FALSE, glm::value_ptr(model));
+			glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
-		// 파티클마다 고유의 색상 적용
-		glVertexAttrib3f(1, wp.color.r, wp.color.g, wp.color.b);
+			// 파티클마다 고유의 색상 적용
+			glVertexAttrib3f(1, wp.color.r, wp.color.g, wp.color.b);
 
-		glDrawArrays(GL_TRIANGLES, 0, 36);
+			glDrawArrays(GL_TRIANGLES, 0, 36);
+		}
 	}
+	
 
 	// [UI 렌더링] 
 	// 1. 점수 표시
@@ -1423,6 +1453,16 @@ GLvoid drawScene()
 			renderTextTTF(centerX - 150.0f + 3.0f, centerY + 3.0f, "WARNING: BLACKOUT!", 0.0f, 0.0f, 0.0f);
 			renderTextTTF(centerX - 150.0f, centerY, "WARNING: BLACKOUT!", 1.0f, 0.0f, 0.0f);
 		}
+	}
+	// 비행 중 텍스트 UI
+	if (isFlying) {
+		renderTextWithOutline(1280 / 2 - 220, 200, "The bird will take you home...");
+		renderTextWithOutline(1280 / 2 - 220, 270, "ENJOY THE SKY!");
+	}
+
+	// [추가] 무적 상태 표시 (착륙 직후)
+	if (isLandingSuccess) {
+		renderTextWithOutline(1280 / 2 - 100, 200, "SAFE LANDING!");
 	}
 
 	/* 5. 대쉬 상태 및 쿨타임 표시(화면 중앙 하단)
@@ -1587,6 +1627,15 @@ void timer(int value)
 		dashCooldownTimer -= 0.016f;
 		if (dashCooldownTimer < 0.0f) dashCooldownTimer = 0.0f;
 	}
+	// 무적 시간(recoveryTimer) 감소 로직 추가
+	if (recoveryTimer > 0.0f) {
+		recoveryTimer -= 0.016f;
+		if (recoveryTimer < 0.0f) {
+			recoveryTimer = 0.0f;
+			isLandingSuccess = false;
+			printf("무적 시간 종료!\n");
+		}
+	}
 
 	// 5. [아이템] 슬로우 모션 속도 배율 설정
 	float globalSpeedRate = 1.0f;
@@ -1719,6 +1768,8 @@ void timer(int value)
 			playerPos.z = (float)std::round(playerPos.z);
 			// 다음 움직임을 위해 playerTargetPos도 현재 위치로 업데이트
 			playerTargetPos = playerPos;
+			recoveryTimer = 1.0f;
+			isLandingSuccess = false;
 			printf("대쉬 종료. 쿨다운 시작: %.1f초\n", DASH_COOLDOWN);
 
 			//if (scoreTargetReached && score > lastEventScore && !isEventActive && !isFlying) {
@@ -1748,7 +1799,7 @@ void timer(int value)
 	//}
 	else if (isFlying) {
 		playerPos.z -= FLY_SPEED; // Z축 마이너스 방향 (앞으로) 이동
-		playerPos.y = 3.0f; // 공중 높이 고정 (3.0f)
+		playerPos.y = 3.0f+ sin(flyTimer * 5.0f) * 0.5f; // 공중 높이 고정 (3.0f)
 
 		flyTimer -= 0.016f;
 
@@ -1773,12 +1824,13 @@ void timer(int value)
 
 			playerStartPos = playerPos;
 			playerTargetPos = glm::vec3((float)std::round(playerPos.x), 0.5f, (float)std::round(playerPos.z));
-			printf("로켓 라이드 종료! 착륙을 시작합니다.\n");
+			printf("비행 종료! 착륙을 시작합니다.\n");
 		}
 	}
 	else if (isLanding) {
 		landingTime += 0.016f;
 		float t = glm::clamp(landingTime / LANDING_DURATION, 0.0f, 1.0f);
+		float smoothT = sin(t * 3.14159f / 2.0f);//부드럽게 착지
 
 		// X, Z는 목표 지점(TargetPos)으로 보간
 		playerPos.x = glm::mix(playerStartPos.x, playerTargetPos.x, t);
@@ -1793,6 +1845,8 @@ void timer(int value)
 			playerPos = playerTargetPos; // 최종 위치 확정 (원점 아님)
 			isBirdLeaving = true;
 			birdLeaveTime = 0.0f;
+			recoveryTimer = 2.0f; //착륙 후 무적
+			isLandingSuccess = true;
 			printf("착륙 완료!\n");
 		}
 	}
@@ -1873,6 +1927,8 @@ void timer(int value)
 
 		// [충돌 검사 시작]
 		bool isDead = false;
+		//무적 판정 조건 변수
+		bool isInvincible = isDashing || (recoveryTimer > 0.0f) || hasShield;
 
 		// 자동차 충돌
 		for (auto& car : cars) {
@@ -1921,9 +1977,17 @@ void timer(int value)
 						restingY = 0.93f;
 						break;
 					}
+				
 				}
 			}
-			if (!safe) isDead = true;
+			if (!safe) {
+				if (isInvincible) {
+					restingY = 0.5f;
+				}
+				else {
+					isDead = true;
+				}
+			}
 			if (playerPos.x < -16.0f || playerPos.x > 16.0f) isDead = true;
 		}
 
