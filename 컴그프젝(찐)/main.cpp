@@ -165,6 +165,22 @@ struct WeatherParticle {
 };
 std::vector<WeatherParticle> weatherParticles;
 
+// [추가] 아이템 종류 열거형
+enum ItemType {
+	ITEM_SHIELD, // 보호막 (파란색)
+	ITEM_MAGNET, // 자석 (빨간색)
+	ITEM_CLOCK   // 시간 느려짐 (하늘색)
+};
+
+// [추가] 아이템 구조체
+struct Item {
+	float x, z;
+	ItemType type;
+	bool isCollected = false;
+	float rotation = 0.0f; // 빙글빙글 돌리기용
+};
+std::vector<Item> items;
+
 // 전역 변수
 GLuint vao, vbo;
 GLuint transLoc;
@@ -239,6 +255,13 @@ float windTimer = 0.0f;         // 바람 지속 시간
 float windForce = 0.0f;         // 바람의 세기 및 방향 (+는 우측, -는 좌측)
 const float WIND_DURATION = 6.0f; // 바람 지속 시간 (6초)
 
+// 아이템 관련 전역 변수
+bool hasShield = false;          // 보호막 보유 여부
+bool isMagnetActive = false;     // 자석 활성화 여부
+float magnetTimer = 0.0f;        // 자석 남은 시간
+bool isSlowActive = false;       // 슬로우 모션 활성화 여부
+float slowTimer = 0.0f;          // 슬로우 모션 남은 시간
+
 std::map<int, int> mapType; // 0=잔디 1=도로
 std::map<int, std::vector<int>> treeMap;
 std::vector<Car> cars;
@@ -268,7 +291,7 @@ void renderTextTTF(float x, float y, const char* text, float r, float g, float b
 void keyboard(unsigned char key, int x, int y);
 void loadDepthShader();
 void drawCloud(const Cloud& cloud, GLuint shader); // drawCloud가 다른 곳에서 호출된다면 추가
-void drawClouds(GLuint shader); 
+void drawClouds(GLuint shader);
 
 GLuint riverTexture;
 GLuint grassTexture;
@@ -579,18 +602,35 @@ void generateLane(int z)
 	MAKE_GRASS:
 		mapType[z] = 0; // 잔디
 
+		// 나무 심기 (기존 코드)
 		for (int x = -15; x <= 15; ++x) {
 			if (rand() % 10 < 1) {
 				treeMap[z].push_back(x);
 			}
 		}
+
+		// 코인 및 아이템 생성
 		if (rand() % 2 == 0) {
-			int coinX = (rand() % 21) - 10;
-			if (!isTreeAt(coinX, z)) {
-				Coin newCoin;
-				newCoin.x = (float)coinX;
-				newCoin.z = (float)z;
-				coins.push_back(newCoin);
+			int spawnX = (rand() % 21) - 10;
+			if (!isTreeAt(spawnX, z)) {
+
+				int luck = rand() % 100;
+
+				if (luck < 20) {
+					Item newItem;
+					newItem.x = (float)spawnX;
+					newItem.z = (float)z;
+					// 랜덤 아이템 타입 (0, 1, 2 중 하나)
+					newItem.type = (ItemType)(rand() % 3);
+					items.push_back(newItem);
+				}
+				// 나머지 확률로 코인 생성 (기존 로직)
+				else {
+					Coin newCoin;
+					newCoin.x = (float)spawnX;
+					newCoin.z = (float)z;
+					coins.push_back(newCoin);
+				}
 			}
 		}
 	}
@@ -724,6 +764,27 @@ void drawCoin(const Coin& coin, GLuint shader) {
 	drawPart(shader, baseModel,
 		glm::vec3(-C_span / 2.0f + C_thick / 2.0f, C_Y_offset_final, -C_length / 2.0f + C_thick / 2.0f),
 		glm::vec3(C_span - C_thick / 2.0f, C_Y_THICKNESS, C_thick), redColor_C);
+}
+
+// 아이템 그리기 함수
+void drawItem(const Item& item, GLuint shader) {
+	if (item.isCollected) return;
+
+	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(item.x, 0.5f, item.z));
+	model = glm::rotate(model, glm::radians(item.rotation), glm::vec3(0.0f, 1.0f, 0.0f)); // 회전
+	model = glm::scale(model, glm::vec3(0.4f)); // 크기 0.4
+
+	glm::vec3 color;
+	if (item.type == ITEM_SHIELD) color = glm::vec3(0.0f, 0.5f, 1.0f); // 파랑
+	else if (item.type == ITEM_MAGNET) color = glm::vec3(1.0f, 0.0f, 0.0f); // 빨강
+	else if (item.type == ITEM_CLOCK) color = glm::vec3(0.0f, 1.0f, 1.0f); // 하늘색
+
+	// 큐브 모양 아이템
+	glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
+	if (shader == shaderProgramID) {
+		glVertexAttrib3f(1, color.r, color.g, color.b);
+	}
+	glDrawArrays(GL_TRIANGLES, 0, 36);
 }
 
 // 철길 및 신호등 그리기
@@ -1245,7 +1306,7 @@ GLvoid drawScene()
 	glm::mat4 lightView = glm::lookAt(lightPos, cameraTarget, glm::vec3(0, 1, 0)); // playerPos -> cameraTarget
 	glm::mat4 lightSpaceMatrix = lightProjection * lightView;
 
-	// 패스 1: 그림자 맵 생성
+	// [패스 1] 그림자 맵 생성 (Depth Map Generation)
 	glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
 	glBindFramebuffer(GL_FRAMEBUFFER, depthFBO);
 	glClear(GL_DEPTH_BUFFER_BIT);
@@ -1257,7 +1318,7 @@ GLvoid drawScene()
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-	// 패스 2: 실제 장면 렌더링
+	// [패스 2] 실제 장면 렌더링 (Main Render Pass)
 	glViewport(0, 0, 1280, 960);
 	if (isFlying || isLanding || isBirdLeaving) {
 		// 하늘색 
@@ -1281,17 +1342,22 @@ GLvoid drawScene()
 	glUniform3fv(glGetUniformLocation(shaderProgramID, "spotlightPos"), 1, glm::value_ptr(playerPos));
 
 	glActiveTexture(GL_TEXTURE0);
-
-	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, depthMap);
 	glUniform1i(glGetUniformLocation(shaderProgramID, "shadowMap"), 0);
 
-	// 비행 중일 때는 지면 오브젝트 렌더링 건너뛰기
-	if (!isFlying && !isLanding) {
-		renderObjects(shaderProgramID, proj * view);
-	}
-
+	// 맵 오브젝트 렌더링 (비행 중에는 바닥 그리기 생략 가능하지만, 여기선 그림자 때문에 그림)
 	renderObjects(shaderProgramID, proj * view);
+
+	int currentZ = (int)std::round(playerPos.z);
+	int drawRangeFront = 30;
+	int drawRangeBack = 10;
+
+	for (auto& item : items) {
+		if (item.z < currentZ - drawRangeFront || item.z > currentZ + drawRangeBack) continue;
+		// 회전 애니메이션
+		item.rotation += 2.0f;
+		drawItem(item, shaderProgramID);
+	}
 
 	// 파티클 그리기 호출
 	drawParticles(shaderProgramID);
@@ -1308,7 +1374,6 @@ GLvoid drawScene()
 
 		// 계절마다 설정된 크기(모양) 적용
 		model = glm::scale(model, wp.scaleVec);
-
 		model = glm::rotate(model, wp.swayPhase, glm::vec3(0.5f, 1.0f, 0.2f));
 
 		glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "model"), 1, GL_FALSE, glm::value_ptr(model));
@@ -1319,32 +1384,48 @@ GLvoid drawScene()
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
 
-
-	// 점수 표시 (좌측 상단)
+	// [UI 렌더링] 
+	// 1. 점수 표시
 	std::string scoreStr = "SCORE: " + std::to_string(score);
 	renderTextWithOutline(20, 60, scoreStr.c_str());
 
-	// 코인 개수 표시 (우측 상단)
+	// 2. 코인 개수 표시 
 	std::string coinStr = "COINS: " + std::to_string(coinCount);
 	renderTextWithOutline(1050, 60, coinStr.c_str());
 
-	// 경고 메시지 출력 
+	// 3. 아이템 상태 UI 표시 
+	float uiY = 880.0f;
+	uiY = 120.0f;
+
+	if (hasShield) {
+		renderTextWithOutline(950, uiY, "[SHIELD ON]");
+		uiY += 40.0f;
+	}
+	if (isMagnetActive) {
+		std::string msg = "[MAGNET] " + std::to_string((int)magnetTimer) + "s";
+		renderTextWithOutline(900, uiY, msg.c_str());
+		uiY += 40.0f;
+	}
+	if (isSlowActive) {
+		std::string msg = "[SLOW] " + std::to_string((int)slowTimer) + "s";
+		renderTextWithOutline(1000, uiY, msg.c_str());
+	}
+
+
+	// 4. 경고 메시지 (암전)
 	if (isNightWarning) {
 		// 0.2초 간격으로 깜빡거리게 만들기
 		if ((int)(nightWarningTimer * 5) % 2 == 0) {
-
-			// 화면 중앙 좌표 계산 (대략)
 			float centerX = 1280.0f / 2.0f;
 			float centerY = 960.0f / 2.0f;
 
-			// 그림자(검은색)
+			// 그림자 + 본문
 			renderTextTTF(centerX - 150.0f + 3.0f, centerY + 3.0f, "WARNING: BLACKOUT!", 0.0f, 0.0f, 0.0f);
-			// 본문(빨간색)
 			renderTextTTF(centerX - 150.0f, centerY, "WARNING: BLACKOUT!", 1.0f, 0.0f, 0.0f);
-
 		}
 	}
 
+	/* 5. 대쉬 상태 및 쿨타임 표시(화면 중앙 하단)
 	std::string dashStr;
 	float dashR = 1.0f, dashG = 1.0f, dashB = 0.0f; // 기본 색상 (노랑)
 
@@ -1357,22 +1438,24 @@ GLvoid drawScene()
 		dashR = 0.5f; dashG = 0.5f; dashB = 0.5f; // 회색
 	}
 	else if (coinCount >= DASH_COST) {
-		dashStr = "DASH ";
+		dashStr = "DASH READY";
 		dashR = 0.0f; dashG = 1.0f; dashB = 0.0f; // 초록
 	}
 	else {
-		dashStr = "NEED " + std::to_string(DASH_COST - coinCount) + " COINS FOR DASH";
+		dashStr = "NEED " + std::to_string(DASH_COST - coinCount) + " COINS";
 		dashR = 1.0f; dashG = 0.5f; dashB = 0.0f; // 주황
 	}
+	// 대쉬 UI 위치
+	renderTextTTF(1280 / 2 - 100, 100, dashStr.c_str(), dashR, dashG, dashB);
+	*/
 
-	// 텍스트는 화면 중앙 하단에 가깝게 표시
+
+	// 6. 스페이스바 연타 이벤트 UI
 	if (isEventActive) {
 		float barWidth = 600.0f;
 		float barHeight = 40.0f;
 		float centerX = 1280.0f / 2.0f;
 		float centerY = 960.0f - 150.0f; // 화면 위쪽 중앙
-		float centerY_BottomUp = 960.0f - 150.0f; // 810.0f (화면 하단 기준)
-		float centerY_TopDown = 150.0f; // 150.0f (화면 상단 기준)
 
 		// 1. 배경 (테두리)
 		glUseProgram(0);
@@ -1401,13 +1484,13 @@ GLvoid drawScene()
 		glUseProgram(shaderProgramID);
 	}
 
-	// 바람 경고 UI
+	// [추가] 7. 바람 경고 UI
 	if (isWindActive) {
 		std::string windStr;
 		if (windForce > 0) windStr = ">>> STRONG WIND >>>";
 		else windStr = "<<< STRONG WIND <<<";
 
-		// 하늘색 텍스트
+		// 하늘색 텍스트로 중앙 상단에 표시
 		renderTextWithOutline(1280 / 2 - 150, 800, windStr.c_str());
 	}
 
@@ -1498,13 +1581,70 @@ void timer(int value)
 		if (it->life <= 0.0f || it->scale <= 0.0f) it = particles.erase(it);
 		else ++it;
 	}
+
+	// 대쉬 쿨타임 감소
 	if (dashCooldownTimer > 0.0f) {
 		dashCooldownTimer -= 0.016f;
 		if (dashCooldownTimer < 0.0f) dashCooldownTimer = 0.0f;
 	}
 
-	// 바람 이벤트 로직
+	// 5. [아이템] 슬로우 모션 속도 배율 설정
+	float globalSpeedRate = 1.0f;
+	if (isSlowActive) {
+		globalSpeedRate = 0.5f; // 모든 물체 속도 절반
+		slowTimer -= 0.016f;
+		if (slowTimer <= 0.0f) {
+			isSlowActive = false;
+			printf("슬로우 효과 종료.\n");
+		}
+	}
 
+	// 6. [아이템] 자석 타이머 및 효과
+	if (isMagnetActive) {
+		magnetTimer -= 0.016f;
+		if (magnetTimer <= 0.0f) {
+			isMagnetActive = false;
+			printf("자석 효과 종료.\n");
+		}
+		// 코인 끌어당기기 로직
+		for (auto& coin : coins) {
+			if (coin.isCollected) continue;
+			float dist = glm::distance(playerPos, glm::vec3(coin.x, playerPos.y, coin.z));
+			if (dist < 6.0f) { // 사거리 6칸
+				glm::vec3 dir = glm::normalize(playerPos - glm::vec3(coin.x, playerPos.y, coin.z));
+				coin.x += dir.x * 0.2f;
+				coin.z += dir.z * 0.2f;
+			}
+		}
+	}
+
+	// 7. [아이템] 획득 로직
+	for (auto& item : items) {
+		if (item.isCollected) continue;
+		if (std::abs(item.z - playerPos.z) < 0.5f && std::abs(item.x - playerPos.x) < 0.5f) {
+			item.isCollected = true;
+
+			if (item.type == ITEM_SHIELD) {
+				hasShield = true;
+				printf("아이템 획득: 보호막!\n");
+				spawnParticles(playerPos, glm::vec3(0.0f, 0.5f, 1.0f), 20, 1.0f);
+			}
+			else if (item.type == ITEM_MAGNET) {
+				isMagnetActive = true;
+				magnetTimer = 10.0f;
+				printf("아이템 획득: 자석!\n");
+				spawnParticles(playerPos, glm::vec3(1.0f, 0.0f, 0.0f), 20, 1.0f);
+			}
+			else if (item.type == ITEM_CLOCK) {
+				isSlowActive = true;
+				slowTimer = 5.0f;
+				printf("아이템 획득: 슬로우!\n");
+				spawnParticles(playerPos, glm::vec3(0.0f, 1.0f, 1.0f), 20, 1.0f);
+			}
+		}
+	}
+
+	// 바람 이벤트 로직
 	if (isWindActive) {
 		windTimer -= 0.016f;
 
@@ -1580,7 +1720,7 @@ void timer(int value)
 			// 다음 움직임을 위해 playerTargetPos도 현재 위치로 업데이트
 			playerTargetPos = playerPos;
 			printf("대쉬 종료. 쿨다운 시작: %.1f초\n", DASH_COOLDOWN);
-			
+
 			//if (scoreTargetReached && score > lastEventScore && !isEventActive && !isFlying) {
 			//	isEventActive = true;
 			//	eventProgress = 0.0f;
@@ -1711,9 +1851,10 @@ void timer(int value)
 			}
 		}
 
-		// 4. 통나무 이동 및 플레이어 탑승
+		// 통나무 이동 및 탑승
 		for (auto& logObj : logs) {
-			logObj.x += logObj.speed;
+			// [수정] 슬로우 효과 적용 (globalSpeedRate)
+			logObj.x += logObj.speed * globalSpeedRate;
 			if (logObj.speed > 0 && logObj.x > 20.0f) logObj.x = -20.0f;
 			else if (logObj.speed < 0 && logObj.x < -20.0f) logObj.x = 20.0f;
 
@@ -1722,27 +1863,39 @@ void timer(int value)
 				(playerPos.x <= logObj.x + logObj.width / 2.0f + 0.3f);
 
 			if (!isMoving && onLog) {
-				playerPos.x += logObj.speed;
-				playerTargetPos.x += logObj.speed;
-				playerStartPos.x += logObj.speed;
+				// 탑승 중일 때도 슬로우 적용된 속도로 이동
+				playerPos.x += logObj.speed * globalSpeedRate;
+				playerTargetPos.x += logObj.speed * globalSpeedRate;
+				playerStartPos.x += logObj.speed * globalSpeedRate;
 				restingY = 1.1f;
 			}
 		}
-	
+
 		// [충돌 검사 시작]
 		bool isDead = false;
 
-		// 자동차 충돌 검사
+		// 자동차 충돌
 		for (auto& car : cars) {
-			car.x += car.speed;
+			// [수정] 슬로우 효과 적용
+			car.x += car.speed * globalSpeedRate;
 			if (car.x > 18.0f && car.speed > 0) car.x = -18.0f;
 			if (car.x < -18.0f && car.speed < 0) car.x = 18.0f;
 
-			if (abs(car.z - playerPos.z) < 0.2f && abs(car.x - playerPos.x) < 0.8f) {
-				isDead = true;
-			}
-			if (abs(car.z - playerPos.z) < 0.08f && abs(car.x - playerPos.x) < 1.2f) {
-				isDead = true;
+			// 충돌 체크
+			bool hit = (abs(car.z - playerPos.z) < 0.2f && abs(car.x - playerPos.x) < 0.8f) ||
+				(abs(car.z - playerPos.z) < 0.08f && abs(car.x - playerPos.x) < 1.2f);
+
+			if (hit) {
+				if (hasShield) {
+					hasShield = false; // 보호막 소모
+					spawnParticles(playerPos, glm::vec3(0.5f, 0.5f, 1.0f), 30, 2.0f); // 파란 파티클
+					printf("보호막이 충돌을 막았습니다!\n");
+					// 차를 멀리 치워서 연속 충돌 방지
+					car.x = (car.speed > 0) ? 20.0f : -20.0f;
+				}
+				else {
+					isDead = true;
+				}
 			}
 		}
 
@@ -1847,13 +2000,21 @@ void timer(int value)
 			isNightWarning = false;
 			nightModeTimer = 0.0f;
 			nightWarningTimer = 0.0f;
-			nightEventCooldown = 10.0f; 
+			nightEventCooldown = 10.0f;
 
 			// 로켓/연타 이벤트 초기화
 			isEventActive = false;
 			eventProgress = 0.0f;
 			requiredTaps = 0;
-			lastEventScore = 0; 
+			lastEventScore = 0;
+
+			// 4. 아이템
+			items.clear();
+			hasShield = false;
+			isMagnetActive = false;
+			isSlowActive = false;
+			magnetTimer = 0.0f;
+			slowTimer = 0.0f;
 
 			// 비행 상태 초기화 (혹시 날다가 죽었을 경우 대비)
 			isFlying = false;
@@ -1965,21 +2126,21 @@ void timer(int value)
 			if (nowSeason == SPRING) {
 				// 봄: 벚꽃
 				wp.color = glm::vec3(0.9f, 0.4f, 0.6f); // 연분홍
-				wp.scaleVec = glm::vec3(0.15f, 0.02f, 0.15f); 
-				wp.speed = 0.03f + (rand() % 5) / 100.0f; 
+				wp.scaleVec = glm::vec3(0.15f, 0.02f, 0.15f);
+				wp.speed = 0.03f + (rand() % 5) / 100.0f;
 			}
 			else if (nowSeason == AUTUMN) {
 				// 가을: 낙엽
 				float rVar = (rand() % 3) / 10.0f; // 색상 약간 다르게
-				wp.color = glm::vec3(0.7f + rVar, 0.35f, 0.05f); 
-				wp.scaleVec = glm::vec3(0.2f, 0.02f, 0.2f); 
-				wp.speed = 0.06f + (rand() % 5) / 100.0f; 
+				wp.color = glm::vec3(0.7f + rVar, 0.35f, 0.05f);
+				wp.scaleVec = glm::vec3(0.2f, 0.02f, 0.2f);
+				wp.speed = 0.06f + (rand() % 5) / 100.0f;
 			}
 			else if (nowSeason == WINTER) {
 				// 겨울: 눈 
 				wp.color = glm::vec3(1.0f, 1.0f, 1.0f); // 순백색
 				wp.scaleVec = glm::vec3(0.12f, 0.12f, 0.12f);
-				wp.speed = 0.1f + (rand() % 10) / 100.0f; 
+				wp.speed = 0.1f + (rand() % 10) / 100.0f;
 			}
 
 			weatherParticles.push_back(wp);
@@ -2345,6 +2506,29 @@ void keyboard(unsigned char key, int x, int y)
 			isWindActive = false;
 			printf("테스트: 강풍 강제 종료.\n");
 		}
+	}
+
+	if (key == '4' || key == '5' || key == '6') {
+		Item newItem;
+		newItem.x = (float)std::round(playerPos.x);       // 현재 내 라인
+		newItem.z = (float)std::round(playerPos.z) - 2.0f; // 2칸 앞 (진행방향)
+		newItem.isCollected = false;
+		newItem.rotation = 0.0f;
+
+		if (key == '4') {
+			newItem.type = ITEM_SHIELD;
+			printf(">>> 치트: 보호막(Shield) 아이템 생성!\n");
+		}
+		else if (key == '5') {
+			newItem.type = ITEM_MAGNET;
+			printf(">>> 치트: 자석(Magnet) 아이템 생성!\n");
+		}
+		else if (key == '6') {
+			newItem.type = ITEM_CLOCK;
+			printf(">>> 치트: 시계(Slow) 아이템 생성!\n");
+		}
+
+		items.push_back(newItem);
 	}
 }
 
