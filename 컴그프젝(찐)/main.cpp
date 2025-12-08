@@ -211,7 +211,12 @@ const float BIRD_LEAVE_DURATION = 1.0f; // 새가 떠나는 데 걸리는 시간
 bool isNightMode = false;       // 현재 핀 조명 모드인가?
 float nightModeTimer = 0.0f;    // 핀 조명 지속 시간
 float nightEventCooldown = 10.0f; // 다음 이벤트 발생까지 남은 시간
-const float NIGHT_DURATION = 5.0f; // 한 번 켜지면 5초간 지속
+const float NIGHT_DURATION = 15.0f; // 한 번 켜지면 5초간 지속
+
+// 핀 조명 경고(예고) 관련 변수
+bool isNightWarning = false;        // 현재 경고 중인가?
+float nightWarningTimer = 0.0f;     // 경고 지속 시간
+const float WARNING_DURATION = 3.0f; // 3초 동안 경고 후 암전
 
 std::map<int, int> mapType; // 0=잔디 1=도로
 std::map<int, std::vector<int>> treeMap;
@@ -1273,6 +1278,28 @@ GLvoid drawScene()
 	std::string coinStr = "COINS: " + std::to_string(coinCount);
 	renderTextWithOutline(1050, 60, coinStr.c_str());
 
+	// 경고 메시지 출력 (화면 중앙에 빨간 글씨로 깜빡임)
+	if (isNightWarning) {
+		// 0.2초 간격으로 깜빡거리게 만들기
+		// (int)(timer * 5) % 2 가 0일 때만 글씨를 그림
+		if ((int)(nightWarningTimer * 5) % 2 == 0) {
+
+			// 화면 중앙 좌표 계산 (대략)
+			float centerX = 1280.0f / 2.0f;
+			float centerY = 960.0f / 2.0f;
+
+			// 텍스트 출력 (renderTextTTF 직접 사용해서 빨간색 적용)
+			// renderTextWithOutline을 써도 되지만, 빨간색 강조를 위해 직접 호출합니다.
+
+			// 그림자(검은색)
+			renderTextTTF(centerX - 150.0f + 3.0f, centerY + 3.0f, "WARNING: BLACKOUT!", 0.0f, 0.0f, 0.0f);
+			// 본문(빨간색)
+			renderTextTTF(centerX - 150.0f, centerY, "WARNING: BLACKOUT!", 1.0f, 0.0f, 0.0f);
+
+			// 한글 폰트가 지원된다면: "경고: 정전이 발생합니다!" 라고 쓰셔도 됩니다.
+		}
+	}
+
 	std::string dashStr;
 	float dashR = 1.0f, dashG = 1.0f, dashB = 0.0f; // 기본 색상 (노랑)
 
@@ -1353,28 +1380,40 @@ void spawnParticles(glm::vec3 pos, glm::vec3 color, int count, float speedScale)
 
 void timer(int value)
 {
-	// 핀 조명 랜덤 이벤트 로직
-	if (isNightMode) {
-		// 밤 모드 지속 시간 감소
+	// 핀 조명 로직
+	// 1. 경고 단계
+	if (isNightWarning) {
+		nightWarningTimer -= 0.016f;
+
+		// 경고 시간이 끝나면? -> 진짜 밤 모드 시작!
+		if (nightWarningTimer <= 0.0f) {
+			isNightWarning = false;
+			isNightMode = true; // 암전 시작
+			nightModeTimer = NIGHT_DURATION;
+			printf("경고 종료! 암전 시작!\n");
+		}
+	}
+	// 2. 밤(핀 조명) 단계
+	else if (isNightMode) {
 		nightModeTimer -= 0.016f;
 		if (nightModeTimer <= 0.0f) {
 			isNightMode = false;
-			nightEventCooldown = (rand() % 10) + 10.0f; // 10~20초 후 다시 기회
+			nightEventCooldown = (rand() % 10) + 10.0f; // 쿨타임 시작
 			printf("핀 조명 이벤트 종료! 다시 밝아집니다.\n");
 		}
 	}
+	// 3. 평상시 (대기 단계)
 	else {
-		// 쿨타임 감소
 		if (nightEventCooldown > 0.0f) {
 			nightEventCooldown -= 0.016f;
 		}
 		else {
-			// 쿨타임이 끝났으면 1% 확률(매 프레임)로 발동
-			// (1초에 60번 호출되므로 꽤 자주 체크됨)
-			if (rand() % 500 < 1) { // 확률 조절: 500분의 1
-				isNightMode = true;
-				nightModeTimer = NIGHT_DURATION;
-				printf("!!! 갑자기 어두워집니다! 핀 조명 이벤트 발동! !!!\n");
+			// 확률 체크 (테스트를 위해 확률을 좀 높여두셔도 됩니다)
+			if (rand() % 500 < 1) {
+				// 바로 어두워지는 게 아니라 '경고' 모드 진입
+				isNightWarning = true;
+				nightWarningTimer = WARNING_DURATION;
+				printf("!!! 정전 경고 발령 !!!\n");
 			}
 		}
 	}
