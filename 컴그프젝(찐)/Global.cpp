@@ -123,3 +123,5 @@ GLuint riverTexture;
 GLuint grassTexture;
 GLuint logTexture;
 GLuint lilyPadTexture;
+
+bool isGodMode = false;

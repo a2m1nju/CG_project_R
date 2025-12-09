@@ -119,3 +119,5 @@ extern GLuint riverTexture;
 extern GLuint grassTexture;
 extern GLuint logTexture;
 extern GLuint lilyPadTexture;
+
+extern bool isGodMode;

@@ -79,6 +79,12 @@ void keyboard(unsigned char key, int x, int y)
 	if (key == 'q' || key == 'Q') {
 		exit(0);
 	}
+
+	if (key == '0') {
+		isGodMode = !isGodMode;
+		printf("God Mode: %s\n", isGodMode ? "ON" : "OFF");
+	}
+
 	// 인트로 상태 처리
 	if (introState != 0) {
 		if (introState == 2) {

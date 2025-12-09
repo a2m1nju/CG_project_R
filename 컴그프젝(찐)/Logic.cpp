@@ -546,7 +546,6 @@ void timer(int value)
 		}
 
 	}
-
 	else if (isFlying) {
 		playerPos.z -= FLY_SPEED; 
 		playerPos.y = 3.0f + sin(flyTimer * 5.0f) * 0.5f;
@@ -656,7 +655,7 @@ void timer(int value)
 
 		// [충돌 검사 시작]
 		bool isDead = false;
-		bool isInvincible = isDashing || (recoveryTimer > 0.0f) || hasShield || isGiantMode;
+		bool isInvincible = isDashing || (recoveryTimer > 0.0f) || hasShield || isGiantMode || isGodMode;
 
 		// 자동차 충돌
 		for (auto& car : cars) {
@@ -670,6 +669,8 @@ void timer(int value)
 				(abs(car.z - playerPos.z) < 0.08f && abs(car.x - playerPos.x) < 1.2f);
 
 			if (hit) {
+				if (isGodMode) continue;
+
 				if (isGiantMode) {
 					// 파티클 효과
 					spawnParticles(glm::vec3(car.x, 0.5f, car.z), car.color, 30, 1.5f);
@@ -774,7 +775,9 @@ void timer(int value)
 
 					if (playerGridZ == trainGridZ) {
 						if (playerPos.x > t.x - 9.0f && playerPos.x < t.x + 9.0f) {
-							if (isGiantMode) {
+							if (isGodMode) {
+							}
+							else if (isGiantMode) {
 								spawnParticles(playerPos, glm::vec3(1.0f, 0.0f, 0.0f), 50, 2.0f); 
 								shakeTimer = 0.3f; shakeMagnitude = 0.5f; 
 								score += 10; 

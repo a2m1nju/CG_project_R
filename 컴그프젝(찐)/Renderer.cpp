@@ -849,6 +849,10 @@ GLvoid drawScene()
 		renderTextWithOutline(1000, uiY, msg.c_str());
 	}
 
+	if (isGodMode) {
+		renderTextWithOutline(950, uiY, "[GOD MODE]");
+		uiY += 40.0f;
+	}
 
 	// 4. 경고 메시지 (암전)
 	if (isNightWarning) {
