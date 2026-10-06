@@ -730,9 +730,21 @@ GLvoid drawScene()
 			glm::vec3(0, 1, 0));
 	}
 
-	glm::mat4 lightProjection = glm::ortho(-50.f, 50.f, -50.f, 50.f, 1.f, 100.f);
+	/*glm::mat4 lightProjection = glm::ortho(-50.f, 50.f, -50.f, 50.f, 1.f, 100.f);
 	glm::mat4 lightView = glm::lookAt(lightPos, cameraTarget, glm::vec3(0, 1, 0)); 
+	glm::mat4 lightSpaceMatrix = lightProjection * lightView;*/
+
+	
+	// 그림자 오류 수정 
+	const glm::vec3 worldLightPos =
+		lightPos + glm::vec3(cameraTarget.x, 0.0f, cameraTarget.z);
+
+	glm::mat4 lightProjection = glm::ortho(-50.f, 50.f, -50.f, 50.f, 1.f, 100.f);
+	glm::mat4 lightView = glm::lookAt(worldLightPos, cameraTarget, glm::vec3(0, 1, 0));
 	glm::mat4 lightSpaceMatrix = lightProjection * lightView;
+
+
+	
 
 	// 그림자 맵 생성 
 	glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
@@ -762,7 +774,8 @@ GLvoid drawScene()
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "projection"), 1, GL_FALSE, glm::value_ptr(proj));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "view"), 1, GL_FALSE, glm::value_ptr(view));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(lightSpaceMatrix));
-	glUniform3fv(glGetUniformLocation(shaderProgramID, "lightPos"), 1, &lightPos[0]);
+
+	glUniform3fv(glGetUniformLocation(shaderProgramID, "lightPos"), 1, glm::value_ptr(worldLightPos));
 
 	int spotlightVal = isNightMode ? 1 : 0;
 	glUniform1i(glGetUniformLocation(shaderProgramID, "enableSpotlight"), spotlightVal);
