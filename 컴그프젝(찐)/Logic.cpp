@@ -562,6 +562,7 @@ void timer(int value)
 		if (flyTimer <= 0.0f) {
 			isFlying = false;
 			isLanding = true;
+			landingTime = 0.0f;
 
 
 			birdStartPos = playerPos + glm::vec3(0.0f, 0.5f * 0.7f + 0.5f * 0.7f, 0.0f); 
@@ -588,6 +589,8 @@ void timer(int value)
 			birdLeaveTime = 0.0f;
 			recoveryTimer = 2.0f; 
 			isLandingSuccess = true;
+
+			lastEventScore = score;
 		}
 	}
 	else if (isEventActive) {
@@ -618,8 +621,13 @@ void timer(int value)
 		}
 
 		// 2. 랜덤 이벤트 발생 조건 체크
-		if (scoreTargetReached && score > lastEventScore && !isMoving) {
+		if (scoreTargetReached && score > lastEventScore && 
+			!isMoving && !isDashing &&
+			!isFlying && !isLanding && !isBirdLeaving &&
+			recoveryTimer <= 0.0f)
+		{
 			isEventActive = true;
+			eventDuration = 4.0f; //이벤트마다 제한 시간 초기화 
 			eventProgress = 0.0f;
 			requiredTaps = 0;
 			lastEventScore = score;
