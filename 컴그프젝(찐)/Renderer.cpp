@@ -291,7 +291,7 @@ void drawRail(int z, bool isWarning, bool isLightOn, GLuint shader) {
 	// Ä§¸ñ (Sleepers) 
 	glm::vec3 woodColor = glm::vec3(0.35f, 0.2f, 0.1f);
 
-	for (float x = -16.0f; x <= 16.0f; x += 1.2f) {
+	for (float x = -50.0f; x <= 50.0f; x += 1.2f) {
 		glm::mat4 model = glm::mat4(1.0f);
 		model = glm::translate(model, glm::vec3(x, 0.01f, (float)z));
 		model = glm::scale(model, glm::vec3(0.3f, 0.05f, 1.4f));
@@ -308,7 +308,7 @@ void drawRail(int z, bool isWarning, bool isLightOn, GLuint shader) {
 	for (float rz : railZPositions) {
 		glm::mat4 model = glm::mat4(1.0f);
 		model = glm::translate(model, glm::vec3(0.0f, 0.06f, (float)z + rz));
-		model = glm::scale(model, glm::vec3(32.0f, 0.08f, 0.1f));
+		model = glm::scale(model, glm::vec3(100.0f, 0.08f, 0.1f));
 
 		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
 		if (shader == shaderProgramID) glVertexAttrib3f(1, railColor.r, railColor.g, railColor.b);
