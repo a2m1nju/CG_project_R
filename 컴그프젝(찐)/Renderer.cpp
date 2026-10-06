@@ -879,7 +879,7 @@ GLvoid drawScene()
 	}
 	// 비행 중 텍스트 UI
 	if (isFlying) {
-		renderTextWithOutline(1280 / 2 - 220, 200, "The bird will take you home...");
+		renderTextWithOutline(1280 / 2 - 390, 200, "The bird will take you home...");
 		renderTextWithOutline(1280 / 2 - 220, 270, "ENJOY THE SKY!");
 	}
 
