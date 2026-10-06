@@ -47,10 +47,22 @@ void generateLane(int z)
 		float speed = (0.05f + (rand() % 3) / 50.0f);
 		if (rand() % 2 == 0) speed *= -1.0f;
 
+		const float laneWidth = 36.0f;
+		const float spacing = laneWidth / numCars;
+		const float startX = (float)(rand() % 30 - 15);
+
+
 		for (int i = 0; i < numCars; ++i) {
 			Car newCar;
 			newCar.z = (float)z;
-			newCar.x = (float)(rand() % 30 - 15);
+			
+			// 자동차 겹침 해결 
+			newCar.x = startX + i * spacing;
+
+			if (newCar.x >= 18.0f) {
+				newCar.x -= laneWidth;
+			}
+
 			newCar.speed = speed;
 			newCar.color = glm::vec3((rand() % 10) / 10.f, (rand() % 10) / 10.f, (rand() % 10) / 10.f);
 			if (newCar.color.r < 0.2f) newCar.color.r += 0.5f;
