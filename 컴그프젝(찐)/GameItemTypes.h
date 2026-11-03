@@ -1,4 +1,3 @@
-// »õ ÆÄÀÏ: GameItemTypes.h
 #pragma once
 #include <array>
 #include <cstdint>
@@ -14,9 +13,9 @@ enum class ItemKind : std::uint8_t {
 };
 
 struct GroundItem {
-    ObjectId id;       // ÇÑ ¶ó¿îµå ¾È¿¡¼­ Áßº¹µÇÁö ¾Ê´Â ID
+    ObjectId id;       // í•œ ë¼ìš´ë“œ ì•ˆì—ì„œ ì¤‘ë³µë˜ì§€ ì•ŠëŠ” ID
     ItemKind kind;
-    std::int32_t x;    // ¿ùµå °İÀÚ ÁÂÇ¥
+    std::int32_t x;    // ì›”ë“œ ê²©ì ì¢Œí‘œ
     std::int32_t z;
 };
 
@@ -24,5 +23,5 @@ struct PlayerInventory {
     std::array<ItemKind, 2> slots{
         ItemKind::Empty, ItemKind::Empty
     };
-    std::uint8_t selectedSlot = 0; // 0 ¶Ç´Â 1
+    std::uint8_t selectedSlot = 0; // 0 ë˜ëŠ” 1
 };
