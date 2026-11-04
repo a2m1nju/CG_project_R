@@ -41,7 +41,8 @@ typedef struct JoinResult {
 
 class MatchCoordinator {
 public:
-    explicit MatchCoordinator(RoomState& room);
+    explicit MatchCoordinator(RoomState& room)
+        : room(room) {};
 
     JoinResult Enqueue(SessionId id);
     void TryPromote();

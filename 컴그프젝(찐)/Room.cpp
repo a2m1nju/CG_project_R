@@ -1,10 +1,5 @@
 #include "Room.h"
 
-MatchCoordinator::MatchCoordinator(RoomState& room)
-	: room(room)
-{
-}
-
 JoinResult MatchCoordinator::Enqueue(SessionId id) { // 서버가 참가자의 JOIN 요청을 처리할 때 호출
 	JoinResult result {};
 	
@@ -29,20 +24,16 @@ JoinResult MatchCoordinator::Enqueue(SessionId id) { // 서버가 참가자의 J
 	return result; // 얘 호출한데서 다음단계(trypromote) 호출해야함.
 }
 
-void MatchCoordinator::TryPromote() // 
-{
+void MatchCoordinator::TryPromote(){ // 준비실 구성
 	if (room.phase != ServicePhase::MATCHING) { // 매칭단계인지 확인
 		return;
 	}
-
 	if (room.queue.size() != 3) { // 3명인지 확인
 		return;
 	}
-
 	for (std::size_t i = 0; i < room.members.size(); ++i) { // 대기실로 이동
 		room.members[i] = room.queue[i];
 	}
-
 	room.queue.clear(); // 큐 비우기
 
 	room.ready.fill(false); // 준비상태 초기화
@@ -55,6 +46,30 @@ void MatchCoordinator::TryPromote() //
 	// 8. 통신 구현 시 READY_LOBBY_STATE 전송 연결
 }
 
-//bool SetReady(SessionId id, LobbyEpoch epoch, bool ready) { // 준비 상태 변경
-//	if(epoch == )
-//}
+bool MatchCoordinator::SetReady(SessionId id, LobbyEpoch epoch, bool ready) {
+	if (room.phase != ServicePhase::READY_LOBBY) { // 준비실인지 확인
+		return false;
+	}
+	if (epoch != room.lobbyEpoch) { // 이전 대기실 요청 차단
+		return false;
+	}
+	const auto it = std::find(room.members.begin(), room.members.end(), id); // 옳은 멤버인지 확인
+	if (it == room.members.end()) {
+		return false;
+	}
+	const auto index = static_cast<std::size_t>(it - room.members.begin()); // 개인 준비상태 변경
+	room.ready[index] = ready;
+
+	// 5. 통신 구현 시 전체 멤버에게
+	// READY_LOBBY_STATE 전송
+
+	const bool allReady = std::all_of( // 전원 준비여부 확인
+		room.ready.begin(), room.ready.end(),
+		[](bool value) { return value; });
+
+	if (allReady) {
+		// RoundController 구현 시 BeginRound(false) 연결
+	}
+
+	return true;
+}
