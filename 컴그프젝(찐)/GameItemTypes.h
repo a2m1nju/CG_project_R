@@ -16,19 +16,20 @@ enum class EffectKind : std::uint8_t {
     None,
     ReverseControls,
     Blackout,
-    Stun
+    Slip
 };
 
 enum class ItemUseMode : std::uint8_t {
     None,
     TargetOpponent, // 살아 있는 다른 플레이어를 지정
-    PlaceTrap       // 사용자의 현재 격자에 설치
+    PlaceTrapAhead  // 사용자가 바라보는 방향의 앞 격자에 설치
 };
 
 struct ItemRule {
     ItemUseMode useMode;
     EffectKind effect;
     std::uint32_t effectDurationMs;
+    std::uint8_t placementDistanceCells; // 설치형 아이템의 전방 격자 거리
 };
 
 // 같은 효과를 다시 받으면 남은 시간을 다시 갱신한다.
@@ -37,15 +38,16 @@ struct ItemRule {
 constexpr ItemRule GetItemRule(ItemKind kind) {
     switch (kind) {
     case ItemKind::ReverseControls:
-        return {ItemUseMode::TargetOpponent, EffectKind::ReverseControls, 5000};
+        return {ItemUseMode::TargetOpponent, EffectKind::ReverseControls, 5000, 0};
     case ItemKind::Blackout:
-        return {ItemUseMode::TargetOpponent, EffectKind::Blackout, 4000};
+        return {ItemUseMode::TargetOpponent, EffectKind::Blackout, 4000, 0};
     case ItemKind::Banana:
+        // 사용자가 바라보는 방향으로 3칸 앞에 설치한다.
         // 설치자가 아닌 다른 플레이어가 밟을 때까지 유지한다.
-        // 밟히면 바나나를 제거하고 1.2초 동안 이동을 막는다.
-        return {ItemUseMode::PlaceTrap, EffectKind::Stun, 1200};
+        // 밟히면 바나나를 제거하고 1.2초 동안 미끄러짐 효과를 적용한다.
+        return {ItemUseMode::PlaceTrapAhead, EffectKind::Slip, 1200, 3};
     default:
-        return {ItemUseMode::None, EffectKind::None, 0};
+        return {ItemUseMode::None, EffectKind::None, 0, 0};
     }
 }
 
@@ -67,7 +69,7 @@ struct PlayerInventory {
 struct PlayerEffectState {
     std::uint32_t reverseControlsRemainingMs = 0;
     std::uint32_t blackoutRemainingMs = 0;
-    std::uint32_t stunRemainingMs = 0;
+    std::uint32_t slipRemainingMs = 0;
 };
 
 // 바나나는 시간 제한 없이 유지된다.
