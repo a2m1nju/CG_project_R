@@ -113,6 +113,21 @@ std::string HandleCommand(ItemSystem& items, const std::string& line) {
         }
         return response.str() + "\n";
     }
+    if (command == "SWITCH") {
+        PlayerId id = 0;
+        std::uint8_t slot = 0;
+
+        if (!ReadNumber(input, id) || !ReadNumber(input, slot) ||
+            !AtEnd(input) || slot > 1) {
+            return "ERR usage: SWITCH playerId slot(0|1)\n";
+        }
+        if (!items.GetInventory(id)) {
+            return "ERR unknown_player\n";
+        }
+
+        items.SwitchSlot(id, slot);
+        return "OK selected=" + std::to_string(slot) + "\n";
+    }
     if (command == "STATUS") {
         PlayerId id = 0;
         if (!ReadNumber(input, id) || !AtEnd(input)) return "ERR usage: STATUS playerId\n";
@@ -130,7 +145,7 @@ std::string HandleCommand(ItemSystem& items, const std::string& line) {
         return "OK reset\n";
     }
     if (command == "QUIT" && AtEnd(input)) return "BYE\n";
-    return "ERR commands: ADD_PLAYER, SPAWN, PICKUP, TICK, STATUS, RESET, QUIT\n";
+    return "ERR commands: ADD_PLAYER, SPAWN, PICKUP, TICK, SWITCH, STATUS, RESET, QUIT\n";
 }
 
 void ServeClient(SOCKET client, ItemSystem& items) {

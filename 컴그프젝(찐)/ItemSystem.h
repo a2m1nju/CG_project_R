@@ -31,6 +31,7 @@ class ItemSystem {
 public:
     bool AddGroundItem(const GroundItem& item);
     bool AddPlayer(PlayerId playerId);
+    bool SwitchSlot(PlayerId playerId, std::uint8_t slot);
     std::vector<PickupResult> ResolvePickups(const std::vector<PickupPlayer>& players);
     PlayerId SelectAttackTarget(PlayerId userId,
         const std::vector<TargetPlayer>& players) const;

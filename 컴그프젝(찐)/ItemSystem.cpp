@@ -19,6 +19,16 @@ bool ItemSystem::AddPlayer(PlayerId playerId) {
     return added;
 }
 
+bool ItemSystem::SwitchSlot(PlayerId playerId, std::uint8_t slot) {
+    auto it = inventories_.find(playerId);
+    if (it == inventories_.end() || slot >= it->second.slots.size()) {
+        return false;
+    }
+
+    it->second.selectedSlot = slot;
+    return true;
+}
+
 std::vector<PickupResult> ItemSystem::ResolvePickups(
     const std::vector<PickupPlayer>& players) {
     std::vector<PickupPlayer> ordered = players;
