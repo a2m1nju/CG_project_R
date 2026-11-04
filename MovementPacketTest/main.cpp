@@ -7,35 +7,6 @@
 // 같은 PC에서 서버와 클라이언트를 실행하는 테스트 주소
 const char* SERVERIP = "127.0.0.1";
 
-// 요청한 모든 바이트를 전송한다.
-bool SendAll(SOCKET sock, const uint8_t* data, int length)
-{
-    int sent = 0;
-
-    while (sent < length) {
-        int result = send(
-            sock,
-            reinterpret_cast<const char*>(data + sent),
-            length - sent,
-            0
-        );
-
-        if (result == SOCKET_ERROR) {
-            printf("send 오류: %d\n", WSAGetLastError());
-            return false;
-        }
-
-        if (result == 0) {
-            printf("더 이상 전송할 수 없습니다.\n");
-            return false;
-        }
-
-        sent += result;
-    }
-
-    return true;
-}
-
 int main()
 {
     WSADATA wsa;
@@ -102,10 +73,15 @@ int main()
             direction
         );
 
-        if (!SendAll(
+        const int length = static_cast<int>(packet.size());
+        const int sent = send(
             sock,
-            packet.data(),
-            static_cast<int>(packet.size()))) {
+            reinterpret_cast<const char*>(packet.data()),
+            length,
+            0
+        );
+
+        if (sent != length) {
 
             success = false;
             break;

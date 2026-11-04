@@ -2,60 +2,6 @@
 
 #include <cstdio>
 
-bool SendAll(
-    SOCKET socket,
-    const uint8_t* data,
-    int length)
-{
-    int sent = 0;
-
-    while (sent < length) {
-        int result = send(
-            socket,
-            reinterpret_cast<const char*>(data + sent),
-            length - sent,
-            0
-        );
-
-        if (result <= 0)
-            return false;
-
-        sent += result;
-    }
-
-    return true;
-}
-
-// 1: 성공
-// 0: 수신 시작 전 정상 종료
-// -1: 오류 또는 수신 도중 종료
-int RecvExact(
-    SOCKET socket,
-    uint8_t* data,
-    int length)
-{
-    int received = 0;
-
-    while (received < length) {
-        int result = recv(
-            socket,
-            reinterpret_cast<char*>(data + received),
-            length - received,
-            0
-        );
-
-        if (result == SOCKET_ERROR)
-            return -1;
-
-        if (result == 0)
-            return received == 0 ? 0 : -1;
-
-        received += result;
-    }
-
-    return 1;
-}
-
 void ServeClient(SOCKET clientSocket)
 {
     // 새 클라이언트는 원점에서 시작한다.
@@ -71,13 +17,14 @@ void ServeClient(SOCKET clientSocket)
         Protocol::MovePacket packet{};
 
         // 먼저 공통 헤더 12바이트를 받는다.
-        int result = RecvExact(
+        int result = recv(
             clientSocket,
-            packet.data(),
-            12
+            reinterpret_cast<char*>(packet.data()),
+            12,
+            MSG_WAITALL
         );
 
-        if (result != 1) {
+        if (result != 12) {
             std::printf("[server] client closed or receive failed\n");
             break;
         }
@@ -104,10 +51,11 @@ void ServeClient(SOCKET clientSocket)
         }
 
         // MOVE 본문 5바이트를 받는다.
-        if (RecvExact(
+        if (recv(
             clientSocket,
-            packet.data() + 12,
-            5) != 1) {
+            reinterpret_cast<char*>(packet.data() + 12),
+            5,
+            MSG_WAITALL) != 5) {
 
             std::printf("[server] incomplete body\n");
             break;
@@ -184,10 +132,15 @@ void ServeClient(SOCKET clientSocket)
             moveResult
         );
 
-        if (!SendAll(
+        const int length = static_cast<int>(response.size());
+        const int sent = send(
             clientSocket,
-            response.data(),
-            static_cast<int>(response.size()))) {
+            reinterpret_cast<const char*>(response.data()),
+            length,
+            0
+        );
+
+        if (sent != length) {
 
             std::printf("[server] send failed\n");
             break;
