@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <algorithm>
 #include <unordered_set>
+#include <deque>
 
 using SessionId = std::uint32_t;
 using PlayerId = std::uint32_t;

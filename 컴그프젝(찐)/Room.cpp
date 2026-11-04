@@ -11,12 +11,10 @@ JoinResult MatchCoordinator::Enqueue(SessionId id) { // 서버가 참가자의 J
 			result.code = 2;
 			return result;
 		}
-	
 	if (room.queue.size() >= 3) {
         result.code = 3;
         return result;
     }
-
 	room.queue.push_back(id);
 	result.code = 0;
 	result.playerId = id;
@@ -70,6 +68,30 @@ bool MatchCoordinator::SetReady(SessionId id, LobbyEpoch epoch, bool ready) {
 	if (allReady) {
 		// RoundController 구현 시 BeginRound(false) 연결
 	}
-
 	return true;
 }
+
+void MatchCoordinator::DissolveReadyLobby(SessionId leaverId) {
+	if (room.phase != ServicePhase::READY_LOBBY) { //레디방인지 확인
+		return;
+	}
+	const auto it = std::find(room.members.begin(), room.members.end(), leaverId); //실존하는id?
+	if (it == room.members.end()) {
+		return;
+	}
+	room.queue.clear(); //3명이상 안받으니까
+	for (SessionId memberId : room.members) { //탈주빼고 큐에 재등록
+		if (memberId != leaverId) {
+			room.queue.push_back(memberId);
+		}
+	}
+	room.members.fill(0); //기존상태로 초기화
+	room.ready.fill(false);
+	++room.lobbyEpoch; //방번호 변경
+	room.phase = ServicePhase::MATCHING; //상태변경
+
+	// 7. 통신 구현 시 남은 참가자에게 순서대로 전송
+	// READY_LOBBY_STATE(DISSOLVED) → QUEUE_STATE
+}
+
+
