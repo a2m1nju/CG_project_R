@@ -62,3 +62,18 @@ struct PlayerInventory {
     };
     std::uint8_t selectedSlot = 0; // 0 또는 1
 };
+
+// 남은 시간이 0이면 해당 효과가 비활성 상태다.
+struct PlayerEffectState {
+    std::uint32_t reverseControlsRemainingMs = 0;
+    std::uint32_t blackoutRemainingMs = 0;
+    std::uint32_t stunRemainingMs = 0;
+};
+
+// 바나나는 시간 제한 없이 유지된다.
+struct BananaTrap {
+    ObjectId id;
+    PlayerId ownerId;
+    std::int32_t x;
+    std::int32_t z;
+};

@@ -12,7 +12,11 @@ bool ItemSystem::AddGroundItem(const GroundItem& item) {
 
 bool ItemSystem::AddPlayer(PlayerId playerId) {
     if (playerId == 0) return false;
-    return inventories_.emplace(playerId, PlayerInventory{}).second;
+    const bool added = inventories_.emplace(playerId, PlayerInventory{}).second;
+    if (added) {
+        playerEffects_.emplace(playerId, PlayerEffectState{});
+    }
+    return added;
 }
 
 std::vector<PickupResult> ItemSystem::ResolvePickups(
@@ -52,11 +56,22 @@ const PlayerInventory* ItemSystem::GetInventory(PlayerId playerId) const {
     return it == inventories_.end() ? nullptr : &it->second;
 }
 
+const PlayerEffectState* ItemSystem::GetPlayerEffects(PlayerId playerId) const {
+    auto it = playerEffects_.find(playerId);
+    return it == playerEffects_.end() ? nullptr : &it->second;
+}
+
 const std::map<ObjectId, GroundItem>& ItemSystem::GetGroundItems() const {
     return groundItems_;
+}
+
+const std::map<ObjectId, BananaTrap>& ItemSystem::GetBananaTraps() const {
+    return bananaTraps_;
 }
 
 void ItemSystem::ResetRound() {
     groundItems_.clear();
     inventories_.clear();
+    playerEffects_.clear();
+    bananaTraps_.clear();
 }
