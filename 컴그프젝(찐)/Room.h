@@ -55,3 +55,12 @@ public:
 private:
     RoomState& room;
 };
+
+class RoundController {
+public:
+    explicit RoundController(RoomState& room)
+        : room(room) {}
+    void BeginRound(bool rematch);
+private:
+    RoomState& room;
+};

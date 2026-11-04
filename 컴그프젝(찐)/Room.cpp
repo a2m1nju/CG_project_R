@@ -117,3 +117,37 @@ void MatchCoordinator::CancelLoading(SessionId leaverId) {
 	// 7. 통신 구현 시 남은 참가자에게 순서대로 전송
 	// ROOM_CLOSE(CANCEL_LOADING) → QUEUE_STATE
 }
+
+void RoundController::BeginRound(bool rematch) { // 첫경기인지 재경기인지 구분
+	if (rematch) { //재경기인지 확인
+		if (room.phase != ServicePhase::RESULT) { // 재경기: 호출 전에 연결된 3명의 전원 동의 확인 필요
+			return;
+		}
+	}
+	else { // 첫 경기: 준비 대기실에서만 시작 가능
+		if (room.phase != ServicePhase::READY_LOBBY) {
+			return;
+		}
+		
+		const bool allReady = std::all_of( // 첫 경기는 전원 준비 필요
+			room.ready.begin(), room.ready.end(),
+			[](bool value) { return value; });
+		if (!allReady) {
+			return;
+		}
+	}
+	++room.roundId; // 새로운 라운드 번호 발급
+	room.ready.fill(false); // 이전 준비·로딩 상태 초기화
+	room.loaded.fill(false);
+
+	// 5. 월드·플레이어 구현 시 연결
+	// - 새로운 초기 월드 생성
+	// - 참가자 3명의 위치·생존 상태 초기화
+	// - 아이템 슬롯·효과 초기화
+	// - 거리·생존 시간·입력 기록 초기화
+
+	// 6. 로딩 단계로 전환
+	room.phase = ServicePhase::LOADING;
+
+	// 7. 통신 구현 시 새 roundId의 INIT 전송
+}
