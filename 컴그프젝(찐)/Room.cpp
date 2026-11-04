@@ -145,9 +145,56 @@ void RoundController::BeginRound(bool rematch) { // 첫경기인지 재경기인
 	// - 참가자 3명의 위치·생존 상태 초기화
 	// - 아이템 슬롯·효과 초기화
 	// - 거리·생존 시간·입력 기록 초기화
+	for (std::size_t i = 0; i < room.players.size(); ++i) {
+		room.players[i] = PlayerState{};
+		room.players[i].playerId = room.members[i];
+		room.players[i].alive = true;
+	}
 
 	// 6. 로딩 단계로 전환
 	room.phase = ServicePhase::LOADING;
 
 	// 7. 통신 구현 시 새 roundId의 INIT 전송
+}
+
+bool RoundController::MarkLoaded(PlayerId id, RoundId roundId) //로딩완료기록, 플레이로 전환
+{
+	if (room.phase != ServicePhase::LOADING) { //로딩 단계에서만 처리
+		return false;
+	}
+	if (roundId != room.roundId) { //현재 라운드의 완료 요청인지 확인
+		return false;
+	}
+	const auto it = std::find( //실제 참가자인지 확인
+		room.members.begin(), room.members.end(), id);
+	if (it == room.members.end()) {
+		return false;
+	}
+	const auto index = static_cast<std::size_t>(it - room.members.begin());
+	if (room.loaded[index]) { //중복 완료 요청은 무시
+		return false;
+	}
+	room.loaded[index] = true; //해당 참가자의 로딩 완료 기록
+	const bool allLoaded = std::all_of( //전원 로딩 완료 여부 확인
+		room.loaded.begin(), room.loaded.end(),
+		[](bool value) { return value; });
+	if (allLoaded) {
+		// 7. 서버 틱 구현 시 시작 틱·생존 시간 기준 설정
+
+		room.phase = ServicePhase::PLAYING;
+
+		// 8. 통신 구현 시 전체 참가자에게 START 전송
+	}
+	return true;
+}
+
+bool RoundController::ShouldFinish() const { //세명 다 죽었는지 확인
+	if (room.phase != ServicePhase::PLAYING) { // 경기 중에만 종료 조건 검사
+		return false;
+	}
+	return std::none_of( // 살아 있는 참가자가 한 명도 없으면 종료
+		room.players.begin(), room.players.end(),
+		[](const PlayerState& player) {
+			return player.alive;
+		});
 }

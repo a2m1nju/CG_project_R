@@ -20,12 +20,17 @@ enum class ServicePhase {
     PLAYING,      // 경기 진행 중
     RESULT        // 결과 확인 및 재경기 선택 중
 };
-
+struct PlayerState {
+    PlayerId playerId = 0;
+    bool alive = false;
+    bool departed = false;
+};
 typedef struct RoomState {
     ServicePhase phase = ServicePhase::MATCHING;
 
     std::vector<SessionId> queue;
     std::array<SessionId, 3> members{};
+    std::array<PlayerState, 3> players{};
 
     std::array<bool, 3> ready{};
     std::array<bool, 3> loaded{};
@@ -61,6 +66,9 @@ public:
     explicit RoundController(RoomState& room)
         : room(room) {}
     void BeginRound(bool rematch);
+    bool MarkLoaded(PlayerId id, RoundId roundId);
+    bool ShouldFinish() const;
+
 private:
     RoomState& room;
 };
