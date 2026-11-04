@@ -25,6 +25,27 @@ struct PlayerState {
     bool alive = false;
     bool departed = false;
 };
+struct RoundRecord {
+    PlayerId playerId = 0;
+    std::uint32_t maxForwardLanes = 0;
+    std::uint32_t survivalTicks = 0;
+    bool departed = false;
+    std::uint32_t deathTick = 0;
+};
+struct ResultEntry {
+    PlayerId playerId = 0;
+    std::uint32_t distanceLanes = 0;
+    std::uint32_t survivalTicks = 0;
+    std::uint8_t rank = 0; // 미산정
+    bool departed = false;
+};
+struct ResultData {
+    RoundId roundId = 0;
+    std::array<ResultEntry, 3> entries{};
+    bool rematchAllowed = false;
+    bool roomClosing = false;
+};
+struct RankConfig; // 구체적인 순위 설정은 추후 정의
 typedef struct RoomState {
     ServicePhase phase = ServicePhase::MATCHING;
 
@@ -34,6 +55,7 @@ typedef struct RoomState {
 
     std::array<bool, 3> ready{};
     std::array<bool, 3> loaded{};
+    std::array<RoundRecord, 3> records{};
 
     LobbyEpoch lobbyEpoch = 0;
     RoundId roundId = 0;
@@ -68,6 +90,7 @@ public:
     void BeginRound(bool rematch);
     bool MarkLoaded(PlayerId id, RoundId roundId);
     bool ShouldFinish() const;
+    ResultData BuildResult(const RankConfig& config);
 
 private:
     RoomState& room;

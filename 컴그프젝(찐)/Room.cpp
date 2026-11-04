@@ -149,6 +149,9 @@ void RoundController::BeginRound(bool rematch) { // 첫경기인지 재경기인
 		room.players[i] = PlayerState{};
 		room.players[i].playerId = room.members[i];
 		room.players[i].alive = true;
+
+		room.records[i] = RoundRecord{};
+		room.records[i].playerId = room.players[i].playerId;
 	}
 
 	// 6. 로딩 단계로 전환
@@ -197,4 +200,30 @@ bool RoundController::ShouldFinish() const { //세명 다 죽었는지 확인
 		[](const PlayerState& player) {
 			return player.alive;
 		});
+}
+
+ResultData RoundController::BuildResult(const RankConfig& config)
+{
+	ResultData result{};
+	result.roundId = room.roundId;
+
+	for (std::size_t i = 0; i < room.records.size(); ++i) {
+		const RoundRecord& record = room.records[i];
+		ResultEntry& entry = result.entries[i];
+
+		entry.playerId = record.playerId;
+		entry.distanceLanes = record.maxForwardLanes;
+		entry.survivalTicks = record.survivalTicks;
+		entry.departed = record.departed;
+		entry.rank = 0; // 순위 미산정
+	}
+
+	// 순위 정책 구현 시 config를 RankPolicy에 전달
+	(void)config;
+
+	// 세션 관리 연결 시 현재 연결 참가자 수에 따라 설정
+	// 연결 3명: rematchAllowed=true, roomClosing=false
+	// 연결 1~2명: rematchAllowed=false, roomClosing=true
+
+	return result;
 }
