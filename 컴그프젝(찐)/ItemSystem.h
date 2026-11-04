@@ -20,11 +20,20 @@ struct PickupResult {
     ItemKind kind;
 };
 
+// 서버가 확정한 현재 Z 좌표를 밀리 단위 정수로 전달한다.
+struct TargetPlayer {
+    PlayerId id;
+    std::int32_t zMilli;
+    bool alive;
+};
+
 class ItemSystem {
 public:
     bool AddGroundItem(const GroundItem& item);
     bool AddPlayer(PlayerId playerId);
     std::vector<PickupResult> ResolvePickups(const std::vector<PickupPlayer>& players);
+    PlayerId SelectAttackTarget(PlayerId userId,
+        const std::vector<TargetPlayer>& players) const;
     const PlayerInventory* GetInventory(PlayerId playerId) const;
     const PlayerEffectState* GetPlayerEffects(PlayerId playerId) const;
     const std::map<ObjectId, GroundItem>& GetGroundItems() const;

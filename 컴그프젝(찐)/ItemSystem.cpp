@@ -51,6 +51,35 @@ std::vector<PickupResult> ItemSystem::ResolvePickups(
     return results;
 }
 
+PlayerId ItemSystem::SelectAttackTarget(PlayerId userId,
+    const std::vector<TargetPlayer>& players) const {
+    if (inventories_.find(userId) == inventories_.end()) return 0;
+
+    const auto user = std::find_if(players.begin(), players.end(),
+        [userId](const TargetPlayer& player) { return player.id == userId; });
+    if (user == players.end() || !user->alive) return 0;
+
+    PlayerId bestId = 0;
+    int bestGroup = 3;
+    std::int64_t bestDistance = 0;
+    for (const auto& player : players) {
+        if (player.id == 0 || player.id == userId || !player.alive ||
+            inventories_.find(player.id) == inventories_.end()) continue;
+
+        const auto delta = static_cast<std::int64_t>(player.zMilli) - user->zMilli;
+        const int group = delta < 0 ? 0 : (delta == 0 ? 1 : 2);
+        const auto distance = delta < 0 ? -delta : delta;
+        if (bestId == 0 || group < bestGroup ||
+            (group == bestGroup && (distance < bestDistance ||
+                (distance == bestDistance && player.id < bestId)))) {
+            bestId = player.id;
+            bestGroup = group;
+            bestDistance = distance;
+        }
+    }
+    return bestId;
+}
+
 const PlayerInventory* ItemSystem::GetInventory(PlayerId playerId) const {
     auto it = inventories_.find(playerId);
     return it == inventories_.end() ? nullptr : &it->second;
