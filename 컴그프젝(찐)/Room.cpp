@@ -87,11 +87,33 @@ void MatchCoordinator::DissolveReadyLobby(SessionId leaverId) {
 	}
 	room.members.fill(0); //기존상태로 초기화
 	room.ready.fill(false);
-	++room.lobbyEpoch; //방번호 변경
+	++room.lobbyEpoch; //대기실 번호 변경
 	room.phase = ServicePhase::MATCHING; //상태변경
 
 	// 7. 통신 구현 시 남은 참가자에게 순서대로 전송
 	// READY_LOBBY_STATE(DISSOLVED) → QUEUE_STATE
 }
 
+void MatchCoordinator::CancelLoading(SessionId leaverId) {
+	if (room.phase != ServicePhase::LOADING) { //로딩중인지 확인
+		return;
+	}
+	const auto it = std::find(room.members.begin(), room.members.end(), leaverId); //실존id
+	if (it == room.members.end()) {
+		return;
+	}
+	room.queue.clear();
+	for (SessionId memberId : room.members) { //이탈자 제외 큐 복귀
+		if (memberId != leaverId) {
+			room.queue.push_back(memberId);
+		}
+	}
+	room.members.fill(0); //기존상태로 초기화
+	room.ready.fill(false);
+	room.loaded.fill(false);
+	// 5. 월드 구현 시 초기 월드와 관련 입력·예약 작업 폐기
 
+	room.phase = ServicePhase::MATCHING; //상태변경
+	// 7. 통신 구현 시 남은 참가자에게 순서대로 전송
+	// ROOM_CLOSE(CANCEL_LOADING) → QUEUE_STATE
+}
