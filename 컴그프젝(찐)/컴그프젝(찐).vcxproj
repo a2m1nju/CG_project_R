@@ -148,6 +148,8 @@ glew32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     <ClCompile Include="Input.cpp" />
     <ClCompile Include="Logic.cpp" />
     <ClCompile Include="main1.cpp" />
+    <ClCompile Include="MoveProtocol.h" />
+    <ClCompile Include="NetworkMovement.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="Texture.cpp" />
@@ -157,6 +159,8 @@ glew32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     <ClInclude Include="Global.h" />
     <ClInclude Include="Input.h" />
     <ClInclude Include="Logic.h" />
+    <ClInclude Include="MoveClient.h" />
+    <ClInclude Include="NetworkMovement.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="Shader.h" />
     <ClInclude Include="stb_image.h" />
