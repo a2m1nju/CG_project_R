@@ -149,6 +149,7 @@ glew32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     <ClCompile Include="Logic.cpp" />
     <ClCompile Include="main1.cpp" />
     <ClCompile Include="Renderer.cpp" />
+    <ClCompile Include="Room.cpp" />
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="Texture.cpp" />
   </ItemGroup>
@@ -158,6 +159,7 @@ glew32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     <ClInclude Include="Input.h" />
     <ClInclude Include="Logic.h" />
     <ClInclude Include="Renderer.h" />
+    <ClInclude Include="Room.h" />
     <ClInclude Include="Shader.h" />
     <ClInclude Include="stb_image.h" />
     <ClInclude Include="stb_truetype.h" />
