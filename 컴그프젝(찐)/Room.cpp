@@ -118,6 +118,51 @@ void MatchCoordinator::CancelLoading(SessionId leaverId) {
 	// ROOM_CLOSE(CANCEL_LOADING) → QUEUE_STATE
 }
 
+void MatchCoordinator::OnDisconnect(SessionId id) {
+	if (room.phase == ServicePhase::MATCHING) { //큐에서 이탈자만 제거
+		const auto it = std::find(room.queue.begin(), room.queue.end(), id);
+		if (it != room.queue.end()) {
+			room.queue.erase(it);
+		}
+		// 통신 구현 시 남은 참가자에게 QUEUE_STATE 전송
+		return;
+	}
+	if (room.phase == ServicePhase::READY_LOBBY) { //준비실 해산
+		DissolveReadyLobby(id);
+		return;
+	}
+	if (room.phase == ServicePhase::LOADING) { //로딩 취소
+		CancelLoading(id);
+		return;
+	}
+	const auto it = std::find(room.members.begin(), room.members.end(), id); //실존id
+	if (it == room.members.end()) {
+		return;
+	}
+	const auto index = static_cast<std::size_t>(it - room.members.begin());
+	if (room.players[index].departed) { //중복 이탈 처리 방지
+		return;
+	}
+	if (room.phase == ServicePhase::PLAYING) { //경기 중 이탈 기록
+		room.players[index].alive = false;
+		room.players[index].departed = true;
+		room.records[index].departed = true;
+
+		// 기록 구현 시 alive 변경 전 생존 여부를 확인해 기록 동결
+		// 이미 사망한 참가자의 사망 시각·생존 시간은 유지
+		// 월드 구현 시 해당 캐릭터 제거
+		// 통신 구현 시 PLAYER_LEFT·STATE 전송
+		// 호출부에서 ShouldFinish()로 종료 조건 재검사
+		return;
+	}
+	if (room.phase == ServicePhase::RESULT) { //결과 중 이탈하면 재경기 취소
+		room.players[index].departed = true;
+		room.records[index].departed = true;
+
+		// 호출부에서 Evaluate() → CLOSE 확인 후 방 종료 처리
+	}
+}
+
 void RoundController::BeginRound(bool rematch) { // 첫경기인지 재경기인지 구분
 	if (rematch) { //재경기인지 확인
 		if (room.phase != ServicePhase::RESULT) { // 재경기: 호출 전에 연결된 3명의 전원 동의 확인 필요

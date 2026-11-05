@@ -89,6 +89,7 @@ public:
 
     void DissolveReadyLobby(SessionId leaverId);
     void CancelLoading(SessionId leaverId);
+    void OnDisconnect(SessionId id);
 
 private:
     RoomState& room;
