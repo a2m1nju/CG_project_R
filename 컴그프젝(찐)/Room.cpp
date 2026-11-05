@@ -227,3 +227,38 @@ ResultData RoundController::BuildResult(const RankConfig& config)
 
 	return result;
 }
+
+void RematchController::SetVote(PlayerId p, bool agree)
+{
+	if (room.phase != ServicePhase::RESULT) { // 단계 확인
+		return;
+	}
+	const bool hasDeparted = std::any_of( //참가자 중 이탈자가 있으면 재경기 불가
+		room.players.begin(), room.players.end(),
+		[](const PlayerState& player) {
+			return player.departed;
+		});
+
+	if (hasDeparted) {
+		return;
+	}
+
+	// 세션 관리 구현 시 현재 연결 참가자 3명인지 추가 검사
+
+	const auto it = std::find_if( // 옳은 참가자인지 확인
+		room.players.begin(), room.players.end(),
+		[p](const PlayerState& player) {
+			return player.playerId == p;
+		});
+	if (it == room.players.end()) {
+		return;
+	}
+
+	const auto index = static_cast<std::size_t>(it - room.players.begin());
+
+	room.rematchVotes[index] = agree ? RematchVote::AGREE : RematchVote::DISAGREE;
+
+	// 5. 통신 구현 시 REMATCH_STATE 전송
+
+	// 6. 이후 Evaluate()로 재경기·종료·대기 판단 연결
+}

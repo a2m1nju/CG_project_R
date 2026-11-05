@@ -20,6 +20,11 @@ enum class ServicePhase {
     PLAYING,      // 경기 진행 중
     RESULT        // 결과 확인 및 재경기 선택 중
 };
+enum class RematchVote {
+    UNSET,     // 아직 응답하지 않음
+    AGREE,     // 재경기 동의
+    DISAGREE   // 재경기 거절
+};
 struct PlayerState {
     PlayerId playerId = 0;
     bool alive = false;
@@ -55,9 +60,10 @@ typedef struct RoomState {
 
     std::array<bool, 3> ready{};
     std::array<bool, 3> loaded{};
-    std::array<RoundRecord, 3> records{};
+    std::array<RematchVote, 3> rematchVotes{};
 
-    LobbyEpoch lobbyEpoch = 0;
+    std::array<RoundRecord, 3> records{};
+        LobbyEpoch lobbyEpoch = 0;
     RoundId roundId = 0;
 } RoomState;
 
@@ -91,6 +97,18 @@ public:
     bool MarkLoaded(PlayerId id, RoundId roundId);
     bool ShouldFinish() const;
     ResultData BuildResult(const RankConfig& config);
+
+private:
+    RoomState& room;
+};
+
+class RematchController {
+public:
+    explicit RematchController(RoomState& room)
+        : room(room) {
+    }
+
+    void SetVote(PlayerId p, bool agree);
 
 private:
     RoomState& room;
