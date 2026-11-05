@@ -25,6 +25,11 @@ enum class RematchVote {
     AGREE,     // 재경기 동의
     DISAGREE   // 재경기 거절
 };
+enum class RematchDecision {
+    WAIT,      // 응답 대기
+    RESTART,   // 재경기
+    CLOSE      // 방 종료
+};
 struct PlayerState {
     PlayerId playerId = 0;
     bool alive = false;
@@ -109,6 +114,7 @@ public:
     }
 
     void SetVote(PlayerId p, bool agree);
+    RematchDecision Evaluate() const;
 
 private:
     RoomState& room;

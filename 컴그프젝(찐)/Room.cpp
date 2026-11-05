@@ -262,3 +262,37 @@ void RematchController::SetVote(PlayerId p, bool agree)
 
 	// 6. 이후 Evaluate()로 재경기·종료·대기 판단 연결
 }
+
+RematchDecision RematchController::Evaluate() const {
+	if (room.phase != ServicePhase::RESULT) { //결과 단계인지 확인
+		return RematchDecision::WAIT;
+	}
+	const bool hasDeparted = std::any_of( //이탈자가 있으면 종료
+		room.players.begin(), room.players.end(),
+		[](const PlayerState& player) {
+			return player.departed;
+		});
+	if (hasDeparted) {
+		return RematchDecision::CLOSE;
+	}
+
+	// 세션 관리 구현 시 현재 연결 참가자가 3명 미만이면 CLOSE
+
+	const bool hasDisagree = std::any_of( //한명이라도 비동의하면 종료
+		room.rematchVotes.begin(), room.rematchVotes.end(),
+		[](RematchVote vote) {
+			return vote == RematchVote::DISAGREE;
+		});
+	if (hasDisagree) {
+		return RematchDecision::CLOSE;
+	}
+	const bool allAgree = std::all_of( //전원 동의하면 재경기
+		room.rematchVotes.begin(), room.rematchVotes.end(),
+		[](RematchVote vote) {
+			return vote == RematchVote::AGREE;
+		});
+	if (allAgree) {
+		return RematchDecision::RESTART;
+	}
+	return RematchDecision::WAIT; //미응답자가 있으면 대기
+}
