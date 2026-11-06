@@ -91,10 +91,6 @@ extern float logoX, logoTargetX, logoStartX, logoY;
 extern bool isGlitchMode;
 extern float glitchTimer;
 
-extern bool isGiantMode;
-extern float giantTimer;
-extern float giantGauge;
-
 extern bool isNightMode;
 extern float nightModeTimer;
 extern float nightEventCooldown;
@@ -108,11 +104,6 @@ extern bool isWindActive;
 extern float windTimer;
 extern float windForce;
 
-extern bool hasShield;
-extern bool isMagnetActive;
-extern float magnetTimer;
-extern bool isSlowActive;
-extern float slowTimer;
 
 extern bool isGameOver;
 

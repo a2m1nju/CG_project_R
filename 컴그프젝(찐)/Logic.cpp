@@ -25,9 +25,10 @@ bool spawnItem(int x, int z, ItemType type) {
     item.x = static_cast<float>(x);
     item.z = static_cast<float>(z);
     item.type = type;
-    if (type >= ITEM_REVERSE && type <= ITEM_BANANA) {
+    if (type >= ITEM_SHIELD && type <= ITEM_BANANA) {
         item.id = nextItemId;
-        const ItemKind kind = static_cast<ItemKind>(type - ITEM_REVERSE + 1);
+        const ItemKind kind = type == ITEM_SHIELD ? ItemKind::Shield
+            : static_cast<ItemKind>(type - ITEM_REVERSE + 1);
         if (!localItems.AddGroundItem({item.id, kind, x, z})) return false;
         ++nextItemId;
     }
@@ -201,7 +202,7 @@ void generateLane(int z)
 				int luck = rand() % 100;
 
 				if (luck < 35) {
-                    spawnItem(spawnX, z, static_cast<ItemType>(rand() % 7));
+                    spawnItem(spawnX, z, static_cast<ItemType>(rand() % 4));
 				}
 				else {
 					Coin newCoin;
@@ -262,11 +263,6 @@ void resetGame() {
     localItems.ResetRound();
     localItems.AddPlayer(1);
     nextItemId = 1;
-	hasShield = false;
-	isMagnetActive = false;
-	isSlowActive = false;
-	magnetTimer = 0.0f;
-	slowTimer = 0.0f;
 
 	isFlying = false;
 	isLanding = false;
@@ -294,6 +290,11 @@ void resetGame() {
 
 void timer(int value)
 {
+    static int previousTickMs = glutGet(GLUT_ELAPSED_TIME);
+    const int nowMs = glutGet(GLUT_ELAPSED_TIME);
+    const std::uint32_t elapsedMs = nowMs > previousTickMs
+        ? static_cast<std::uint32_t>(nowMs - previousTickMs) : 0;
+    previousTickMs = nowMs;
 	// [인트로 애니메이션 로직]
 	if (introState != 0) { 
 
@@ -356,13 +357,6 @@ void timer(int value)
 		}
 	}
 	// 거대화 모드 시간 감소 로직
-	if (isGiantMode) {
-		giantTimer -= 0.016f;
-		if (giantTimer <= 0.0f) {
-			isGiantMode = false;
-			giantTimer = 0.0f;
-		}
-	}
 
 	// 카메라 흔들림 시간 감소 로직
 	if (shakeTimer > 0.0f) {
@@ -436,39 +430,11 @@ void timer(int value)
 	}
 
 	// 5. [아이템] 슬로우 모션 속도 설정
-	float globalSpeedRate = 1.0f;
-	if (isSlowActive) {
-		globalSpeedRate = 0.5f;
-		slowTimer -= 0.016f;
-		if (slowTimer <= 0.0f) {
-			isSlowActive = false;
-		}
-	}
-
-	// 6. [아이템] 자석 타이머 및 효과
-	if (isMagnetActive) {
-		magnetTimer -= 0.016f;
-		if (magnetTimer <= 0.0f) {
-			isMagnetActive = false;
-		}
-		// 코인 끌어당기기 로직
-		for (auto& coin : coins) {
-			if (coin.isCollected) continue;
-			float dist = glm::distance(playerPos, glm::vec3(coin.x, playerPos.y, coin.z));
-			if (dist < 6.0f) {
-				glm::vec3 dir = glm::normalize(playerPos - glm::vec3(coin.x, playerPos.y, coin.z));
-				coin.x += dir.x * 0.2f;
-				coin.z += dir.z * 0.2f;
-			}
-		}
-	}
-
-	// 7. [아이템] 획득 로직
-    localItems.AdvanceEffects(16);
+    localItems.AdvanceEffects(elapsedMs);
 	for (auto& item : items) {
 		if (item.isCollected) continue;
 		if (std::abs(item.z - playerPos.z) < 0.5f && std::abs(item.x - playerPos.x) < 0.5f) {
-            if (item.type >= ITEM_REVERSE) {
+            if (item.type >= ITEM_SHIELD) {
                 const auto picked = localItems.ResolvePickups({{1,
                     (int)std::round(playerPos.x), (int)std::round(playerPos.z), true}});
                 bool collectedThisItem = false;
@@ -485,31 +451,6 @@ void timer(int value)
             item.isCollected = true;
             PlaySound(TEXT("item.wav"), NULL, SND_ASYNC | SND_FILENAME);
 
-			if (item.type == ITEM_POTION) {
-				if (!isGiantMode && !isFlying) {
-					isGiantMode = true;
-					giantTimer = 8.0f; 
-					spawnParticles(playerPos, glm::vec3(0.6f, 0.0f, 0.8f), 30, 1.5f); 
-				}
-				else {
-					giantTimer += 5.0f;
-				}
-
-			}
-			else if (item.type == ITEM_SHIELD) {
-				hasShield = true;
-				spawnParticles(playerPos, glm::vec3(0.0f, 0.5f, 1.0f), 20, 1.0f);
-			}
-			else if (item.type == ITEM_MAGNET) {
-				isMagnetActive = true;
-				magnetTimer = 10.0f;
-				spawnParticles(playerPos, glm::vec3(1.0f, 0.0f, 0.0f), 20, 1.0f);
-			}
-			else if (item.type == ITEM_CLOCK) {
-				isSlowActive = true;
-				slowTimer = 5.0f;
-				spawnParticles(playerPos, glm::vec3(0.0f, 1.0f, 1.0f), 20, 1.0f);
-			}
 		}
 	}
 
@@ -695,7 +636,7 @@ void timer(int value)
 		// 통나무 이동 및 탑승
 		for (auto& logObj : logs) {
 			// 슬로우 효과 적용
-			logObj.x += logObj.speed * globalSpeedRate;
+			logObj.x += logObj.speed;
 			if (logObj.speed > 0 && logObj.x > 20.0f) logObj.x = -20.0f;
 			else if (logObj.speed < 0 && logObj.x < -20.0f) logObj.x = 20.0f;
 
@@ -704,21 +645,23 @@ void timer(int value)
 				(playerPos.x <= logObj.x + logObj.width / 2.0f + 0.3f);
 
 			if (!isMoving && onLog) {
-				playerPos.x += logObj.speed * globalSpeedRate;
-				playerTargetPos.x += logObj.speed * globalSpeedRate;
-				playerStartPos.x += logObj.speed * globalSpeedRate;
+				playerPos.x += logObj.speed;
+				playerTargetPos.x += logObj.speed;
+				playerStartPos.x += logObj.speed;
 				restingY = 1.1f;
 			}
 		}
 
 		// [충돌 검사 시작]
 		bool isDead = false;
-		bool isInvincible = isDashing || (recoveryTimer > 0.0f) || hasShield || isGiantMode || isGodMode;
+		bool isInvincible = isDashing || (recoveryTimer > 0.0f) || isGodMode;
+        const auto* itemEffects = localItems.GetPlayerEffects(1);
+        const bool shieldActive = itemEffects && itemEffects->shieldRemainingMs > 0;
 
 		// 자동차 충돌
 		for (auto& car : cars) {
 			//  슬로우 효과 적용
-			car.x += car.speed * globalSpeedRate;
+			car.x += car.speed;
 			if (car.x > 18.0f && car.speed > 0) car.x = -18.0f;
 			if (car.x < -18.0f && car.speed < 0) car.x = 18.0f;
 
@@ -726,40 +669,20 @@ void timer(int value)
 			bool hit = (abs(car.z - playerPos.z) < 0.2f && abs(car.x - playerPos.x) < 0.8f) ||
 				(abs(car.z - playerPos.z) < 0.08f && abs(car.x - playerPos.x) < 1.2f);
 
-			if (hit) {
-				if (isGodMode) continue;
-
-				if (isGiantMode) {
-					// 파티클 효과
-					spawnParticles(glm::vec3(car.x, 0.5f, car.z), car.color, 30, 1.5f);
-
-					if (car.x > playerPos.x) car.x += 30.0f; 
-					else car.x -= 30.0f; 
-
-					score += 5;
-					shakeTimer = 0.1f; shakeMagnitude = 0.2f; 
-				}
-				else if (hasShield) {
-					hasShield = false; 
-					spawnParticles(playerPos, glm::vec3(0.5f, 0.5f, 1.0f), 30, 2.0f); 
-					car.x = (car.speed > 0) ? 20.0f : -20.0f;
-				}
-				else {
-					isDead = true;
-				}
-			}
-		}
+            if (hit && !isGodMode) {
+                if (shieldActive) {
+                    car.x = (car.speed > 0) ? 20.0f : -20.0f;
+                } else {
+                    isDead = true;
+                }
+            }
+        }
 
 		// 익사(물) 판정
 		int pZ = (int)std::round(playerPos.z);
 		if (!isMoving && mapType.count(pZ) && mapType[pZ] == 2) {
 			bool safe = false;
-			if (isGiantMode) {
-				safe = true;
-				restingY = 0.5f; 
-			}
-
-			else {
+			{
 				// 통나무 체크
 				for (const auto& logObj : logs) {
 					if (logObj.z == (float)pZ &&
@@ -833,16 +756,7 @@ void timer(int value)
 
 					if (playerGridZ == trainGridZ) {
 						if (playerPos.x > t.x - 9.0f && playerPos.x < t.x + 9.0f) {
-							if (isGodMode) {
-							}
-							else if (isGiantMode) {
-								spawnParticles(playerPos, glm::vec3(1.0f, 0.0f, 0.0f), 50, 2.0f); 
-								shakeTimer = 0.3f; shakeMagnitude = 0.5f; 
-								score += 10; 
-							}
-							else {
-								isDead = true;
-							}
+                            if (!isGodMode && !shieldActive) isDead = true;
 						}
 					}
 				}

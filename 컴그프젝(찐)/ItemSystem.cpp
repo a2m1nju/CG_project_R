@@ -4,7 +4,7 @@
 
 bool ItemSystem::AddGroundItem(const GroundItem& item) {
     if (item.id == 0 || item.kind == ItemKind::Empty ||
-        item.kind > ItemKind::Banana) {
+        item.kind > ItemKind::Shield) {
         return false;
     }
     return groundItems_.emplace(item.id, item).second;
@@ -39,6 +39,8 @@ bool ItemSystem::UseSelectedItem(PlayerId playerId, std::int32_t x, std::int32_t
         ObjectId id = 1;
         while (groundItems_.count(id) || bananaTraps_.count(id)) ++id;
         bananaTraps_.emplace(id, BananaTrap{id, playerId, x, z - rule.placementDistanceCells});
+    } else if (rule.useMode == ItemUseMode::ActivateShield) {
+        playerEffects_[playerId].shieldRemainingMs = rule.effectDurationMs;
     } else if (rule.useMode == ItemUseMode::TargetOpponent) {
         // Local preview until multiplayer integration is available.
         auto& effects = playerEffects_[playerId];
@@ -67,6 +69,7 @@ void ItemSystem::AdvanceEffects(std::uint32_t elapsedMs) {
         auto& effects = entry.second;
         effects.reverseControlsRemainingMs = effects.reverseControlsRemainingMs > elapsedMs ? effects.reverseControlsRemainingMs - elapsedMs : 0;
         effects.blackoutRemainingMs = effects.blackoutRemainingMs > elapsedMs ? effects.blackoutRemainingMs - elapsedMs : 0;
+        effects.shieldRemainingMs = effects.shieldRemainingMs > elapsedMs ? effects.shieldRemainingMs - elapsedMs : 0;
     }
 }
 

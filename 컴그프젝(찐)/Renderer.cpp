@@ -139,76 +139,8 @@ void drawShieldModel(GLuint shader, glm::mat4 baseModel) {
 }
 
 //  자석 그리기 
-void drawMagnetModel(GLuint shader, glm::mat4 baseModel) {
-	glm::vec3 red(1.0f, 0.0f, 0.0f);
-	glm::vec3 silver(0.8f, 0.8f, 0.9f);
-
-	// 1. 왼쪽 기둥 (위쪽 빨강)
-	drawPart(shader, baseModel, glm::vec3(-0.2f, 0.1f, 0.0f), glm::vec3(0.15f, 0.3f, 0.15f), red);
-	// 1-2. 왼쪽 팁 (아래쪽 은색)
-	drawPart(shader, baseModel, glm::vec3(-0.2f, -0.15f, 0.0f), glm::vec3(0.15f, 0.15f, 0.15f), silver);
-
-	// 2. 오른쪽 기둥 (위쪽 빨강)
-	drawPart(shader, baseModel, glm::vec3(0.2f, 0.1f, 0.0f), glm::vec3(0.15f, 0.3f, 0.15f), red);
-	// 2-2. 오른쪽 팁 (아래쪽 은색)
-	drawPart(shader, baseModel, glm::vec3(0.2f, -0.15f, 0.0f), glm::vec3(0.15f, 0.15f, 0.15f), silver);
-
-	// 3. 위쪽 연결부 (빨강) - U자의 굽은 부분
-	drawPart(shader, baseModel, glm::vec3(0.0f, 0.25f, 0.0f), glm::vec3(0.55f, 0.15f, 0.15f), red);
-}
-
 //  물약 그리기 
-void drawPotionModel(GLuint shader, glm::mat4 baseModel) {
-	glm::vec3 purple(0.6f, 0.0f, 0.8f);
-	glm::vec3 glassWhite(0.9f, 0.9f, 1.0f); 
-	glm::vec3 cork(0.6f, 0.4f, 0.2f); 
-
-	// 1. 물약 액체 (아래쪽 뚱뚱한 부분)
-	drawPart(shader, baseModel, glm::vec3(0.0f, -0.15f, 0.0f), glm::vec3(0.4f, 0.35f, 0.4f), purple);
-
-	// 2. 병 목 (가운데 얇은 부분)
-	drawPart(shader, baseModel, glm::vec3(0.0f, 0.15f, 0.0f), glm::vec3(0.15f, 0.25f, 0.15f), glassWhite);
-
-	// 3. 병 입구 (목 위쪽 테두리)
-	drawPart(shader, baseModel, glm::vec3(0.0f, 0.3f, 0.0f), glm::vec3(0.2f, 0.05f, 0.2f), glassWhite);
-
-	// 4. 코르크 마개
-	drawPart(shader, baseModel, glm::vec3(0.0f, 0.35f, 0.0f), glm::vec3(0.12f, 0.1f, 0.12f), cork);
-}
 //  시계 그리기
-void drawClockModel(GLuint shader, glm::mat4 baseModel) {
-	glm::vec3 cyan(0.0f, 0.8f, 0.8f);
-	glm::vec3 white(1.0f, 1.0f, 1.0f); 
-	glm::vec3 black(0.1f, 0.1f, 0.1f); 
-	glm::vec3 silver(0.7f, 0.7f, 0.8f); 
-
-	// 1. 시계 몸통 (테두리) - 하늘색 두꺼운 네모
-	drawPart(shader, baseModel, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.5f, 0.5f, 0.2f), cyan);
-
-	// 2. 시계 판 (흰색 앞면) - 몸통 앞쪽에 얇게 붙임
-	drawPart(shader, baseModel, glm::vec3(0.0f, 0.0f, 0.11f), glm::vec3(0.4f, 0.4f, 0.05f), white);
-
-	// 3. 시계 바늘 (검은색) - 시계 판 위에 얇게 붙임
-	// 분침 (위로 긴 거, 12시 방향)
-	drawPart(shader, baseModel, glm::vec3(0.0f, 0.1f, 0.15f), glm::vec3(0.05f, 0.25f, 0.05f), black);
-	// 시침 (오른쪽으로 짧은 거, 3시 방향)
-	drawPart(shader, baseModel, glm::vec3(0.1f, 0.0f, 0.15f), glm::vec3(0.2f, 0.05f, 0.05f), black);
-
-	// 4. 자명종 벨 (위에 두 개)
-	// 왼쪽 벨 몸통
-	drawPart(shader, baseModel, glm::vec3(-0.2f, 0.3f, 0.0f), glm::vec3(0.15f, 0.1f, 0.15f), cyan);
-	// 오른쪽 벨 몸통
-	drawPart(shader, baseModel, glm::vec3(0.2f, 0.3f, 0.0f), glm::vec3(0.15f, 0.1f, 0.15f), cyan);
-	// 왼쪽 벨 꼭다리 (은색 작은 점)
-	drawPart(shader, baseModel, glm::vec3(-0.2f, 0.35f, 0.0f), glm::vec3(0.05f, 0.05f, 0.05f), silver);
-	// 오른쪽 벨 꼭다리
-	drawPart(shader, baseModel, glm::vec3(0.2f, 0.35f, 0.0f), glm::vec3(0.05f, 0.05f, 0.05f), silver);
-
-	// 5. 다리 (아래 두 개) - 은색으로 받침대 표현
-	drawPart(shader, baseModel, glm::vec3(-0.15f, -0.3f, 0.0f), glm::vec3(0.08f, 0.1f, 0.08f), silver);
-	drawPart(shader, baseModel, glm::vec3(0.15f, -0.3f, 0.0f), glm::vec3(0.08f, 0.1f, 0.08f), silver);
-}
-
 // 나무	그리기
 void drawTree(int x, int z, GLuint shader) {
 
@@ -444,18 +376,7 @@ void drawItem(const Item& item, GLuint shader) {
         model = glm::scale(model, glm::vec3(1.2f));
         drawShieldModel(shader, model);
     }
-    else if (item.type == ITEM_MAGNET) {
-        model = glm::scale(model, glm::vec3(1.3f));
-        drawMagnetModel(shader, model);
-    }
-    else if (item.type == ITEM_POTION) {
-        model = glm::scale(model, glm::vec3(1.2f));
-        drawPotionModel(shader, model);
-    }
-	else if (item.type == ITEM_CLOCK) {
-		model = glm::scale(model, glm::vec3(1.2f));
-		drawClockModel(shader, model);
-	}
+
 }
 
 // 파티클 그리기
@@ -682,7 +603,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 		// 플레이어 (닭)
 		glm::mat4 pModel = glm::translate(glm::mat4(1.0f), playerPos);
 		pModel = glm::rotate(pModel, glm::radians(playerRotation), glm::vec3(0.0f, 1.0f, 0.0f));
-		float scale = isGiantMode ? 3.5f : 0.7f;
+		float scale = 0.7f;
 		pModel = glm::scale(pModel, glm::vec3(scale));
 
 		if (isFlying) {
@@ -798,7 +719,8 @@ static void drawInventorySlots() {
         glScissor(left, bottom, iconSize, iconSize);
         glClear(GL_DEPTH_BUFFER_BIT);
         Item icon{};
-        icon.type = static_cast<ItemType>(ITEM_REVERSE + static_cast<int>(inventory->slots[slot]) - 1);
+        icon.type = inventory->slots[slot] == ItemKind::Shield ? ITEM_SHIELD
+            : static_cast<ItemType>(ITEM_REVERSE + static_cast<int>(inventory->slots[slot]) - 1);
         drawItem(icon, shaderProgramID);
     }
 
@@ -823,13 +745,7 @@ GLvoid drawScene()
 	glm::mat4 proj = glm::perspective(glm::radians(45.0f), 1280.f / 960.f, 0.1f, 100.f);
 
 	glm::mat4 view;
-	if (isGiantMode) {
-		// 거인 모드
-		view = glm::lookAt(cameraTarget + glm::vec3(0, 18, 16) + shakeOffset,
-			cameraTarget + shakeOffset,
-			glm::vec3(0, 1, 0));
-	}
-	else if (isFlying || isLanding || isBirdLeaving) {
+	if (isFlying || isLanding || isBirdLeaving) {
 		// 비행 시점 (흔들림 추가)
 		view = glm::lookAt(cameraTarget + glm::vec3(2, 16, 10) + shakeOffset,
 			cameraTarget + shakeOffset,
@@ -956,22 +872,13 @@ GLvoid drawScene()
 	renderTextWithOutline(1050, 60, coinStr.c_str());
 
 	// 3. 아이템 상태 UI 표시 
-	float uiY = 880.0f;
-	uiY = 120.0f;
+	float uiY = 120.0f;
 
-	if (hasShield) {
-		renderTextWithOutline(950, uiY, "[SHIELD ON]");
-		uiY += 40.0f;
-	}
-	if (isMagnetActive) {
-		std::string msg = "[MAGNET] " + std::to_string((int)magnetTimer) + "s";
-		renderTextWithOutline(900, uiY, msg.c_str());
-		uiY += 40.0f;
-	}
-	if (isSlowActive) {
-		std::string msg = "[SLOW] " + std::to_string((int)slowTimer) + "s";
-		renderTextWithOutline(1000, uiY, msg.c_str());
-	}
+    if (effects && effects->shieldRemainingMs > 0) {
+        std::string msg = "[SHIELD] " + std::to_string((effects->shieldRemainingMs + 999) / 1000) + "s";
+        renderTextWithOutline(900, uiY, msg.c_str());
+        uiY += 40.0f;
+    }
 
 	if (isGodMode) {
 		renderTextWithOutline(950, uiY, "[GOD MODE]");

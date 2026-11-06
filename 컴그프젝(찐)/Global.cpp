@@ -94,9 +94,6 @@ float logoY = 600.0f;
 bool isGlitchMode = false;
 float glitchTimer = 0.0f;
 
-bool isGiantMode = false;
-float giantTimer = 0.0f;
-
 bool isNightMode = false;
 float nightModeTimer = 0.0f;
 float nightEventCooldown = 10.0f;
@@ -110,11 +107,6 @@ bool isWindActive = false;
 float windTimer = 0.0f;
 float windForce = 0.0f;
 
-bool hasShield = false;
-bool isMagnetActive = false;
-float magnetTimer = 0.0f;
-bool isSlowActive = false;
-float slowTimer = 0.0f;
 
 bool isGameOver = false;
 

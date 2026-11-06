@@ -147,46 +147,20 @@ void keyboard(unsigned char key, int x, int y)
 		}
 	}
 
-	if (key == '4' || key == '5' || key == '6' || key == '8' || key == '9') {
-		Item newItem;
-		newItem.x = (float)std::round(playerPos.x);       
-		newItem.z = (float)std::round(playerPos.z) - 2.0f;
-		newItem.isCollected = false;
-		newItem.rotation = 0.0f;
-
-		// 보호막
-		if (key == '4') {
-			newItem.type = ITEM_SHIELD;
-		}
-		// 자석
-		else if (key == '5') {
-			newItem.type = ITEM_MAGNET;
-		}
-		// 시계
-		else if (key == '6') {
-			newItem.type = ITEM_CLOCK;
-		}
-		// 성장물약
-		else if (key == '8') { 
-			newItem.type = ITEM_POTION;
-		}
-		if (key == '9') {
+    if (key == '4' || key == '9') {
+        const int itemX = (int)std::round(playerPos.x);
+        const int itemZ = (int)std::round(playerPos.z) - 2;
+        if (key == '4') {
+            spawnItem(itemX, itemZ, ITEM_SHIELD);
+        } else {
             static unsigned nextKind = 0;
-            newItem.type = static_cast<ItemType>(ITEM_REVERSE + nextKind);
+            spawnItem(itemX, itemZ, static_cast<ItemType>(ITEM_REVERSE + nextKind));
             nextKind = (nextKind + 1) % 3;
         }
-        spawnItem((int)newItem.x, (int)newItem.z, newItem.type);
-	}
-	// 글리치 모드
+    }
 	if (key == '7') {
 		isGlitchMode = !isGlitchMode;
 		if (isGlitchMode) glitchTimer = 5.0f;
 	}
-	// 거인 모드
-	if (key == 'g' || key == 'G') {
-		if (!isGiantMode && !isFlying && introState == 0) {
-			isGiantMode = true;
-			giantTimer = 8.0f; 
-		}
-	}
+
 }

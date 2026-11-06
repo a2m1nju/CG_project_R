@@ -9,7 +9,8 @@ enum class ItemKind : std::uint8_t {
     Empty = 0,
     ReverseControls = 1,
     Blackout = 2,
-    Banana = 3
+    Banana = 3,
+    Shield = 4
 };
 
 enum class EffectKind : std::uint8_t {
@@ -21,7 +22,8 @@ enum class EffectKind : std::uint8_t {
 enum class ItemUseMode : std::uint8_t {
     None,
     TargetOpponent, // 서버가 살아 있는 상대를 선정
-    PlaceTrapAhead  // 시선 방향과 관계없이 전방(-Z)에 설치
+    PlaceTrapAhead, // 시선 방향과 관계없이 전방(-Z)에 설치
+    ActivateShield
 };
 
 struct ItemRule {
@@ -46,6 +48,8 @@ constexpr ItemRule GetItemRule(ItemKind kind) {
         // 설치자를 포함한 생존자 한 명이 밟을 때까지 유지한다.
         // 밟히면 뒤쪽(+Z)으로 1칸 밀고 바나나를 제거한다.
         return {ItemUseMode::PlaceTrapAhead, EffectKind::None, 0, 3, 1};
+    case ItemKind::Shield:
+        return {ItemUseMode::ActivateShield, EffectKind::None, 10000, 0, 0};
     default:
         return {ItemUseMode::None, EffectKind::None, 0, 0, 0};
     }
@@ -69,6 +73,7 @@ struct PlayerInventory {
 struct PlayerEffectState {
     std::uint32_t reverseControlsRemainingMs = 0;
     std::uint32_t blackoutRemainingMs = 0;
+    std::uint32_t shieldRemainingMs = 0;
 };
 
 // 바나나는 시간 제한 없이 유지된다.
