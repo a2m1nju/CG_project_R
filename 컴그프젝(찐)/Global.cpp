@@ -33,6 +33,8 @@ std::vector<LilyPad> lilyPads;
 std::vector<Cloud> clouds;
 std::vector<WeatherParticle> weatherParticles;
 std::vector<Item> items;
+ItemSystem localItems;
+ObjectId nextItemId = 1;
 std::vector<Car> cars;
 std::vector<CarDesign> carDesigns;
 std::vector<Coin> coins;

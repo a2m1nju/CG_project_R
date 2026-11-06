@@ -1,5 +1,7 @@
 #pragma once
 #include "Common.h"
+#include "ItemSystem.h"
+#include "ItemSystem.h"
 
 // »ó¼ö
 extern const int LINES_PER_SEASON;
@@ -31,6 +33,8 @@ extern std::vector<LilyPad> lilyPads;
 extern std::vector<Cloud> clouds;
 extern std::vector<WeatherParticle> weatherParticles;
 extern std::vector<Item> items;
+extern ItemSystem localItems;
+extern ObjectId nextItemId;
 extern std::vector<Car> cars;
 extern std::vector<CarDesign> carDesigns;
 extern std::vector<Coin> coins;

@@ -25,7 +25,7 @@
 // --- Enums ---
 enum GameSeason { SPRING, SUMMER, AUTUMN, WINTER };
 enum TrainState { TRAIN_IDLE, TRAIN_WARNING, TRAIN_PASSING };
-enum ItemType { ITEM_SHIELD, ITEM_MAGNET, ITEM_CLOCK, ITEM_POTION };
+enum ItemType { ITEM_SHIELD, ITEM_MAGNET, ITEM_CLOCK, ITEM_POTION, ITEM_REVERSE, ITEM_BLACKOUT, ITEM_BANANA };
 
 // --- Structs ---
 struct Car {
@@ -104,4 +104,5 @@ struct Item {
     ItemType type;
     bool isCollected = false;
     float rotation = 0.0f;
+    unsigned int id = 0;
 };

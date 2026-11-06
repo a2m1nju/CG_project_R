@@ -28,7 +28,7 @@ void drawChicken(GLuint shader, glm::mat4 baseModel) {
 	// 2. 벼슬 
 	drawPart(shader, baseModel, glm::vec3(0.0f, 0.25f, 0.1f), glm::vec3(0.15f, 0.15f, 0.2f), red);
 
-	// 3. 부리 
+    // 3. 부리
 	drawPart(shader, baseModel, glm::vec3(0.0f, 0.0f, -0.35f), glm::vec3(0.15f, 0.15f, 0.15f), orange);
 
 	// 4. 와틀 
@@ -423,18 +423,35 @@ void drawItem(const Item& item, GLuint shader) {
 	model = glm::rotate(model, glm::radians(item.rotation), glm::vec3(0.0f, 1.0f, 0.0f));
 
 	// 아이템 종류에 따라 다른 모양 그리기
-	if (item.type == ITEM_SHIELD) {
-		model = glm::scale(model, glm::vec3(1.2f));
-		drawShieldModel(shader, model);
-	}
-	else if (item.type == ITEM_MAGNET) {
-		model = glm::scale(model, glm::vec3(1.3f));
-		drawMagnetModel(shader, model);
-	}
-	else if (item.type == ITEM_POTION) {
-		model = glm::scale(model, glm::vec3(1.2f));
-		drawPotionModel(shader, model);
-	}
+	if (item.type == ITEM_REVERSE) {
+        const glm::vec3 cyan(0.1f, 0.9f, 0.9f);
+        drawPart(shader, model, glm::vec3(0.0f, 0.15f, 0.0f), glm::vec3(0.75f, 0.15f, 0.2f), cyan);
+        drawPart(shader, model, glm::vec3(-0.3f, 0.15f, -0.2f), glm::vec3(0.2f, 0.15f, 0.4f), cyan);
+        drawPart(shader, model, glm::vec3(0.0f, -0.15f, 0.0f), glm::vec3(0.75f, 0.15f, 0.2f), cyan);
+        drawPart(shader, model, glm::vec3(0.3f, -0.15f, 0.2f), glm::vec3(0.2f, 0.15f, 0.4f), cyan);
+    }
+    else if (item.type == ITEM_BLACKOUT) {
+        drawPart(shader, model, glm::vec3(0.0f), glm::vec3(0.75f, 0.75f, 0.75f), glm::vec3(0.4f, 0.1f, 0.7f));
+        drawPart(shader, model, glm::vec3(0.0f, 0.0f, 0.4f), glm::vec3(0.45f, 0.45f, 0.08f), glm::vec3(0.05f, 0.02f, 0.1f));
+    }
+    else if (item.type == ITEM_BANANA) {
+        const glm::vec3 yellow(1.0f, 0.85f, 0.05f);
+        drawPart(shader, model, glm::vec3(-0.25f, 0.0f, 0.0f), glm::vec3(0.2f, 0.25f, 0.3f), yellow);
+        drawPart(shader, model, glm::vec3(0.0f, -0.1f, 0.0f), glm::vec3(0.35f, 0.2f, 0.3f), yellow);
+        drawPart(shader, model, glm::vec3(0.3f, 0.0f, 0.0f), glm::vec3(0.2f, 0.25f, 0.3f), yellow);
+    }
+    else if (item.type == ITEM_SHIELD) {
+        model = glm::scale(model, glm::vec3(1.2f));
+        drawShieldModel(shader, model);
+    }
+    else if (item.type == ITEM_MAGNET) {
+        model = glm::scale(model, glm::vec3(1.3f));
+        drawMagnetModel(shader, model);
+    }
+    else if (item.type == ITEM_POTION) {
+        model = glm::scale(model, glm::vec3(1.2f));
+        drawPotionModel(shader, model);
+    }
 	else if (item.type == ITEM_CLOCK) {
 		model = glm::scale(model, glm::vec3(1.2f));
 		drawClockModel(shader, model);
@@ -769,7 +786,10 @@ GLvoid drawScene()
 	}
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glUseProgram(shaderProgramID);
-	glUniform1i(glGetUniformLocation(shaderProgramID, "isGlitch"), isGlitchMode ? 1 : 0);
+	const auto* effects = localItems.GetPlayerEffects(1);
+    const bool localReverse = effects && effects->reverseControlsRemainingMs > 0;
+    const bool localBlackout = effects && effects->blackoutRemainingMs > 0;
+    glUniform1i(glGetUniformLocation(shaderProgramID, "isGlitch"), (isGlitchMode || localReverse) ? 1 : 0);
 
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "projection"), 1, GL_FALSE, glm::value_ptr(proj));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "view"), 1, GL_FALSE, glm::value_ptr(view));
@@ -777,7 +797,7 @@ GLvoid drawScene()
 
 	glUniform3fv(glGetUniformLocation(shaderProgramID, "lightPos"), 1, glm::value_ptr(worldLightPos));
 
-	int spotlightVal = isNightMode ? 1 : 0;
+	int spotlightVal = (isNightMode || localBlackout) ? 1 : 0;
 	glUniform1i(glGetUniformLocation(shaderProgramID, "enableSpotlight"), spotlightVal);
 	glUniform3fv(glGetUniformLocation(shaderProgramID, "spotlightPos"), 1, glm::value_ptr(playerPos));
 
@@ -787,7 +807,6 @@ GLvoid drawScene()
 
 	renderObjects(shaderProgramID, proj * view);
 	if (!isFlying) {
-		renderObjects(shaderProgramID, proj * view);
 
 		// 아이템 그리기
 		int currentZ = (int)std::round(playerPos.z);
@@ -801,17 +820,14 @@ GLvoid drawScene()
 		}
 	}
 
-	int currentZ = (int)std::round(playerPos.z);
-	int drawRangeFront = 30;
-	int drawRangeBack = 10;
-
-	for (auto& item : items) {
-		if (item.z < currentZ - drawRangeFront || item.z > currentZ + drawRangeBack) continue;
-		item.rotation += 2.0f;
-		drawItem(item, shaderProgramID);
-	}
-
-	drawParticles(shaderProgramID);
+    for (const auto& trap : localItems.GetBananaTraps()) {
+        Item banana{};
+        banana.x = (float)trap.second.x;
+        banana.z = (float)trap.second.z;
+        banana.type = ITEM_BANANA;
+        drawItem(banana, shaderProgramID);
+    }
+    drawParticles(shaderProgramID);
 
 	if (isFlying || isLanding) {
 		drawClouds(shaderProgramID);
@@ -843,6 +859,22 @@ GLvoid drawScene()
 	// 2. 코인 개수 표시 
 	std::string coinStr = "COINS: " + std::to_string(coinCount);
 	renderTextWithOutline(1050, 60, coinStr.c_str());
+
+    const auto* inventory = localItems.GetInventory(1);
+    if (inventory) {
+        auto name = [](ItemKind kind) {
+            switch (kind) {
+            case ItemKind::ReverseControls: return "REVERSE";
+            case ItemKind::Blackout: return "BLACKOUT";
+            case ItemKind::Banana: return "BANANA";
+            default: return "EMPTY";
+            }
+        };
+        std::string slots = std::string("Z: SWITCH  X: USE  [") +
+            name(inventory->slots[0]) + "] [" + name(inventory->slots[1]) + "]";
+        renderTextWithOutline(20, 105, slots.c_str());
+        renderTextWithOutline(20, 145, inventory->selectedSlot == 0 ? "SELECTED: 1" : "SELECTED: 2");
+    }
 
 	// 3. 아이템 상태 UI 표시 
 	float uiY = 880.0f;

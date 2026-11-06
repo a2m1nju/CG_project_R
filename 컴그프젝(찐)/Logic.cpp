@@ -20,6 +20,21 @@ bool isTreeAt(int x, int z) {
     return false;
 }
 
+bool spawnItem(int x, int z, ItemType type) {
+    Item item{};
+    item.x = static_cast<float>(x);
+    item.z = static_cast<float>(z);
+    item.type = type;
+    if (type >= ITEM_REVERSE && type <= ITEM_BANANA) {
+        item.id = nextItemId;
+        const ItemKind kind = static_cast<ItemKind>(type - ITEM_REVERSE + 1);
+        if (!localItems.AddGroundItem({item.id, kind, x, z})) return false;
+        ++nextItemId;
+    }
+    items.push_back(item);
+    return true;
+}
+
 void generateLane(int z)
 {
 	if (mapType.find(z) != mapType.end()) return;
@@ -179,18 +194,14 @@ void generateLane(int z)
 		}
 
 		// 코인 및 아이템 생성
-		if (rand() % 2 == 0) {
-			int spawnX = (rand() % 21) - 10;
+		if (rand() % 100 < 80) {
+			int spawnX = (rand() % 13) - 6;
 			if (!isTreeAt(spawnX, z)) {
 
 				int luck = rand() % 100;
 
-				if (luck < 20) {
-					Item newItem;
-					newItem.x = (float)spawnX;
-					newItem.z = (float)z;
-					newItem.type = (ItemType)(rand() % 4);
-					items.push_back(newItem);
+				if (luck < 35) {
+                    spawnItem(spawnX, z, static_cast<ItemType>(rand() % 7));
 				}
 				else {
 					Coin newCoin;
@@ -248,6 +259,9 @@ void resetGame() {
 
 	// 아이템 초기화
 	items.clear();
+    localItems.ResetRound();
+    localItems.AddPlayer(1);
+    nextItemId = 1;
 	hasShield = false;
 	isMagnetActive = false;
 	isSlowActive = false;
@@ -272,6 +286,7 @@ void resetGame() {
 	weatherParticles.clear();
 
 	for (int z = -10; z < 10; ++z) generateLane(z);
+    spawnItem(0, -1, static_cast<ItemType>(ITEM_REVERSE + rand() % 3));
 
 	isGameOver = false;
 	isGlitchMode = false;
@@ -449,11 +464,26 @@ void timer(int value)
 	}
 
 	// 7. [아이템] 획득 로직
+    localItems.AdvanceEffects(16);
 	for (auto& item : items) {
 		if (item.isCollected) continue;
 		if (std::abs(item.z - playerPos.z) < 0.5f && std::abs(item.x - playerPos.x) < 0.5f) {
-			item.isCollected = true;
-			PlaySound(TEXT("item.wav"), NULL, SND_ASYNC | SND_FILENAME);
+            if (item.type >= ITEM_REVERSE) {
+                const auto picked = localItems.ResolvePickups({{1,
+                    (int)std::round(playerPos.x), (int)std::round(playerPos.z), true}});
+                bool collectedThisItem = false;
+                for (auto& other : items) {
+                    for (const auto& result : picked) {
+                        if (other.id == result.objectId) {
+                            other.isCollected = true;
+                            if (other.id == item.id) collectedThisItem = true;
+                        }
+                    }
+                }
+                if (!collectedThisItem) continue;
+            }
+            item.isCollected = true;
+            PlaySound(TEXT("item.wav"), NULL, SND_ASYNC | SND_FILENAME);
 
 			if (item.type == ITEM_POTION) {
 				if (!isGiantMode && !isFlying) {
@@ -484,7 +514,15 @@ void timer(int value)
 	}
 
 	// 바람 이벤트 로직
-	if (isWindActive) {
+    if (localItems.ResolveBananaHit(1, (int)std::round(playerPos.x),
+        (int)std::round(playerPos.z))) {
+        playerPos.z += 1.0f;
+        playerTargetPos = playerPos;
+        playerStartPos = playerPos;
+        isMoving = false;
+    }
+
+    if (isWindActive) {
 		windTimer -= 0.016f;
 
 		// 플레이어 밀림 로직
@@ -962,6 +1000,7 @@ void timer(int value)
 
 void initGame()
 {
+    localItems.AddPlayer(1);
 	transLoc = glGetUniformLocation(shaderProgramID, "trans");
 
 	float vertices[] = {
@@ -1105,6 +1144,7 @@ void initGame()
 	glGenFramebuffers(1, &depthFBO);
 
 	for (int z = -10; z < 10; ++z) generateLane(z);
+    spawnItem(0, -1, static_cast<ItemType>(ITEM_REVERSE + rand() % 3));
 
 	glGenTextures(1, &depthMap);
 	glBindTexture(GL_TEXTURE_2D, depthMap);

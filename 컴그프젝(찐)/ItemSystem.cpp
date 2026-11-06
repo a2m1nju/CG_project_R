@@ -29,6 +29,47 @@ bool ItemSystem::SwitchSlot(PlayerId playerId, std::uint8_t slot) {
     return true;
 }
 
+bool ItemSystem::UseSelectedItem(PlayerId playerId, std::int32_t x, std::int32_t z) {
+    auto inventory = inventories_.find(playerId);
+    if (inventory == inventories_.end()) return false;
+    auto& kind = inventory->second.slots[inventory->second.selectedSlot];
+    if (kind == ItemKind::Empty) return false;
+    const ItemRule rule = GetItemRule(kind);
+    if (rule.useMode == ItemUseMode::PlaceTrapAhead) {
+        ObjectId id = 1;
+        while (groundItems_.count(id) || bananaTraps_.count(id)) ++id;
+        bananaTraps_.emplace(id, BananaTrap{id, playerId, x, z - rule.placementDistanceCells});
+    } else if (rule.useMode == ItemUseMode::TargetOpponent) {
+        // Local preview until multiplayer integration is available.
+        auto& effects = playerEffects_[playerId];
+        if (rule.effect == EffectKind::ReverseControls)
+            effects.reverseControlsRemainingMs = rule.effectDurationMs;
+        else if (rule.effect == EffectKind::Blackout)
+            effects.blackoutRemainingMs = rule.effectDurationMs;
+    } else return false;
+    kind = ItemKind::Empty;
+    return true;
+}
+
+bool ItemSystem::ResolveBananaHit(PlayerId playerId, std::int32_t x, std::int32_t z) {
+    if (!GetInventory(playerId)) return false;
+    for (auto trap = bananaTraps_.begin(); trap != bananaTraps_.end(); ++trap) {
+        if (trap->second.x == x && trap->second.z == z) {
+            bananaTraps_.erase(trap);
+            return true;
+        }
+    }
+    return false;
+}
+
+void ItemSystem::AdvanceEffects(std::uint32_t elapsedMs) {
+    for (auto& entry : playerEffects_) {
+        auto& effects = entry.second;
+        effects.reverseControlsRemainingMs = effects.reverseControlsRemainingMs > elapsedMs ? effects.reverseControlsRemainingMs - elapsedMs : 0;
+        effects.blackoutRemainingMs = effects.blackoutRemainingMs > elapsedMs ? effects.blackoutRemainingMs - elapsedMs : 0;
+    }
+}
+
 std::vector<PickupResult> ItemSystem::ResolvePickups(
     const std::vector<PickupPlayer>& players) {
     std::vector<PickupPlayer> ordered = players;

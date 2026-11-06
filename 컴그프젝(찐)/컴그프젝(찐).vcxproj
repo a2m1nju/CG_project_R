@@ -147,6 +147,7 @@ glew32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     <ClCompile Include="Global.cpp" />
     <ClCompile Include="Input.cpp" />
     <ClCompile Include="Logic.cpp" />
+    <ClCompile Include="ItemSystem.cpp" />
     <ClCompile Include="main1.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="Shader.cpp" />
@@ -155,6 +156,7 @@ glew32.lib;%(AdditionalDependencies)</AdditionalDependencies>
   <ItemGroup>
     <ClInclude Include="Common.h" />
     <ClInclude Include="GameItemTypes.h" />
+    <ClInclude Include="ItemSystem.h" />
     <ClInclude Include="Global.h" />
     <ClInclude Include="Input.h" />
     <ClInclude Include="Logic.h" />

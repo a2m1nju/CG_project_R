@@ -16,7 +16,8 @@ void specialKeyboard(int key, int x, int y)
 	if (isMoving || isDashing) return;
 
 	// 글리치 모드일 때 키 입력 뒤집기
-	if (isGlitchMode) {
+	const auto* effects = localItems.GetPlayerEffects(1);
+    if (isGlitchMode || (effects && effects->reverseControlsRemainingMs > 0)) {
 		switch (key) {
 		case GLUT_KEY_UP:    key = GLUT_KEY_DOWN; break;
 		case GLUT_KEY_DOWN:  key = GLUT_KEY_UP; break;
@@ -110,6 +111,19 @@ void keyboard(unsigned char key, int x, int y)
 		}
 	}
 
+    if (key == 'z' || key == 'Z') {
+        const auto* inventory = localItems.GetInventory(1);
+        if (inventory) localItems.SwitchSlot(1, 1 - inventory->selectedSlot);
+        glutPostRedisplay();
+        return;
+    }
+    if (key == 'x' || key == 'X') {
+        localItems.UseSelectedItem(1, (int)std::round(playerPos.x),
+            (int)std::round(playerPos.z));
+        glutPostRedisplay();
+        return;
+    }
+
 	if (key == '2') {
 		if (!isNightMode && !isNightWarning) {
 			isNightWarning = true;
@@ -133,7 +147,7 @@ void keyboard(unsigned char key, int x, int y)
 		}
 	}
 
-	if (key == '4' || key == '5' || key == '6' || key == '8') {
+	if (key == '4' || key == '5' || key == '6' || key == '8' || key == '9') {
 		Item newItem;
 		newItem.x = (float)std::round(playerPos.x);       
 		newItem.z = (float)std::round(playerPos.z) - 2.0f;
@@ -156,7 +170,12 @@ void keyboard(unsigned char key, int x, int y)
 		else if (key == '8') { 
 			newItem.type = ITEM_POTION;
 		}
-		items.push_back(newItem);
+		if (key == '9') {
+            static unsigned nextKind = 0;
+            newItem.type = static_cast<ItemType>(ITEM_REVERSE + nextKind);
+            nextKind = (nextKind + 1) % 3;
+        }
+        spawnItem((int)newItem.x, (int)newItem.z, newItem.type);
 	}
 	// 글리치 모드
 	if (key == '7') {
