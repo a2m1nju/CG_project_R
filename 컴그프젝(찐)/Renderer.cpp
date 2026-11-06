@@ -711,6 +711,101 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 	}
 }
 
+static void drawInventorySlots() {
+    const PlayerInventory* inventory = localItems.GetInventory(1);
+    if (!inventory) return;
+
+    constexpr int kWindowWidth = 1280;
+    constexpr int kWindowHeight = 960;
+    constexpr int kSlotSize = 88;
+    constexpr int kSlotGap = 12;
+    constexpr int kSlotLeft = 20;
+    constexpr int kSlotTop = 105;
+    constexpr int kBorder = 6;
+
+    // Draw the two HUD boxes in screen coordinates.
+    glUseProgram(0);
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glActiveTexture(GL_TEXTURE0);
+    glDisable(GL_TEXTURE_2D);
+    glDisable(GL_DEPTH_TEST);
+    const GLboolean lightingWasEnabled = glIsEnabled(GL_LIGHTING);
+    glDisable(GL_LIGHTING);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    gluOrtho2D(0, kWindowWidth, 0, kWindowHeight);
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    auto drawQuad = [](float left, float bottom, float right, float top) {
+        glBegin(GL_QUADS);
+        glVertex2f(left, bottom);
+        glVertex2f(right, bottom);
+        glVertex2f(right, top);
+        glVertex2f(left, top);
+        glEnd();
+    };
+
+    for (int slot = 0; slot < 2; ++slot) {
+        const float left = static_cast<float>(kSlotLeft + slot * (kSlotSize + kSlotGap));
+        const float bottom = static_cast<float>(kWindowHeight - kSlotTop - kSlotSize);
+        const float right = left + kSlotSize;
+        const float top = bottom + kSlotSize;
+        if (inventory->selectedSlot == slot)
+            glColor4f(1.0f, 0.0f, 0.0f, 1.0f);
+        else
+            glColor4f(0.85f, 0.85f, 0.85f, 1.0f);
+        drawQuad(left, bottom, right, top);
+        glColor4f(0.05f, 0.07f, 0.10f, 0.82f);
+        drawQuad(left + kBorder, bottom + kBorder, right - kBorder, top - kBorder);
+    }
+
+    glDisable(GL_BLEND);
+    if (lightingWasEnabled) glEnable(GL_LIGHTING);
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+
+    // Render the same 3D models used by world items into each occupied box.
+    glUseProgram(shaderProgramID);
+    glBindVertexArray(vao);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_SCISSOR_TEST);
+    const glm::mat4 iconProjection = glm::perspective(glm::radians(35.0f), 1.0f, 0.1f, 10.0f);
+    const glm::mat4 iconView = glm::lookAt(glm::vec3(0.0f, 1.5f, 3.1f),
+        glm::vec3(0.0f, 0.5f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    const glm::mat4 noShadow = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 4.0f));
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "projection"), 1, GL_FALSE, glm::value_ptr(iconProjection));
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "view"), 1, GL_FALSE, glm::value_ptr(iconView));
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "lightSpaceMatrix"), 1, GL_FALSE, glm::value_ptr(noShadow));
+    glUniform3f(glGetUniformLocation(shaderProgramID, "lightPos"), 1.0f, 3.0f, 3.0f);
+    glUniform1i(glGetUniformLocation(shaderProgramID, "useTexture"), 0);
+    glUniform1i(glGetUniformLocation(shaderProgramID, "enableSpotlight"), 0);
+    glUniform1i(glGetUniformLocation(shaderProgramID, "isGlitch"), 0);
+
+    for (int slot = 0; slot < 2; ++slot) {
+        if (inventory->slots[slot] == ItemKind::Empty) continue;
+        const int left = kSlotLeft + slot * (kSlotSize + kSlotGap) + kBorder;
+        const int bottom = kWindowHeight - kSlotTop - kSlotSize + kBorder;
+        const int iconSize = kSlotSize - 2 * kBorder;
+        glViewport(left, bottom, iconSize, iconSize);
+        glScissor(left, bottom, iconSize, iconSize);
+        glClear(GL_DEPTH_BUFFER_BIT);
+        Item icon{};
+        icon.type = static_cast<ItemType>(ITEM_REVERSE + static_cast<int>(inventory->slots[slot]) - 1);
+        drawItem(icon, shaderProgramID);
+    }
+
+    glDisable(GL_SCISSOR_TEST);
+    glViewport(0, 0, kWindowWidth, kWindowHeight);
+}
+
 GLvoid drawScene()
 {
 	glm::vec3 shakeOffset(0.0f, 0.0f, 0.0f);
@@ -860,22 +955,6 @@ GLvoid drawScene()
 	std::string coinStr = "COINS: " + std::to_string(coinCount);
 	renderTextWithOutline(1050, 60, coinStr.c_str());
 
-    const auto* inventory = localItems.GetInventory(1);
-    if (inventory) {
-        auto name = [](ItemKind kind) {
-            switch (kind) {
-            case ItemKind::ReverseControls: return "REVERSE";
-            case ItemKind::Blackout: return "BLACKOUT";
-            case ItemKind::Banana: return "BANANA";
-            default: return "EMPTY";
-            }
-        };
-        std::string slots = std::string("Z: SWITCH  X: USE  [") +
-            name(inventory->slots[0]) + "] [" + name(inventory->slots[1]) + "]";
-        renderTextWithOutline(20, 105, slots.c_str());
-        renderTextWithOutline(20, 145, inventory->selectedSlot == 0 ? "SELECTED: 1" : "SELECTED: 2");
-    }
-
 	// 3. 아이템 상태 UI 표시 
 	float uiY = 880.0f;
 	uiY = 120.0f;
@@ -1004,6 +1083,8 @@ GLvoid drawScene()
 			renderTextWithOutline(centerX - 350.0f, centerY + 50.0f, "PRESS ANY KEY TO RESTART");
 		}
 	}
+
+	if (introState == 0 && !isGameOver) drawInventorySlots();
 
 	glutSwapBuffers();
 }
