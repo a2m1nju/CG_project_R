@@ -17,7 +17,7 @@ void Reshape(int w, int h)
     glViewport(0, 0, w, h);
 }
 
-int main(int argc, char** argv)
+bool InitializeClient(int& argc, char** argv)
 {
     srand((unsigned int)time(NULL));
 
@@ -31,7 +31,7 @@ int main(int argc, char** argv)
     if (glewInit() != GLEW_OK)
     {
         std::cerr << "Unable to initialize GLEW" << std::endl;
-        exit(EXIT_FAILURE);
+        return false;
     }
 
     make_vertexShaders();
@@ -46,6 +46,15 @@ int main(int argc, char** argv)
 
     mciSendString(TEXT("play bgm.wav"), NULL, 0, NULL);
 
+    return true;
+}
+
+int main(int argc, char** argv)
+{
+    if (!InitializeClient(argc, argv)) {
+        return EXIT_FAILURE;
+    }
+
     glutDisplayFunc(drawScene);
     glutReshapeFunc(Reshape);
     glutSpecialFunc(specialKeyboard);
@@ -53,5 +62,5 @@ int main(int argc, char** argv)
     glutTimerFunc(16, timer, 0);
 
     glutMainLoop();
-    return 0;
+    return EXIT_SUCCESS;
 }
