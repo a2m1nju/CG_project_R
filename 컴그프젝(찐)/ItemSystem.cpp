@@ -58,7 +58,8 @@ bool ItemSystem::ResolveBananaHit(PlayerId playerId, std::int32_t x, std::int32_
     for (auto trap = bananaTraps_.begin(); trap != bananaTraps_.end(); ++trap) {
         if (trap->second.x == x && trap->second.z == z) {
             bananaTraps_.erase(trap);
-            return true;
+            const auto* effects = GetPlayerEffects(playerId);
+            return !effects || effects->shieldRemainingMs == 0;
         }
     }
     return false;

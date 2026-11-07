@@ -632,6 +632,85 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 	}
 }
 
+static void drawShieldAura(const glm::mat4& projection, const glm::mat4& view) {
+    const auto* effects = localItems.GetPlayerEffects(1);
+    if (isGameOver || !effects || effects->shieldRemainingMs == 0) return;
+
+    GLint previousMatrixMode = GL_MODELVIEW;
+    glGetIntegerv(GL_MATRIX_MODE, &previousMatrixMode);
+    glPushAttrib(GL_CURRENT_BIT | GL_ENABLE_BIT | GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_LINE_BIT);
+    glUseProgram(0);
+    glBindVertexArray(0);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDisable(GL_LIGHTING);
+    glDisable(GL_TEXTURE_2D);
+    glDepthMask(GL_FALSE);
+    glDisable(GL_CULL_FACE);
+
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadMatrixf(glm::value_ptr(projection));
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadMatrixf(glm::value_ptr(view));
+    glTranslatef(playerPos.x, playerPos.y + 0.05f, playerPos.z);
+    const float spinDegrees = std::fmod(
+        static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.045f, 360.0f);
+    glRotatef(20.0f, 1.0f, 0.0f, 0.0f);
+    glRotatef(spinDegrees, 0.0f, 1.0f, 0.0f);
+
+    constexpr int kSegments = 48;
+    constexpr int kLatitudeBands = 16;
+    constexpr float kRadius = 0.8f;
+    constexpr float kPi = 3.14159265f;
+    constexpr float kTau = 2.0f * kPi;
+
+    // Draw a transparent shell without hiding the character inside it.
+    for (int band = 0; band < kLatitudeBands; ++band) {
+        const float lower = -0.5f * kPi + kPi * band / kLatitudeBands;
+        const float upper = -0.5f * kPi + kPi * (band + 1) / kLatitudeBands;
+        glBegin(GL_TRIANGLE_STRIP);
+        for (int i = 0; i <= kSegments; ++i) {
+            const float angle = kTau * i / kSegments;
+            const float c = std::cos(angle);
+            const float s = std::sin(angle);
+            const float highlight = std::pow((c + 1.0f) * 0.5f, 8.0f);
+            glColor4f(0.18f, 0.7f, 1.0f, 0.11f + 0.12f * highlight);
+            glVertex3f(kRadius * std::cos(lower) * c,
+                       kRadius * std::sin(lower),
+                       kRadius * std::cos(lower) * s);
+            glVertex3f(kRadius * std::cos(upper) * c,
+                       kRadius * std::sin(upper),
+                       kRadius * std::cos(upper) * s);
+        }
+        glEnd();
+    }
+
+    glLineWidth(1.5f);
+    glColor4f(0.55f, 0.95f, 1.0f, 0.55f);
+    for (int ring = 0; ring < 3; ++ring) {
+        glBegin(GL_LINE_LOOP);
+        for (int i = 0; i < kSegments; ++i) {
+            const float angle = kTau * static_cast<float>(i) / kSegments;
+            const float c = std::cos(angle) * kRadius;
+            const float s = std::sin(angle) * kRadius;
+            if (ring == 0) glVertex3f(c, 0.0f, s);
+            else if (ring == 1) glVertex3f(c, s, 0.0f);
+            else glVertex3f(0.0f, s, c);
+        }
+        glEnd();
+    }
+
+    glPopMatrix();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(previousMatrixMode);
+    glPopAttrib();
+    glBindVertexArray(vao);
+    glUseProgram(shaderProgramID);
+}
+
 static void drawInventorySlots() {
     const PlayerInventory* inventory = localItems.GetInventory(1);
     if (!inventory) return;
@@ -845,6 +924,7 @@ GLvoid drawScene()
 	glUniform1i(glGetUniformLocation(shaderProgramID, "shadowMap"), 0);
 
 	renderObjects(shaderProgramID, proj * view);
+    drawShieldAura(proj, view);
 	if (!isFlying) {
 
 		// 아이템 그리기

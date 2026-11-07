@@ -654,9 +654,9 @@ void timer(int value)
 
 		// [충돌 검사 시작]
 		bool isDead = false;
-		bool isInvincible = isDashing || (recoveryTimer > 0.0f) || isGodMode;
         const auto* itemEffects = localItems.GetPlayerEffects(1);
         const bool shieldActive = itemEffects && itemEffects->shieldRemainingMs > 0;
+        const bool isInvincible = isDashing || (recoveryTimer > 0.0f) || isGodMode || shieldActive;
 
 		// 자동차 충돌
 		for (auto& car : cars) {
@@ -712,7 +712,7 @@ void timer(int value)
 						isDead = true;
 					}
 				}
-				if (playerPos.x < -16.0f || playerPos.x > 16.0f) isDead = true;
+				if ((playerPos.x < -16.0f || playerPos.x > 16.0f) && !isInvincible) isDead = true;
 			}
 		}
 
@@ -756,7 +756,7 @@ void timer(int value)
 
 					if (playerGridZ == trainGridZ) {
 						if (playerPos.x > t.x - 9.0f && playerPos.x < t.x + 9.0f) {
-                            if (!isGodMode && !shieldActive) isDead = true;
+                            if (!isInvincible) isDead = true;
 						}
 					}
 				}
@@ -769,7 +769,7 @@ void timer(int value)
 			}
 		}
 
-		if (isDead) {
+		if (isDead && !shieldActive) {
 
 			if (isGameOver) {
 				glutPostRedisplay();
