@@ -35,11 +35,6 @@ struct Car {
     int designID;
 };
 
-struct Coin {
-    float x, z;
-    bool isCollected = false;
-};
-
 struct CarPart {
     glm::vec3 offset;
     glm::vec3 scale;

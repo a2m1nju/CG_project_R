@@ -8,9 +8,6 @@ extern const int LINES_PER_SEASON;
 extern const float MOVE_DURATION;
 extern const float JUMP_HEIGHT;
 extern const unsigned int SHADOW_WIDTH, SHADOW_HEIGHT;
-extern const float DASH_DURATION;
-extern const float DASH_COOLDOWN;
-extern const int DASH_COST;
 // º¯¼ö
 extern GameSeason currentSeason;
 extern std::map<GameSeason, SeasonColors> seasonThemes;
@@ -28,7 +25,6 @@ extern std::string itemFeedbackMessage;
 extern int itemFeedbackUntilMs;
 extern std::vector<Car> cars;
 extern std::vector<CarDesign> carDesigns;
-extern std::vector<Coin> coins;
 extern std::map<int, int> mapType;
 extern std::map<int, std::vector<int>> treeMap;
 
@@ -49,15 +45,9 @@ extern GLuint fragmentShader;
 
 extern int score;
 extern int minZ;
-extern int coinCount;
 extern int riverRemaining;
 
-extern bool isDashing;
-extern float dashTimer;
-extern float dashCooldownTimer;
 extern glm::vec3 lightPos;
-
-extern float recoveryTimer;
 
 extern int introState;
 extern GLuint logoTexture;

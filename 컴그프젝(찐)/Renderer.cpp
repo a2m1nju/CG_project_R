@@ -54,51 +54,6 @@ void drawChicken(GLuint shader, glm::mat4 baseModel) {
 	drawPart(shader, baseModel, glm::vec3(0.0f, -0.1f, 0.35f), glm::vec3(0.3f, 0.3f, 0.1f), white);
 }
 
-void drawCoin(const Coin& coin, GLuint shader) {
-	if (coin.isCollected) return; 
-
-	glm::mat4 baseModel = glm::translate(glm::mat4(1.0f), glm::vec3(coin.x, 0.5f, coin.z));
-
-	baseModel = glm::scale(baseModel, glm::vec3(0.5f)); 
-
-	glm::vec3 yellowColor = glm::vec3(1.0f, 0.9f, 0.0f); 
-	glm::vec3 redColor = glm::vec3(1.0f, 0.0f, 0.0f); 
-	float C_height = 0.1f; 
-
-	float base_Y_offset = 0.0f;
-	float C_Y_offset = base_Y_offset + C_height;
-
-	C_Y_offset = 0.1f;
-	base_Y_offset = 0.0f;
-
-	float C_Y_POS = 0.1f; 
-	float C_Y_THICKNESS = 0.1f; 
-
-	drawPart(shader, baseModel, glm::vec3(0.0f, base_Y_offset, 0.0f), glm::vec3(0.9f, C_Y_THICKNESS, 0.9f), yellowColor);
-
-	glm::vec3 redColor_C = glm::vec3(1.0f, 0.0f, 0.0f);
-	float C_Y_offset_final = C_Y_POS; 
-	float C_thick = 0.15f;
-	float C_length = 0.4f;
-	float C_span = 0.25f; 
-
-	// A. 세로 막대 (왼쪽)
-	drawPart(shader, baseModel,
-		glm::vec3(-C_span, C_Y_offset_final, 0.0f),
-		glm::vec3(C_thick, C_Y_THICKNESS, C_length), redColor_C);
-
-	// B. 위쪽 막대 (위)
-	drawPart(shader, baseModel,
-		glm::vec3(-C_span / 2.0f + C_thick / 2.0f, C_Y_offset_final, C_length / 2.0f - C_thick / 2.0f),
-		glm::vec3(C_span - C_thick / 2.0f, C_Y_THICKNESS, C_thick), redColor_C);
-
-	// C. 아래쪽 막대 (아래)
-	drawPart(shader, baseModel,
-		glm::vec3(-C_span / 2.0f + C_thick / 2.0f, C_Y_offset_final, -C_length / 2.0f + C_thick / 2.0f),
-		glm::vec3(C_span - C_thick / 2.0f, C_Y_THICKNESS, C_thick), redColor_C);
-}
-
-//  방패 그리기
 void drawShieldModel(GLuint shader, glm::mat4 baseModel) {
 	// 1. 방패 테두리/판 (은색/회색)
 	drawPart(shader, baseModel, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.6f, 0.7f, 0.1f), glm::vec3(0.7f, 0.7f, 0.8f));
@@ -534,12 +489,6 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 				}
 			}
 
-			// 코인
-			for (const auto& coin : coins) {
-				if (coin.z < currentZ - drawRangeFront || coin.z > currentZ + drawRangeBack) continue;
-				drawCoin(coin, shader);
-			}
-
 	if (!isGameOver) {
 		// 플레이어 (닭)
 		glm::mat4 pModel = glm::translate(glm::mat4(1.0f), playerPos);
@@ -870,11 +819,7 @@ GLvoid drawScene()
 	std::string scoreStr = "SCORE: " + std::to_string(score);
 	renderTextWithOutline(20, 60, scoreStr.c_str());
 
-	// 2. 코인 개수 표시 
-	std::string coinStr = "COINS: " + std::to_string(coinCount);
-	renderTextWithOutline(1050, 60, coinStr.c_str());
-
-	// 3. 아이템 상태 UI 표시 
+	// Item effect status.
 	float uiY = 120.0f;
 
     if (effects && effects->shieldRemainingMs > 0) {
@@ -903,10 +848,6 @@ GLvoid drawScene()
 	if (introState == 0) {
 		std::string scoreStr = "SCORE: " + std::to_string(score);
 		renderTextWithOutline(20, 60, scoreStr.c_str());
-		// 2. 코인 표시
-		std::string coinStr = "COINS: " + std::to_string(coinCount);
-		renderTextWithOutline(1050, 60, coinStr.c_str());
-
 	}
 	if (isGameOver) {
 		float centerX = 1280.0f / 2.0f;

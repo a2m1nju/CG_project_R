@@ -13,7 +13,6 @@ void specialKeyboard(int key, int x, int y)
 	}
 
 	if (isMoving) return;
-	if (isMoving || isDashing) return;
 
 	// 글리치 모드일 때 키 입력 뒤집기
 	const auto* effects = localItems.GetPlayerEffects(1);

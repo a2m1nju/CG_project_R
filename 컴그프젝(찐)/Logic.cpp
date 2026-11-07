@@ -199,22 +199,11 @@ void generateLane(int z)
 			}
 		}
 
-		// 코인 및 아이템 생성
+		// Spawn inventory items on grass.
 		if (rand() % 100 < 80) {
 			int spawnX = (rand() % 13) - 6;
-			if (!isTreeAt(spawnX, z)) {
-
-				int luck = rand() % 100;
-
-				if (luck < 35) {
-                    spawnItem(spawnX, z, static_cast<ItemType>(rand() % 4));
-				}
-				else {
-					Coin newCoin;
-					newCoin.x = (float)spawnX;
-					newCoin.z = (float)z;
-					coins.push_back(newCoin);
-				}
+			if (!isTreeAt(spawnX, z) && rand() % 100 < 35) {
+				spawnItem(spawnX, z, static_cast<ItemType>(rand() % 4));
 			}
 		}
 	}
@@ -243,9 +232,6 @@ void resetGame() {
 	playerTargetPos = playerPos;
 	playerStartPos = playerPos;
 	isMoving = false;
-	isDashing = false;
-	dashTimer = 0.0f;
-	dashCooldownTimer = 0.0f;
 
 	items.clear();
     localItems.ResetRound();
@@ -256,7 +242,6 @@ void resetGame() {
 
 	score = 0;
 	minZ = 0;
-	coinCount = 0;
 
 	cars.clear();
 	logs.clear();
@@ -329,10 +314,6 @@ void timer(int value)
 		}
 	}
 
-	float playerX = playerPos.x;
-	float playerZ = playerPos.z;
-	float playerSize = 0.5f;
-
 	float restingY = 0.5f;
 
 	// 파티클 물리 업데이트
@@ -344,20 +325,6 @@ void timer(int value)
 		else ++it;
 	}
 
-	// 대쉬 쿨타임 감소
-	if (dashCooldownTimer > 0.0f) {
-		dashCooldownTimer -= 0.016f;
-		if (dashCooldownTimer < 0.0f) dashCooldownTimer = 0.0f;
-	}
-	// 무적 시간(recoveryTimer) 감소 로직
-	if (recoveryTimer > 0.0f) {
-		recoveryTimer -= 0.016f;
-		if (recoveryTimer < 0.0f) {
-			recoveryTimer = 0.0f;
-		}
-	}
-
-	// 5. [아이템] 슬로우 모션 속도 설정
     localItems.AdvanceEffects(elapsedMs);
     static bool wasBlockedByFullInventory = false;
     bool blockedByFullInventory = false;
@@ -404,33 +371,6 @@ void timer(int value)
         isMoving = false;
     }
 
-	if (isDashing) {
-		const float DASH_SPEED = 0.5f;
-		playerPos.z -= DASH_SPEED;
-		dashTimer -= 0.016f;
-		int currentZ = (int)std::round(playerPos.z);
-		if (currentZ < minZ) {
-			minZ = currentZ;
-			score++;
-		}
-		if (dashTimer <= 0.0f) {
-			isDashing = false;
-			dashCooldownTimer = DASH_COOLDOWN;
-			playerPos.x = (float)std::round(playerPos.x);
-			playerPos.z = (float)std::round(playerPos.z);
-			playerTargetPos = playerPos;
-			recoveryTimer = 1.0f;
-		}
-	}
-	else {
-		// 1. 대쉬 자동 발동 조건 체크
-		if (!isMoving && dashCooldownTimer <= 0.0f && coinCount >= DASH_COST) {
-			coinCount -= DASH_COST;
-			isDashing = true;
-			dashTimer = DASH_DURATION;
-			spawnParticles(playerPos, glm::vec3(1.0f, 0.5f, 0.0f), 20, 0.8f);
-		}
-
 		for (auto& logObj : logs) {
 			// 슬로우 효과 적용
 			logObj.x += logObj.speed;
@@ -453,7 +393,7 @@ void timer(int value)
 		bool isDead = false;
         const auto* itemEffects = localItems.GetPlayerEffects(1);
         const bool shieldActive = itemEffects && itemEffects->shieldRemainingMs > 0;
-        const bool isInvincible = isDashing || (recoveryTimer > 0.0f) || isGodMode || shieldActive;
+        const bool isInvincible = isGodMode || shieldActive;
 
 		// 자동차 충돌
 		for (auto& car : cars) {
@@ -585,20 +525,8 @@ void timer(int value)
 			return;
 		}
 
-		// 코인 로직
-		for (auto& coin : coins) {
-			if (coin.isCollected) continue;
-			if (std::abs(coin.z - playerZ) < playerSize && std::abs(coin.x - playerX) < playerSize) {
-				coin.isCollected = true;
-				coinCount++;
-				PlaySound(TEXT("coin.wav"), NULL, SND_ASYNC | SND_FILENAME);
-				spawnParticles(glm::vec3(coin.x, 0.5f, coin.z), glm::vec3(1.0f, 0.9f, 0.0f), 10, 0.3f);
-			}
-		}
-
-		// 점프 애니메이션
 		if (isMoving) {
-			moveTime += 0.016f;
+			moveTime += 0.032f;
 			float t = glm::clamp(moveTime / MOVE_DURATION, 0.0f, 1.0f);
 
 			playerPos.x = glm::mix(playerStartPos.x, playerTargetPos.x, t);
@@ -619,34 +547,10 @@ void timer(int value)
 			}
 		}
 
-		// 점프 애니메이션 
-		if (isMoving && !isDashing) {
-			moveTime += 0.016f;
-			float t = glm::clamp(moveTime / MOVE_DURATION, 0.0f, 1.0f);
-
-			playerPos.x = glm::mix(playerStartPos.x, playerTargetPos.x, t);
-			playerPos.z = glm::mix(playerStartPos.z, playerTargetPos.z, t);
-
-			float jumpY = JUMP_HEIGHT * 4.0f * t * (1.0f - t);
-			playerPos.y = 0.5f + jumpY;
-
-			if (t >= 1.0f) {
-				playerPos = playerTargetPos;
-				isMoving = false;
-
-				int landZ = (int)std::round(playerPos.z);
-				if (mapType.count(landZ) && mapType[landZ] == 2) {
-					glm::vec3 particleColor = glm::vec3(0.0f, 0.5f, 1.0f);
-					spawnParticles(playerPos, particleColor, 8, 0.2f);
-				}
-			}
-		}
-		if (!isMoving && !isDashing) {
+		if (!isMoving) {
 			playerPos.y = restingY;
 			playerStartPos.y = restingY;
 		}
-	}
-
 
 	// 계절별 날씨 파티클 생성 로직
 	int currentPZ = (int)std::round(playerPos.z);
