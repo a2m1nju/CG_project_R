@@ -242,31 +242,10 @@ void resetGame() {
 	dashTimer = 0.0f;
 	dashCooldownTimer = 0.0f;
 
-	// 각종 이벤트 초기화
-	isWindActive = false;
-	windTimer = 0.0f;
-	windForce = 0.0f;
-
-	isNightMode = false;
-	isNightWarning = false;
-	nightModeTimer = 0.0f;
-	nightWarningTimer = 0.0f;
-	nightEventCooldown = 10.0f;
-
-	isEventActive = false;
-	eventProgress = 0.0f;
-	requiredTaps = 0;
-	lastEventScore = 0;
-
-	// 아이템 초기화
 	items.clear();
     localItems.ResetRound();
     localItems.AddPlayer(1);
     nextItemId = 1;
-
-	isFlying = false;
-	isLanding = false;
-	isBirdLeaving = false;
 
 	score = 0;
 	minZ = 0;
@@ -285,7 +264,6 @@ void resetGame() {
     spawnItem(0, -1, static_cast<ItemType>(ITEM_REVERSE + rand() % 3));
 
 	isGameOver = false;
-	isGlitchMode = false;
 }
 
 void timer(int value)
@@ -336,29 +314,6 @@ void timer(int value)
 		return;
 	}
 
-	// [글리치 모드 로직]
-	if (isGlitchMode) {
-		glitchTimer -= 0.016f;
-
-		// 1. 지속적인 화면 흔들림 
-		shakeTimer = 0.1f;     
-		shakeMagnitude = 0.15f;  
-
-		// 2. 종료 체크
-		if (glitchTimer <= 0.0f) {
-			isGlitchMode = false;
-		}
-	}
-	else {
-		// [발동 조건] 
-		if (!isFlying && !isEventActive && (rand() % 5000 < 2)) {
-			isGlitchMode = true;
-			glitchTimer = 5.0f;
-		}
-	}
-	// 거대화 모드 시간 감소 로직
-
-	// 카메라 흔들림 시간 감소 로직
 	if (shakeTimer > 0.0f) {
 		shakeTimer -= 0.016f;
 		if (shakeTimer <= 0.0f) {
@@ -367,42 +322,9 @@ void timer(int value)
 		}
 	}
 
-	// 핀 조명 로직
-	// 1. 경고 단계
-	if (isNightWarning) {
-		nightWarningTimer -= 0.016f;
-
-		if (nightWarningTimer <= 0.0f) {
-			isNightWarning = false;
-			isNightMode = true; 
-			nightModeTimer = NIGHT_DURATION;
-		}
-	}
-	// 2. 밤(핀 조명) 단계
-	else if (isNightMode) {
-		nightModeTimer -= 0.016f;
-		if (nightModeTimer <= 0.0f) {
-			isNightMode = false;
-			nightEventCooldown = (rand() % 10) + 10.0f; 
-		}
-	}
-	// 3. 평상시 (대기 단계)
-	else {
-		if (nightEventCooldown > 0.0f) {
-			nightEventCooldown -= 0.016f;
-		}
-		else {
-			if (rand() % 1500 < 1) {
-				isNightWarning = true;
-				nightWarningTimer = WARNING_DURATION;
-			}
-		}
-	}
-
 	float playerX = playerPos.x;
 	float playerZ = playerPos.z;
 	float playerSize = 0.5f;
-	bool scoreTargetReached = (score > 0) && (score % 50 == 0);
 
 	float restingY = 0.5f;
 
@@ -425,7 +347,6 @@ void timer(int value)
 		recoveryTimer -= 0.016f;
 		if (recoveryTimer < 0.0f) {
 			recoveryTimer = 0.0f;
-			isLandingSuccess = false;
 		}
 	}
 
@@ -454,7 +375,6 @@ void timer(int value)
 		}
 	}
 
-	// 바람 이벤트 로직
     if (localItems.ResolveBananaHit(1, (int)std::round(playerPos.x),
         (int)std::round(playerPos.z))) {
         playerPos.z += 1.0f;
@@ -462,60 +382,6 @@ void timer(int value)
         playerStartPos = playerPos;
         isMoving = false;
     }
-
-    if (isWindActive) {
-		windTimer -= 0.016f;
-
-		// 플레이어 밀림 로직
-		if (!isMoving && !isFlying && !isLanding) {
-
-			float nextX = playerPos.x + windForce;
-			int currentZ = (int)std::round(playerPos.z);
-			float bodyOffset = (windForce > 0) ? 0.4f : -0.4f;
-
-			int checkGridX = (int)std::round(nextX + bodyOffset);
-
-			bool isOnRiver = (mapType.count(currentZ) && mapType[currentZ] == 2);
-
-			bool isTreeBlocking = isTreeAt(checkGridX, currentZ);
-
-			if (!isOnRiver && !isTreeBlocking) {
-				playerPos.x += windForce;
-				playerStartPos.x += windForce;
-				playerTargetPos.x += windForce;
-			}
-		}
-
-		// 파티클 효과 
-		if (rand() % 10 < 3) {
-			float spawnX = (windForce > 0) ? -20.0f : 20.0f;
-			float spawnZ = playerPos.z + (rand() % 40 - 20);
-			float spawnY = (rand() % 10) + 2.0f;
-
-			glm::vec3 pPos(spawnX, spawnY, spawnZ);
-			glm::vec3 pColor(0.9f, 0.95f, 1.0f);
-
-			Particle p;
-			p.position = pPos;
-			p.velocity = glm::vec3(windForce * 50.0f, -0.1f, 0.0f);
-			p.color = pColor;
-			p.scale = 0.1f;
-			p.life = 0.8f;
-			particles.push_back(p);
-		}
-
-		// 바람 종료 체크
-		if (windTimer <= 0.0f) {
-			isWindActive = false;
-		}
-	}
-	else { 
-		if (!isFlying && !isEventActive && !isNightMode && rand() % 800 < 1) {
-			isWindActive = true;
-			windTimer = WIND_DURATION;
-			windForce = (rand() % 2 == 0 ? 0.04f : -0.04f);
-		}
-	}
 
 	if (isDashing) {
 		const float DASH_SPEED = 0.5f;
@@ -533,75 +399,8 @@ void timer(int value)
 			playerPos.z = (float)std::round(playerPos.z);
 			playerTargetPos = playerPos;
 			recoveryTimer = 1.0f;
-			isLandingSuccess = false;
-		}
-
-	}
-	else if (isFlying) {
-		playerPos.z -= FLY_SPEED; 
-		playerPos.y = 3.0f + sin(flyTimer * 5.0f) * 0.5f;
-
-		flyTimer -= 0.016f;
-
-		int currentZ = (int)std::round(playerPos.z);
-		if (currentZ < minZ) {
-			minZ = currentZ;
-			score++;
-		}
-
-		// 비행 종료
-		if (flyTimer <= 0.0f) {
-			isFlying = false;
-			isLanding = true;
-			landingTime = 0.0f;
-
-
-			birdStartPos = playerPos + glm::vec3(0.0f, 0.5f * 0.7f + 0.5f * 0.7f, 0.0f); 
-			birdTargetPos = playerPos + glm::vec3(30.0f, FLY_HEIGHT + 10.0f, -50.0f); 
-
-			playerStartPos = playerPos;
-			playerTargetPos = glm::vec3((float)std::round(playerPos.x), 0.5f, (float)std::round(playerPos.z));
 		}
 	}
-	else if (isLanding) {
-		landingTime += 0.016f;
-		float t = glm::clamp(landingTime / LANDING_DURATION, 0.0f, 1.0f);
-		float smoothT = sin(t * 3.14159f / 2.0f);
-
-		playerPos.x = glm::mix(playerStartPos.x, playerTargetPos.x, t);
-		playerPos.z = glm::mix(playerStartPos.z, playerTargetPos.z, t);
-
-		playerPos.y = glm::mix(playerStartPos.y, playerTargetPos.y, t);
-
-		if (t >= 1.0f) {
-			isLanding = false;
-			playerPos = playerTargetPos; 
-			isBirdLeaving = true;
-			birdLeaveTime = 0.0f;
-			recoveryTimer = 2.0f; 
-			isLandingSuccess = true;
-
-			lastEventScore = score;
-		}
-	}
-	else if (isEventActive) {
-		eventDuration -= 0.016f;
-
-		// 성공 조건:
-		if (eventProgress >= 1.0f) {
-			isEventActive = false;
-			isFlying = true;
-			flyTimer = FLY_DURATION;
-			playerPos.y = FLY_HEIGHT;
-			spawnParticles(playerPos + glm::vec3(0, 1.0f, 0), glm::vec3(1.0f, 0.5f, 0.0f), 50, 1.5f);
-		}
-		// 실패 조건
-		else if (eventDuration <= 0.0f) {
-			isEventActive = false;
-			eventProgress = 0.0f;
-		}
-	}
-	// 일반 게임 플레이 (이동, 충돌, 아이템)
 	else {
 		// 1. 대쉬 자동 발동 조건 체크
 		if (!isMoving && dashCooldownTimer <= 0.0f && coinCount >= DASH_COST) {
@@ -611,29 +410,6 @@ void timer(int value)
 			spawnParticles(playerPos, glm::vec3(1.0f, 0.5f, 0.0f), 20, 0.8f);
 		}
 
-		// 2. 랜덤 이벤트 발생 조건 체크
-		if (scoreTargetReached && score > lastEventScore && 
-			!isMoving && !isDashing &&
-			!isFlying && !isLanding && !isBirdLeaving &&
-			recoveryTimer <= 0.0f)
-		{
-			isEventActive = true;
-			eventDuration = 4.0f; //이벤트마다 제한 시간 초기화 
-			eventProgress = 0.0f;
-			requiredTaps = 0;
-			lastEventScore = score;
-		}
-
-		// 3. 새 퇴장 애니메이션
-		if (isBirdLeaving) {
-			birdLeaveTime += 0.016f;
-			float t = glm::clamp(birdLeaveTime / BIRD_LEAVE_DURATION, 0.0f, 1.0f);
-			if (t >= 1.0f) {
-				isBirdLeaving = false;
-			}
-		}
-
-		// 통나무 이동 및 탑승
 		for (auto& logObj : logs) {
 			// 슬로우 효과 적용
 			logObj.x += logObj.speed;
@@ -741,7 +517,6 @@ void timer(int value)
 				t.x += t.speed;
 
 				if (t.x > -20.0f && t.x < 25.0f &&
-					!isFlying && !isLanding &&
 					std::abs(t.z - playerPos.z) < 10.0f) {
 
 					shakeTimer = 0.1f;

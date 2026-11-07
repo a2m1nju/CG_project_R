@@ -84,12 +84,6 @@ struct Train {
     bool isLightOn;
 };
 
-struct Cloud {
-    glm::vec3 position;
-    float scale;
-    float speed;
-};
-
 struct WeatherParticle {
     glm::vec3 pos;
     glm::vec3 color;

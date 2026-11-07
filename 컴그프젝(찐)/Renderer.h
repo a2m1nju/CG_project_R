@@ -14,6 +14,4 @@ void drawRail(int z, bool isWarning, bool isLightOn, GLuint shader);
 void drawTrain(const Train& train, GLuint shader);
 void drawItem(const Item& item, GLuint shader);
 void drawParticles(GLuint shader);
-void drawCloud(const Cloud& cloud, GLuint shader);
-void drawClouds(GLuint shader);
 void drawLogo();

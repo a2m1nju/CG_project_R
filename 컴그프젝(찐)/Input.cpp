@@ -17,7 +17,7 @@ void specialKeyboard(int key, int x, int y)
 
 	// 글리치 모드일 때 키 입력 뒤집기
 	const auto* effects = localItems.GetPlayerEffects(1);
-    if (isGlitchMode || (effects && effects->reverseControlsRemainingMs > 0)) {
+    if (effects && effects->reverseControlsRemainingMs > 0) {
 		switch (key) {
 		case GLUT_KEY_UP:    key = GLUT_KEY_DOWN; break;
 		case GLUT_KEY_DOWN:  key = GLUT_KEY_UP; break;
@@ -94,23 +94,6 @@ void keyboard(unsigned char key, int x, int y)
 		return; 
 	}
 
-	if (key == ' ') {
-		if (isEventActive) {
-			requiredTaps++;
-
-			const float TOTAL_TAPS_REQUIRED = TAP_PER_SECOND * 4.0f;
-			eventProgress = requiredTaps / TOTAL_TAPS_REQUIRED;
-			eventProgress = glm::clamp(eventProgress, 0.0f, 1.1f);
-
-			return;
-		}
-
-		// 연타 이벤트 중이 아닐 때 스페이스바를 누른 경우
-		if (!isMoving && !isFlying && !isLanding) {
-			printf("현재 스페이스바는 로켓 라이드 이벤트 중에만 사용 가능합니다.\n");
-		}
-	}
-
     if (key == 'z' || key == 'Z') {
         const auto* inventory = localItems.GetInventory(1);
         if (inventory) localItems.SwitchSlot(1, 1 - inventory->selectedSlot);
@@ -124,29 +107,6 @@ void keyboard(unsigned char key, int x, int y)
         return;
     }
 
-	if (key == '2') {
-		if (!isNightMode && !isNightWarning) {
-			isNightWarning = true;
-			nightWarningTimer = 3.0f; 
-		}
-		else {
-			isNightWarning = false;
-			isNightMode = false;
-			nightModeTimer = 0.0f;
-		}
-	}
-
-	if (key == '3') {
-		if (!isWindActive) {
-			isWindActive = true;
-			windTimer = 6.0f; 
-			windForce = 0.04f; 
-		}
-		else {
-			isWindActive = false;
-		}
-	}
-
     if (key == '4' || key == '9') {
         const int itemX = (int)std::round(playerPos.x);
         const int itemZ = (int)std::round(playerPos.z) - 2;
@@ -158,9 +118,5 @@ void keyboard(unsigned char key, int x, int y)
             nextKind = (nextKind + 1) % 3;
         }
     }
-	if (key == '7') {
-		isGlitchMode = !isGlitchMode;
-		if (isGlitchMode) glitchTimer = 5.0f;
-	}
 
 }

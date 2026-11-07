@@ -54,28 +54,6 @@ void drawChicken(GLuint shader, glm::mat4 baseModel) {
 	drawPart(shader, baseModel, glm::vec3(0.0f, -0.1f, 0.35f), glm::vec3(0.3f, 0.3f, 0.1f), white);
 }
 
-void drawBird(GLuint shader, glm::mat4 baseModel) {
-	glm::vec3 brown(0.4f, 0.2f, 0.0f);
-	glm::vec3 white(0.9f, 0.9f, 0.9f);
-	glm::vec3 yellow(1.0f, 0.8f, 0.0f);
-
-	// 1. 몸통
-	drawPart(shader, baseModel, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.5f, 0.6f), brown);
-
-	// 2. 머리
-	drawPart(shader, baseModel, glm::vec3(0.5f, 0.15f, 0.0f), glm::vec3(0.4f, 0.4f, 0.4f), white);
-
-	// 3. 부리
-	drawPart(shader, baseModel, glm::vec3(0.7f, 0.15f, 0.0f), glm::vec3(0.2f, 0.1f, 0.1f), yellow);
-
-	// 4. 꼬리
-	drawPart(shader, baseModel, glm::vec3(-0.55f, 0.0f, 0.0f), glm::vec3(0.3f, 0.2f, 0.6f), brown);
-
-	// 5. 날개 (양쪽)
-	drawPart(shader, baseModel, glm::vec3(0.0f, 0.0f, 0.4f), glm::vec3(0.1f, 0.1f, 1.2f), brown);
-	drawPart(shader, baseModel, glm::vec3(0.0f, 0.0f, -0.4f), glm::vec3(0.1f, 0.1f, 1.2f), brown);
-}
-
 void drawCoin(const Coin& coin, GLuint shader) {
 	if (coin.isCollected) return; 
 
@@ -395,39 +373,6 @@ void drawParticles(GLuint shader) {
 	}
 }
 
-void drawCloud(const Cloud& cloud, GLuint shader) {
-	for (int dx = -1; dx <= 1; dx++) {
-		for (int dy = -1; dy <= 0; dy++) {
-			for (int dz = -1; dz <= 1; dz++) {
-				if (rand() % 100 > 60) continue;
-
-				glm::mat4 model = glm::mat4(1.0f);
-				glm::vec3 offset = glm::vec3(
-					dx * cloud.scale * 0.4f,
-					dy * cloud.scale * 0.3f,
-					dz * cloud.scale * 0.4f
-				);
-				model = glm::translate(model, cloud.position);
-				model = glm::scale(model, glm::vec3(cloud.scale * 1.5f, cloud.scale * 0.8f, cloud.scale * 1.5f)); 
-
-				glm::vec3 cloudColor = glm::vec3(0.95f, 0.95f, 0.95f); 
-
-				glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
-				if (shader == shaderProgramID) {
-					glVertexAttrib3f(1, cloudColor.r, cloudColor.g, cloudColor.b);
-				}
-				glDrawArrays(GL_TRIANGLES, 0, 36);
-			}
-		}
-	}
-}
-
-void drawClouds(GLuint shader) {
-	for (const auto& cloud : clouds) {
-		drawCloud(cloud, shader);
-	}
-}
-
 void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 {
 	glBindVertexArray(vao);
@@ -441,7 +386,6 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 	int drawRangeBack = 10;
 	float groundWidth = 300.0f;
 
-	if (!isFlying) {
 		for (int z = currentZ - drawRangeFront; z <= currentZ + drawRangeBack; ++z) {
 			generateLane(z);
 			const SeasonColors& colors = seasonThemes[getSeasonByZ(z)];
@@ -534,7 +478,6 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 			}
 		}
 
-		if (!isFlying && !isLanding) {
 			// 자동차
 			for (const auto& car : cars) {
 				if (car.z < currentZ - drawRangeFront || car.z > currentZ + drawRangeBack) continue;
@@ -596,8 +539,6 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 				if (coin.z < currentZ - drawRangeFront || coin.z > currentZ + drawRangeBack) continue;
 				drawCoin(coin, shader);
 			}
-		}
-	}
 
 	if (!isGameOver) {
 		// 플레이어 (닭)
@@ -606,29 +547,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 		float scale = 0.7f;
 		pModel = glm::scale(pModel, glm::vec3(scale));
 
-		if (isFlying) {
-			glm::mat4 birdModel = pModel;
-			birdModel = glm::translate(birdModel, glm::vec3(0.0f, 0.5f, 0.0f));
-			birdModel = glm::scale(birdModel, glm::vec3(1.5f));
-			drawBird(shader, birdModel);
-
-			// 닭 그리기 (새 위에 탑승)
-			glm::mat4 chickenOnBird = pModel;
-			chickenOnBird = glm::translate(chickenOnBird, glm::vec3(0.0f, 1.0f, 0.0f)); 
-			drawChicken(shader, chickenOnBird);
-		}
-		else if (isBirdLeaving) {
-			drawChicken(shader, pModel); // 플레이어 그리기
-			glm::mat4 birdModel = glm::mat4(1.0f);
-			float t = glm::clamp(birdLeaveTime / BIRD_LEAVE_DURATION, 0.0f, 1.0f);
-			glm::vec3 currentBirdPos = glm::mix(birdStartPos, birdTargetPos, t);
-			birdModel = glm::translate(birdModel, currentBirdPos);
-			birdModel = glm::scale(birdModel, glm::vec3(1.5f));
-			drawBird(shader, birdModel);
-		}
-		else {
-			drawChicken(shader, pModel);
-		}
+		drawChicken(shader, pModel);
 	}
 }
 
@@ -851,19 +770,8 @@ GLvoid drawScene()
 
 	glm::mat4 proj = glm::perspective(glm::radians(45.0f), 1280.f / 960.f, 0.1f, 100.f);
 
-	glm::mat4 view;
-	if (isFlying || isLanding || isBirdLeaving) {
-		// 비행 시점 (흔들림 추가)
-		view = glm::lookAt(cameraTarget + glm::vec3(2, 16, 10) + shakeOffset,
-			cameraTarget + shakeOffset,
-			glm::vec3(0, 1, 0));
-	}
-	else {
-		// 평소 시점 (흔들림 추가)
-		view = glm::lookAt(cameraTarget + glm::vec3(2, 12, 10) + shakeOffset,
-			cameraTarget + shakeOffset,
-			glm::vec3(0, 1, 0));
-	}
+	glm::mat4 view = glm::lookAt(cameraTarget + glm::vec3(2, 12, 10) + shakeOffset,
+		cameraTarget + shakeOffset, glm::vec3(0, 1, 0));
 
 	/*glm::mat4 lightProjection = glm::ortho(-50.f, 50.f, -50.f, 50.f, 1.f, 100.f);
 	glm::mat4 lightView = glm::lookAt(lightPos, cameraTarget, glm::vec3(0, 1, 0)); 
@@ -896,18 +804,13 @@ GLvoid drawScene()
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	glViewport(0, 0, 1280, 960);
-	if (isFlying) {
-		glClearColor(0.53f, 0.81f, 0.98f, 1.0f);
-	}
-	else {
-		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	}
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glUseProgram(shaderProgramID);
 	const auto* effects = localItems.GetPlayerEffects(1);
     const bool localReverse = effects && effects->reverseControlsRemainingMs > 0;
     const bool localBlackout = effects && effects->blackoutRemainingMs > 0;
-    glUniform1i(glGetUniformLocation(shaderProgramID, "isGlitch"), (isGlitchMode || localReverse) ? 1 : 0);
+    glUniform1i(glGetUniformLocation(shaderProgramID, "isGlitch"), localReverse ? 1 : 0);
 
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "projection"), 1, GL_FALSE, glm::value_ptr(proj));
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "view"), 1, GL_FALSE, glm::value_ptr(view));
@@ -915,7 +818,7 @@ GLvoid drawScene()
 
 	glUniform3fv(glGetUniformLocation(shaderProgramID, "lightPos"), 1, glm::value_ptr(worldLightPos));
 
-	int spotlightVal = (isNightMode || localBlackout) ? 1 : 0;
+	int spotlightVal = localBlackout ? 1 : 0;
 	glUniform1i(glGetUniformLocation(shaderProgramID, "enableSpotlight"), spotlightVal);
 	glUniform3fv(glGetUniformLocation(shaderProgramID, "spotlightPos"), 1, glm::value_ptr(playerPos));
 
@@ -925,18 +828,15 @@ GLvoid drawScene()
 
 	renderObjects(shaderProgramID, proj * view);
     drawShieldAura(proj, view);
-	if (!isFlying) {
+	// Draw nearby ground items.
+	int currentZ = (int)std::round(playerPos.z);
+	int drawRangeFront = 30;
+	int drawRangeBack = 10;
+	for (auto& item : items) {
+		if (item.z < currentZ - drawRangeFront || item.z > currentZ + drawRangeBack) continue;
+		item.rotation += 2.0f;
+		drawItem(item, shaderProgramID);
 
-		// 아이템 그리기
-		int currentZ = (int)std::round(playerPos.z);
-		int drawRangeFront = 30;
-		int drawRangeBack = 10;
-		for (auto& item : items) {
-			if (item.z < currentZ - drawRangeFront || item.z > currentZ + drawRangeBack) continue;
-			item.rotation += 2.0f;
-			drawItem(item, shaderProgramID);
-
-		}
 	}
 
     for (const auto& trap : localItems.GetBananaTraps()) {
@@ -948,26 +848,21 @@ GLvoid drawScene()
     }
     drawParticles(shaderProgramID);
 
-	if (isFlying || isLanding) {
-		drawClouds(shaderProgramID);
-	}
-
 	// 날씨 파티클 렌더링 (봄/가을/겨울 통합)
-	if (!isFlying) {
-		glUseProgram(shaderProgramID);
-		for (const auto& wp : weatherParticles) {
-			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, wp.pos);
 
-			model = glm::scale(model, wp.scaleVec);
-			model = glm::rotate(model, wp.swayPhase, glm::vec3(0.5f, 1.0f, 0.2f));
+	glUseProgram(shaderProgramID);
+	for (const auto& wp : weatherParticles) {
+		glm::mat4 model = glm::mat4(1.0f);
+		model = glm::translate(model, wp.pos);
 
-			glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "model"), 1, GL_FALSE, glm::value_ptr(model));
+		model = glm::scale(model, wp.scaleVec);
+		model = glm::rotate(model, wp.swayPhase, glm::vec3(0.5f, 1.0f, 0.2f));
 
-			glVertexAttrib3f(1, wp.color.r, wp.color.g, wp.color.b);
+		glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
-			glDrawArrays(GL_TRIANGLES, 0, 36);
-		}
+		glVertexAttrib3f(1, wp.color.r, wp.color.g, wp.color.b);
+
+		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
 
 	// UI
@@ -993,69 +888,6 @@ GLvoid drawScene()
 		uiY += 40.0f;
 	}
 
-	// 4. 경고 메시지 (암전)
-	if (isNightWarning) {
-		if ((int)(nightWarningTimer * 5) % 2 == 0) {
-			float centerX = 1280.0f / 2.0f;
-			float centerY = 960.0f / 2.0f;
-
-			renderTextTTF(centerX - 200.0f + 3.0f, centerY + 3.0f, "WARNING: BLACKOUT!", 0.0f, 0.0f, 0.0f);
-			renderTextTTF(centerX - 200.0f, centerY, "WARNING: BLACKOUT!", 1.0f, 0.0f, 0.0f);
-		}
-	}
-	// 비행 중 텍스트 UI
-	if (isFlying) {
-		renderTextWithOutline(1280 / 2 - 390, 200, "The bird will take you home...");
-		renderTextWithOutline(1280 / 2 - 220, 270, "ENJOY THE SKY!");
-	}
-
-	// 무적 상태 표시 (착륙 직후)
-	if (isLandingSuccess) {
-		renderTextWithOutline(1280 / 2 - 100, 200, "SAFE LANDING!");
-	}
-
-	// 6. 스페이스바 연타 이벤트 UI
-	if (isEventActive) {
-		float barWidth = 600.0f;
-		float barHeight = 40.0f;
-		float centerX = 1280.0f / 2.0f;
-		float centerY = 960.0f - 150.0f;
-
-		// 1. 배경 (테두리)
-		glUseProgram(0);
-		glDisable(GL_DEPTH_TEST);
-		glBegin(GL_QUADS);
-		glColor3f(0.1f, 0.1f, 0.1f);
-		glVertex2f(centerX - barWidth / 2.0f - 5.0f, centerY - barHeight / 2.0f - 5.0f);
-		glVertex2f(centerX + barWidth / 2.0f + 5.0f, centerY - barHeight / 2.0f - 5.0f);
-		glVertex2f(centerX + barWidth / 2.0f + 5.0f, centerY + barHeight / 2.0f + 5.0f);
-		glVertex2f(centerX - barWidth / 2.0f - 5.0f, centerY + barHeight / 2.0f + 5.0f);
-		glEnd();
-
-		// 2. 게이지 채우기
-		float fillWidth = barWidth * glm::clamp(eventProgress, 0.0f, 1.0f);
-		glBegin(GL_QUADS);
-		glColor3f(0.0f, 1.0f, 0.0f);
-		glVertex2f(centerX - barWidth / 2.0f, centerY - barHeight / 2.0f);
-		glVertex2f(centerX - barWidth / 2.0f + fillWidth, centerY - barHeight / 2.0f);
-		glVertex2f(centerX - barWidth / 2.0f + fillWidth, centerY + barHeight / 2.0f);
-		glVertex2f(centerX - barWidth / 2.0f, centerY + barHeight / 2.0f);
-		glEnd();
-
-		// 3. 텍스트 표시
-		renderTextTTF(centerX - 100.0f, 960.0f - centerY - 50.0f, "PRESS SPACE!", 1.0f, 1.0f, 1.0f);
-		glEnable(GL_DEPTH_TEST);
-		glUseProgram(shaderProgramID);
-	}
-
-	// 7. 바람 경고 UI
-	if (isWindActive) {
-		std::string windStr;
-		if (windForce > 0) windStr = ">>> STRONG WIND >>>";
-		else windStr = "<<< STRONG WIND <<<";
-
-		renderTextWithOutline(1280 / 2 - 150, 800, windStr.c_str());
-	}
 	if (introState != 0) {
 		drawLogo();
 
@@ -1075,17 +907,7 @@ GLvoid drawScene()
 		std::string coinStr = "COINS: " + std::to_string(coinCount);
 		renderTextWithOutline(1050, 60, coinStr.c_str());
 
-		if (isLandingSuccess) {
-			renderTextWithOutline(1280 / 2 - 100, 200, "SAFE LANDING!");
-		}
 	}
-	if (isGlitchMode) {
-		float centerX = 1280.0f / 2.0f;
-		float centerY = 960.0f / 2.0f; 
-		renderTextWithOutline(centerX - 470.0f, centerY, "SYSTEM ERROR: CONTROLS REVERSED!");
-	}
-
-	// 게임 오버 UI 렌더링
 	if (isGameOver) {
 		float centerX = 1280.0f / 2.0f;
 		float centerY = 960.0f / 2.0f;

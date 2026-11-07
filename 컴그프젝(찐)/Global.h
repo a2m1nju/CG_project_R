@@ -11,16 +11,6 @@ extern const unsigned int SHADOW_WIDTH, SHADOW_HEIGHT;
 extern const float DASH_DURATION;
 extern const float DASH_COOLDOWN;
 extern const int DASH_COST;
-extern const float FLY_DURATION;
-extern const float FLY_SPEED;
-extern const float FLY_HEIGHT;
-extern const float LANDING_DURATION;
-extern const float BIRD_LEAVE_DURATION;
-extern const float NIGHT_DURATION;
-extern const float WARNING_DURATION;
-extern const float WIND_DURATION;
-extern const float TAP_PER_SECOND;
-
 // º¯¼ö
 extern GameSeason currentSeason;
 extern std::map<GameSeason, SeasonColors> seasonThemes;
@@ -30,7 +20,6 @@ extern std::vector<Particle> particles;
 extern std::vector<Train> trains;
 extern std::vector<Log> logs;
 extern std::vector<LilyPad> lilyPads;
-extern std::vector<Cloud> clouds;
 extern std::vector<WeatherParticle> weatherParticles;
 extern std::vector<Item> items;
 extern ItemSystem localItems;
@@ -66,44 +55,15 @@ extern float dashTimer;
 extern float dashCooldownTimer;
 extern glm::vec3 lightPos;
 
-extern bool isEventActive;
-extern float eventDuration;
-extern float eventProgress;
-extern int requiredTaps;
-extern int lastEventScore;
-
-extern bool isFlying;
-extern float flyTimer;
-extern bool isLanding;
-extern float landingTime;
-extern bool isBirdLeaving;
-extern glm::vec3 birdStartPos;
-extern glm::vec3 birdTargetPos;
-extern float birdLeaveTime;
 extern float recoveryTimer;
-extern bool isLandingSuccess;
 
 extern int introState;
 extern GLuint logoTexture;
 extern float introTimer;
 extern float logoX, logoTargetX, logoStartX, logoY;
 
-extern bool isGlitchMode;
-extern float glitchTimer;
-
-extern bool isNightMode;
-extern float nightModeTimer;
-extern float nightEventCooldown;
-extern bool isNightWarning;
-extern float nightWarningTimer;
-
 extern float shakeTimer;
 extern float shakeMagnitude;
-
-extern bool isWindActive;
-extern float windTimer;
-extern float windForce;
-
 
 extern bool isGameOver;
 
