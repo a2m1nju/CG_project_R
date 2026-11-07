@@ -51,12 +51,7 @@ void ServeClient(SOCKET clientSocket)
         }
 
         // MOVE 본문 5바이트를 받는다.
-        if (recv(
-            clientSocket,
-            reinterpret_cast<char*>(packet.data() + 12),
-            5,
-            MSG_WAITALL) != 5) {
-
+        if (recv(clientSocket, reinterpret_cast<char*>(packet.data() + 12), 5, MSG_WAITALL) != 5) {
             std::printf("[server] incomplete body\n");
             break;
         }
@@ -83,8 +78,8 @@ void ServeClient(SOCKET clientSocket)
                 directionValue
                 );
 
-        int32_t nextX = playerX;
-        int32_t nextZ = playerZ;
+        int64_t nextX = playerX;
+        int64_t nextZ = playerZ;
 
         switch (direction) {
         case Protocol::Direction::Up:
@@ -104,20 +99,17 @@ void ServeClient(SOCKET clientSocket)
             break;
         }
 
-        Protocol::MoveStatus status =
-            Protocol::MoveStatus::Accepted;
+        Protocol::MoveStatus status = Protocol::MoveStatus::Accepted;
+        if (nextX < INT32_MIN || nextX > INT32_MAX ||
+            nextZ < INT32_MIN || nextZ > INT32_MAX) {
 
-        // 이동 승인/거절 확인을 위한 임시 경계.
-        if (nextX < -2 || nextX > 2 ||
-            nextZ < -100 || nextZ > 100) {
-
-            status =
-                Protocol::MoveStatus::OutOfBounds;
+            status = Protocol::MoveStatus::OutOfBounds;
         }
         else {
-            playerX = nextX;
-            playerZ = nextZ;
+            playerX = static_cast<int32_t>(nextX);
+            playerZ = static_cast<int32_t>(nextZ);
         }
+       
 
         Protocol::MoveResult moveResult;
 

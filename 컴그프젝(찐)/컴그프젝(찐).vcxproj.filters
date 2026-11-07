@@ -36,9 +36,6 @@
     <ClCompile Include="main1.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="MoveProtocol.h">
-      <Filter>헤더 파일</Filter>
-    </ClCompile>
     <ClCompile Include="NetworkMovement.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
