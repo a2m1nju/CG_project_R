@@ -36,6 +36,11 @@ bool spawnItem(int x, int z, ItemType type) {
     return true;
 }
 
+void showItemFeedback(const char* message) {
+    itemFeedbackMessage = message;
+    itemFeedbackUntilMs = glutGet(GLUT_ELAPSED_TIME) + 1500;
+}
+
 void generateLane(int z)
 {
 	if (mapType.find(z) != mapType.end()) return;
@@ -246,6 +251,8 @@ void resetGame() {
     localItems.ResetRound();
     localItems.AddPlayer(1);
     nextItemId = 1;
+    itemFeedbackMessage.clear();
+    itemFeedbackUntilMs = 0;
 
 	score = 0;
 	minZ = 0;
@@ -352,6 +359,8 @@ void timer(int value)
 
 	// 5. [아이템] 슬로우 모션 속도 설정
     localItems.AdvanceEffects(elapsedMs);
+    static bool wasBlockedByFullInventory = false;
+    bool blockedByFullInventory = false;
 	for (auto& item : items) {
 		if (item.isCollected) continue;
 		if (std::abs(item.z - playerPos.z) < 0.5f && std::abs(item.x - playerPos.x) < 0.5f) {
@@ -367,13 +376,25 @@ void timer(int value)
                         }
                     }
                 }
-                if (!collectedThisItem) continue;
+                if (!collectedThisItem) {
+                    const auto* inventory = localItems.GetInventory(1);
+                    if (inventory &&
+                        inventory->slots[0] != ItemKind::Empty &&
+                        inventory->slots[1] != ItemKind::Empty) {
+                        blockedByFullInventory = true;
+                    }
+                    continue;
+                }
+                showItemFeedback("ITEM ACQUIRED");
             }
             item.isCollected = true;
             PlaySound(TEXT("item.wav"), NULL, SND_ASYNC | SND_FILENAME);
 
 		}
 	}
+    if (blockedByFullInventory && !wasBlockedByFullInventory)
+        showItemFeedback("INVENTORY FULL");
+    wasBlockedByFullInventory = blockedByFullInventory;
 
     if (localItems.ResolveBananaHit(1, (int)std::round(playerPos.x),
         (int)std::round(playerPos.z))) {

@@ -24,6 +24,8 @@ extern std::vector<WeatherParticle> weatherParticles;
 extern std::vector<Item> items;
 extern ItemSystem localItems;
 extern ObjectId nextItemId;
+extern std::string itemFeedbackMessage;
+extern int itemFeedbackUntilMs;
 extern std::vector<Car> cars;
 extern std::vector<CarDesign> carDesigns;
 extern std::vector<Coin> coins;

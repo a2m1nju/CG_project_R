@@ -24,6 +24,8 @@ std::vector<WeatherParticle> weatherParticles;
 std::vector<Item> items;
 ItemSystem localItems;
 ObjectId nextItemId = 1;
+std::string itemFeedbackMessage;
+int itemFeedbackUntilMs = 0;
 std::vector<Car> cars;
 std::vector<CarDesign> carDesigns;
 std::vector<Coin> coins;

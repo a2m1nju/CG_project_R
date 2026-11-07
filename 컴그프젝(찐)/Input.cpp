@@ -101,8 +101,13 @@ void keyboard(unsigned char key, int x, int y)
         return;
     }
     if (key == 'x' || key == 'X') {
-        localItems.UseSelectedItem(1, (int)std::round(playerPos.x),
-            (int)std::round(playerPos.z));
+        const auto* inventory = localItems.GetInventory(1);
+        const bool emptySlot = !inventory ||
+            inventory->slots[inventory->selectedSlot] == ItemKind::Empty;
+        const bool used = localItems.UseSelectedItem(
+            1, (int)std::round(playerPos.x), (int)std::round(playerPos.z));
+        showItemFeedback(used ? "ITEM USED"
+                              : emptySlot ? "EMPTY SLOT" : "CANNOT USE ITEM");
         glutPostRedisplay();
         return;
     }

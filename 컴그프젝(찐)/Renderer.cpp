@@ -921,12 +921,27 @@ GLvoid drawScene()
 		}
 	}
 
-	if (introState == 0 && !isGameOver) drawInventorySlots();
+	if (introState == 0 && !isGameOver) {
+        drawInventorySlots();
+        if (glutGet(GLUT_ELAPSED_TIME) < itemFeedbackUntilMs) {
+            float textWidth = 0.0f;
+            for (unsigned char ch : itemFeedbackMessage) {
+                if (ch >= 32 && ch < 128) textWidth += cdata[ch - 32].xadvance;
+            }
+            const float scale = std::min(0.5f, 180.0f / std::max(textWidth, 1.0f));
+            const char* text = itemFeedbackMessage.c_str();
+            renderTextTTF(22, 245, text, 0.0f, 0.0f, 0.0f, scale);
+            renderTextTTF(26, 245, text, 0.0f, 0.0f, 0.0f, scale);
+            renderTextTTF(24, 243, text, 0.0f, 0.0f, 0.0f, scale);
+            renderTextTTF(24, 247, text, 0.0f, 0.0f, 0.0f, scale);
+            renderTextTTF(24, 245, text, 1.0f, 1.0f, 1.0f, scale);
+        }
+    }
 
 	glutSwapBuffers();
 }
 
-void renderTextTTF(float x, float y, const char* text, float r, float g, float b) {
+void renderTextTTF(float x, float y, const char* text, float r, float g, float b, float scale) {
 	glUseProgram(0);
 	glBindVertexArray(0);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -957,16 +972,22 @@ void renderTextTTF(float x, float y, const char* text, float r, float g, float b
 
 	glBegin(GL_QUADS);
 	glColor3f(r, g, b);
+	float penX = 0.0f;
+	float penY = 0.0f;
 
 	while (*text) {
 		if (*text >= 32 && *text < 128) {
 			stbtt_aligned_quad q;
-			stbtt_GetBakedQuad(cdata, 512, 512, *text - 32, &x, &y, &q, 1);
+			stbtt_GetBakedQuad(cdata, 512, 512, *text - 32, &penX, &penY, &q, 1);
 
-			glTexCoord2f(q.s0, q.t0); glVertex2f(q.x0, 960 - q.y0);
-			glTexCoord2f(q.s1, q.t0); glVertex2f(q.x1, 960 - q.y0);
-			glTexCoord2f(q.s1, q.t1); glVertex2f(q.x1, 960 - q.y1);
-			glTexCoord2f(q.s0, q.t1); glVertex2f(q.x0, 960 - q.y1);
+			const float left = x + q.x0 * scale;
+			const float right = x + q.x1 * scale;
+			const float top = 960.0f - (y + q.y0 * scale);
+			const float bottom = 960.0f - (y + q.y1 * scale);
+			glTexCoord2f(q.s0, q.t0); glVertex2f(left, top);
+			glTexCoord2f(q.s1, q.t0); glVertex2f(right, top);
+			glTexCoord2f(q.s1, q.t1); glVertex2f(right, bottom);
+			glTexCoord2f(q.s0, q.t1); glVertex2f(left, bottom);
 		}
 		++text;
 	}
