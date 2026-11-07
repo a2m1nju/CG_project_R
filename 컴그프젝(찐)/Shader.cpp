@@ -84,9 +84,6 @@ GLuint make_shaderProgram() {
 }
 
 void loadDepthShader() {
-    GLint result;
-    GLchar errorLog[512];
-
     depthShader = glCreateProgram();
 
     GLuint depthVertexShader = glCreateShader(GL_VERTEX_SHADER);
