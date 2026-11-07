@@ -677,13 +677,29 @@ static void drawInventorySlots() {
         const float bottom = static_cast<float>(kWindowHeight - kSlotTop - kSlotSize);
         const float right = left + kSlotSize;
         const float top = bottom + kSlotSize;
-        if (inventory->selectedSlot == slot)
-            glColor4f(1.0f, 0.0f, 0.0f, 1.0f);
+        const bool selected = inventory->selectedSlot == slot;
+        if (selected)
+            glColor4f(1.0f, 0.78f, 0.18f, 1.0f);
         else
-            glColor4f(0.85f, 0.85f, 0.85f, 1.0f);
+            glColor4f(0.55f, 0.58f, 0.63f, 1.0f);
         drawQuad(left, bottom, right, top);
         glColor4f(0.05f, 0.07f, 0.10f, 0.82f);
         drawQuad(left + kBorder, bottom + kBorder, right - kBorder, top - kBorder);
+
+        if (inventory->slots[slot] == ItemKind::Empty) {
+            glColor4f(0.45f, 0.48f, 0.52f, 1.0f);
+            drawQuad(left + 28.0f, bottom + 39.0f,
+                     right - 28.0f, bottom + 45.0f);
+        }
+
+        if (selected) {
+            glColor4f(1.0f, 0.78f, 0.18f, 1.0f);
+            glBegin(GL_TRIANGLES);
+            glVertex2f(left + 12.0f, top + 10.0f);
+            glVertex2f(left + 26.0f, top + 10.0f);
+            glVertex2f(left + 19.0f, top + 2.0f);
+            glEnd();
+        }
     }
 
     glDisable(GL_BLEND);
@@ -726,6 +742,18 @@ static void drawInventorySlots() {
 
     glDisable(GL_SCISSOR_TEST);
     glViewport(0, 0, kWindowWidth, kWindowHeight);
+
+    for (int slot = 0; slot < 2; ++slot) {
+        const float labelX = static_cast<float>(
+            kSlotLeft + slot * (kSlotSize + kSlotGap) + 30);
+        const float labelY = static_cast<float>(kSlotTop + kSlotSize + 8);
+        const char* label = slot == 0 ? "1" : "2";
+
+        if (inventory->selectedSlot == slot)
+            renderTextTTF(labelX, labelY, label, 1.0f, 0.78f, 0.18f);
+        else
+            renderTextTTF(labelX, labelY, label, 0.7f, 0.7f, 0.7f);
+    }
 }
 
 GLvoid drawScene()
