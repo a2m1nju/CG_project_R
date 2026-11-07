@@ -43,8 +43,7 @@ void ServeClient(SOCKET clientSocket)
 
         if (size != Protocol::MOVE_PACKET_SIZE ||
             version != Protocol::VERSION ||
-            type != Protocol::TYPE_MOVE ||
-            roundId != Protocol::TEST_ROUND_ID) {
+            type != Protocol::TYPE_MOVE){
 
             std::printf("[server] invalid header\n");
             break;
@@ -56,58 +55,61 @@ void ServeClient(SOCKET clientSocket)
             break;
         }
 
-        uint32_t inputSequence =
-            Protocol::Get32(packet.data() + 12);
+        uint32_t inputSequence = Protocol::Get32(packet.data() + 12);
 
         uint8_t directionValue = packet[16];
 
-        if (packetSequence <= lastPacketSequence ||
-            inputSequence <= lastInputSequence ||
-            directionValue < 1 ||
-            directionValue > 4) {
-
-            std::printf("[server] invalid input\n");
-            break;
-        }
-
-        lastPacketSequence = packetSequence;
-        lastInputSequence = inputSequence;
-
-        auto direction =
-            static_cast<Protocol::Direction>(
-                directionValue
-                );
-
-        int64_t nextX = playerX;
-        int64_t nextZ = playerZ;
-
-        switch (direction) {
-        case Protocol::Direction::Up:
-            --nextZ;
-            break;
-
-        case Protocol::Direction::Down:
-            ++nextZ;
-            break;
-
-        case Protocol::Direction::Left:
-            --nextX;
-            break;
-
-        case Protocol::Direction::Right:
-            ++nextX;
-            break;
-        }
-
         Protocol::MoveStatus status = Protocol::MoveStatus::Accepted;
-        if (nextX < INT32_MIN || nextX > INT32_MAX ||
-            nextZ < INT32_MIN || nextZ > INT32_MAX) {
 
-            status = Protocol::MoveStatus::OutOfBounds;
+        if (roundId != Protocol::TEST_ROUND_ID) {
+            status = Protocol::MoveStatus::WrongRound;
+        }
+        else if (packetSequence <= lastPacketSequence ||
+            inputSequence <= lastInputSequence) {
+            status = Protocol::MoveStatus::StaleSequence;
         }
         else {
-            playerX = static_cast<int32_t>(nextX);
-            playerZ = static_cast<int32_t>(nextZ);
+            lastPacketSequence = packetSequence;
+            lastInputSequence = inputSequence;
+
+            if (directionValue < 1 || directionValue > 4) {
+                status = Protocol::MoveStatus::InvalidDirection;
+            }
+            else {
+                auto direction =
+                    static_cast<Protocol::Direction>(directionValue);
+
+                int64_t nextX = playerX;
+                int64_t nextZ = playerZ;
+
+                switch (direction) {
+                case Protocol::Direction::Up:
+                    --nextZ;
+                    break;
+
+                case Protocol::Direction::Down:
+                    ++nextZ;
+                    break;
+
+                case Protocol::Direction::Left:
+                    --nextX;
+                    break;
+
+                case Protocol::Direction::Right:
+                    ++nextX;
+                    break;
+                }
+
+                if (nextX < INT32_MIN || nextX > INT32_MAX ||
+                    nextZ < INT32_MIN || nextZ > INT32_MAX) {
+
+                    status = Protocol::MoveStatus::OutOfBounds;
+                }
+                else {
+                    playerX = static_cast<int32_t>(nextX);
+                    playerZ = static_cast<int32_t>(nextZ);
+                }
+            }
         }
        
 
@@ -137,16 +139,33 @@ void ServeClient(SOCKET clientSocket)
             std::printf("[server] send failed\n");
             break;
         }
+        
+        const char* reason = "ACCEPTED";
+
+        switch (status) {
+        case Protocol::MoveStatus::OutOfBounds:
+            reason = "OUT_OF_BOUNDS";
+            break;
+        case Protocol::MoveStatus::InvalidDirection:
+            reason = "INVALID_DIRECTION";
+            break;
+        case Protocol::MoveStatus::StaleSequence:
+            reason = "STALE_SEQUENCE";
+            break;
+        case Protocol::MoveStatus::WrongRound:
+            reason = "WRONG_ROUND";
+            break;
+        default:
+            break;
+        }
 
         std::printf(
-            "[MOVE] input=%u direction=%u position=(%d,%d) %s\n",
+            "[MOVE] packet=%u input=%u position=(%d,%d) %s\n",
+            static_cast<unsigned>(packetSequence),
             static_cast<unsigned>(inputSequence),
-            static_cast<unsigned>(directionValue),
             static_cast<int>(playerX),
             static_cast<int>(playerZ),
-            status == Protocol::MoveStatus::Accepted
-            ? "ACCEPTED"
-            : "REJECTED"
+            reason
         );
     }
 }

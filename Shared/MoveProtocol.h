@@ -31,7 +31,10 @@ namespace Protocol
     enum class MoveStatus : uint8_t
     {
         Accepted = 0,
-        OutOfBounds = 1
+        OutOfBounds = 1,
+        InvalidDirection = 2,
+        StaleSequence = 3,
+        WrongRound = 4
     };
 
     using MovePacket =
@@ -210,7 +213,7 @@ namespace Protocol
             return false;
 
         if (packet[24] >
-            static_cast<uint8_t>(MoveStatus::OutOfBounds))
+            static_cast<uint8_t>(MoveStatus::WrongRound))
             return false;
 
         result.inputSequence =
