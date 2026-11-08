@@ -1,10 +1,16 @@
 #pragma once
 
 #include "Room.h"
+#include "ServerNetwork.h"
 
 class ServerApp {
 public:
-    ServerApp();
+    ServerApp()
+        : matchCoordinator(room),
+        roundController(room),
+        rematchController(room)
+    {
+    }
     ServerApp(const ServerApp&) = delete;
     ServerApp& operator=(const ServerApp&) = delete;
 
@@ -17,6 +23,7 @@ private:
     MatchCoordinator matchCoordinator;
     RoundController roundController;
     RematchController rematchController;
+    ServerNetwork network;
 
     std::uint16_t port = 0;
     bool initialized = false;

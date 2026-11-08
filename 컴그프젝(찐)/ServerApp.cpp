@@ -1,13 +1,7 @@
 #include "ServerApp.h"
 #include <iostream>
 #include <string>
-
-ServerApp::ServerApp()
-    : matchCoordinator(room),
-    roundController(room),
-    rematchController(room)
-{
-}
+#include <thread>
 
 bool ServerApp::Initialize(std::uint16_t port) {
     if (initialized) { //중복 초기화 방지
@@ -18,12 +12,15 @@ bool ServerApp::Initialize(std::uint16_t port) {
         return false;
     }
 
+    if (!network.Initialize(port)) {
+        return false;
+    }
+
     this->port = port;
     room = RoomState{}; //방 상태 초기화
 
-    // 네트워크 구현 시 Winsock·listen 초기화 연결
     // 스레드 구현 시 명령 큐·CS·이벤트 초기화 연결
-    // 준비 완료 후 GameThread → AcceptThread 생성
+    // GameThread 구현 시 접속 대기 스레드보다 먼저 시작
     // 중간 실패 시 생성된 자원만 정리하고 false 반환
 
     initialized = true;
@@ -35,11 +32,13 @@ void ServerApp::Run() {
         return;
     }
 
-    // 네트워크 구현 전 서버 실행·종료 흐름 확인
-    std::cout << "Server ready (configured port: " << port << ").\n";
+    std::cout << "Server listening on port " << port << ".\n";
     std::cout << "Press Enter to stop." << std::endl;
+    std::thread acceptThread(&ServerNetwork::RunAcceptLoop, &network);
     std::string input;
     std::getline(std::cin, input);
+    network.StopAccepting();
+    acceptThread.join();
 }
 
 void ServerApp::Shutdown() {
@@ -47,7 +46,8 @@ void ServerApp::Shutdown() {
         return;
     }
 
-    // 스레드와 소켓 구현 시 방 상태 초기화 전에 정리
+    // 스레드 구현 시 네트워크 종료 전에 정리
+    network.Shutdown();
     room = RoomState{};
     port = 0;
     initialized = false;

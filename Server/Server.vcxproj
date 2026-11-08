@@ -41,8 +41,10 @@
   <ItemGroup>
     <ClCompile Include="ServerMain.cpp" />
     <ClCompile Include="..\컴그프젝(찐)\ServerApp.cpp" />
+    <ClCompile Include="..\컴그프젝(찐)\ServerNetwork.cpp" />
     <ClCompile Include="..\컴그프젝(찐)\Room.cpp" />
     <ClInclude Include="..\컴그프젝(찐)\ServerApp.h" />
+    <ClInclude Include="..\컴그프젝(찐)\ServerNetwork.h" />
     <ClInclude Include="..\컴그프젝(찐)\Room.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
