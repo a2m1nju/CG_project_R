@@ -1,3 +1,4 @@
+#include "ClientNetwork.h"
 #include "Common.h"
 #include "Global.h"
 #include "Shader.h"
@@ -51,9 +52,31 @@ bool InitializeClient(int& argc, char** argv)
 
 int main(int argc, char** argv)
 {
-    if (!InitializeClient(argc, argv)) {
+    if (argc > 2) {
+        std::cerr << "Usage: " << argv[0] << " [server-ip]\n";
         return EXIT_FAILURE;
     }
+
+    ClientNetwork network;
+
+    if (argc == 2) {
+        if (!network.Connect(argv[1], 9000)) {
+            return EXIT_FAILURE;
+        }
+
+        std::cout << "Connected to " << argv[1] << ":9000\n";
+    }
+
+    // GLUT에는 실행 파일명만 전달
+    int glutArgc = 1;
+    char* glutArgv[] = {argv[0], nullptr};
+
+    if (!InitializeClient(glutArgc, glutArgv)) {
+        return EXIT_FAILURE;
+    }
+
+    // 창을 닫으면 main()으로 돌아와 연결 정리
+    glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
 
     glutDisplayFunc(drawScene);
     glutReshapeFunc(Reshape);
