@@ -18,7 +18,7 @@ bool StartNetworkMovement()
     if (!network.Start("127.0.0.1", 9000))
         return false;
 
-    // 서버의 최초 좌표 (x=0, z=0)와 맞춘다.
+   
     playerPos = glm::vec3(
         0.0f,
         0.5f,
@@ -87,7 +87,6 @@ void NetworkSpecialKeyboard(
         pendingDirection = direction;
     }
 
-    // 여기서는 playerTargetPos, isMoving을 변경하지 않는다.
 }
 
 void NetworkKeyboard(
@@ -172,7 +171,38 @@ void NetworkTimer(int)
             }
         }
         else {
-            std::printf("[game] move rejected\n");
+            const char* reason = "UNKNOWN";
+
+            switch (result.status) {
+            case Protocol::MoveStatus::OutOfBounds:
+                reason = "OUT_OF_BOUNDS";
+                break;
+
+            case Protocol::MoveStatus::InvalidDirection:
+                reason = "INVALID_DIRECTION";
+                break;
+
+            case Protocol::MoveStatus::StaleSequence:
+                reason = "STALE_SEQUENCE";
+                break;
+
+            case Protocol::MoveStatus::WrongRound:
+                reason = "WRONG_ROUND";
+                break;
+
+            case Protocol::MoveStatus::TooSoon:
+                reason = "TOO_SOON";
+                break;
+
+            default:
+                break;
+            }
+
+            std::printf(
+                "[game] move rejected: input=%u reason=%s\n",
+                static_cast<unsigned>(result.inputSequence),
+                reason
+            );
         }
     }
 

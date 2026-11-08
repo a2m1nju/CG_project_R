@@ -20,6 +20,12 @@ namespace Protocol
 
     constexpr uint32_t TEST_ROUND_ID = 1;
 
+    constexpr uint32_t TICK_HZ = 30;
+
+    // 기존 MOVE_DURATION = 0.20초를 유지하는 설정.
+    // 팀 공통 서버와 통합할 때 같은 설정으로 맞춘다.
+    constexpr uint32_t MOVE_INTERVAL_TICKS = 6;
+
     enum class Direction : uint8_t
     {
         Up = 1,
@@ -34,7 +40,8 @@ namespace Protocol
         OutOfBounds = 1,
         InvalidDirection = 2,
         StaleSequence = 3,
-        WrongRound = 4
+        WrongRound = 4,
+        TooSoon = 5
     };
 
     using MovePacket =
@@ -213,7 +220,7 @@ namespace Protocol
             return false;
 
         if (packet[24] >
-            static_cast<uint8_t>(MoveStatus::WrongRound))
+            static_cast<uint8_t>(MoveStatus::TooSoon))
             return false;
 
         result.inputSequence =
