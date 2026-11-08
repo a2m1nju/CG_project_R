@@ -14,6 +14,7 @@ public:
     ClientNetwork& operator=(const ClientNetwork&) = delete;
 
     bool Connect(const char* serverIp, std::uint16_t port);
+    bool PollDisconnected();
     void Disconnect();
 
 private:

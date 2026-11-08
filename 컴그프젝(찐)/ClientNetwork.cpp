@@ -42,6 +42,35 @@ bool ClientNetwork::Connect(const char* serverIp, std::uint16_t port) {
         return false;
     }
 
+    u_long nonBlocking = 1;
+    if (ioctlsocket(serverSocket, FIONBIO, &nonBlocking) == SOCKET_ERROR) {
+        std::cerr << "ioctlsocket failed: " << WSAGetLastError() << '\n';
+        Disconnect();
+        return false;
+    }
+
+    return true;
+}
+
+bool ClientNetwork::PollDisconnected() {
+    if (serverSocket == INVALID_SOCKET) {
+        return false;
+    }
+
+    char byte;
+    const int received = recv(serverSocket, &byte, sizeof(byte), MSG_PEEK);
+    if (received > 0) {
+        return false;
+    }
+    if (received == SOCKET_ERROR) {
+        const int error = WSAGetLastError();
+        if (error == WSAEWOULDBLOCK) {
+            return false;
+        }
+        std::cerr << "recv failed: " << error << '\n';
+    }
+
+    Disconnect();
     return true;
 }
 
