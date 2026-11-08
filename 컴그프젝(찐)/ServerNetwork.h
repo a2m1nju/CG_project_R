@@ -21,9 +21,14 @@ public:
     void Shutdown();
 
 private:
+    void RemoveSession(std::size_t index);
+
     struct TransportSession {
         std::uint32_t id = 0;
         SOCKET socket = INVALID_SOCKET;
+        // 패킷 처리 전까지 세션별로 최대 16 KiB 보관
+        std::array<char, 16 * 1024> receiveBuffer{};
+        std::size_t receivedSize = 0;
     };
 
     // 게임 참가 정원과 별도로 TCP 연결 수 제한

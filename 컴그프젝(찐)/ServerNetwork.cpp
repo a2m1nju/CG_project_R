@@ -1,4 +1,5 @@
-#include "ServerNetwork.h"
+﻿#include "ServerNetwork.h"
+#include <cstring>
 #include <iostream>
 
 #pragma comment(lib, "Ws2_32.lib")
@@ -58,6 +59,9 @@ void ServerNetwork::RunAcceptLoop() {
         fd_set readable;
         FD_ZERO(&readable);
         FD_SET(listenSocket, &readable);
+        for (std::size_t i = 0; i < sessionCount; ++i) {
+            FD_SET(sessions[i].socket, &readable);
+        }
 
         // 종료 요청을 확인할 수 있도록 최대 100ms만 대기
         timeval timeout{0, 100000};
@@ -67,6 +71,45 @@ void ServerNetwork::RunAcceptLoop() {
             return;
         }
         if (ready == 0 || stopping.load()) {
+            continue;
+        }
+
+        // 뒤에서부터 검사해 제거 시 옮긴 세션을 다시 검사하지 않음
+        for (std::size_t i = sessionCount; i > 0; --i) {
+            const std::size_t index = i - 1;
+            auto& session = sessions[index];
+            if (!FD_ISSET(session.socket, &readable)) {
+                continue;
+            }
+
+            char buffer[1024];
+            const int received = recv(session.socket, buffer, sizeof(buffer), 0);
+            if (received == 0) {
+                RemoveSession(index);
+                continue;
+            }
+            if (received == SOCKET_ERROR) {
+                const int error = WSAGetLastError();
+                if (error != WSAEWOULDBLOCK) {
+                    std::cerr << "recv failed for session " << session.id
+                              << ": " << error << '\n';
+                    RemoveSession(index);
+                }
+                continue;
+            }
+
+            const auto size = static_cast<std::size_t>(received);
+            if (size > session.receiveBuffer.size() - session.receivedSize) {
+                std::cerr << "Receive buffer limit exceeded for session "
+                          << session.id << '\n';
+                RemoveSession(index);
+                continue;
+            }
+            std::memcpy(session.receiveBuffer.data() + session.receivedSize, buffer, size);
+            session.receivedSize += size;
+        }
+
+        if (!FD_ISSET(listenSocket, &readable) || stopping.load()) {
             continue;
         }
 
@@ -84,10 +127,28 @@ void ServerNetwork::RunAcceptLoop() {
             continue;
         }
 
+        u_long nonBlocking = 1;
+        if (ioctlsocket(clientSocket, FIONBIO, &nonBlocking) == SOCKET_ERROR) {
+            std::cerr << "client ioctlsocket failed: " << WSAGetLastError() << '\n';
+            closesocket(clientSocket);
+            continue;
+        }
+
         const auto id = nextSessionId++;
         sessions[sessionCount++] = {id, clientSocket};
         std::cout << "TCP session connected: " << id << std::endl;
     }
+}
+
+void ServerNetwork::RemoveSession(std::size_t index) {
+    const auto id = sessions[index].id;
+    closesocket(sessions[index].socket);
+    --sessionCount;
+    if (index != sessionCount) {
+        sessions[index] = sessions[sessionCount];
+    }
+    sessions[sessionCount] = TransportSession{};
+    std::cout << "TCP session disconnected: " << id << std::endl;
 }
 
 void ServerNetwork::StopAccepting() {
