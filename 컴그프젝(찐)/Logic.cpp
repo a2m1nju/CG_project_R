@@ -279,6 +279,10 @@ void resetGame() {
 
 void timer(int value)
 {
+	if (glutGetWindow() == 0) {
+		return;
+	}
+
 	// [인트로 애니메이션 로직]
 	if (introState != 0) { 
 

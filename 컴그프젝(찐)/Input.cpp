@@ -95,7 +95,8 @@ void keyboard(unsigned char key, int x, int y)
 	}
 
 	if (key == 'q' || key == 'Q') {
-		exit(0);
+		glutLeaveMainLoop();
+		return;
 	}
 
 	if (key == '0') {
