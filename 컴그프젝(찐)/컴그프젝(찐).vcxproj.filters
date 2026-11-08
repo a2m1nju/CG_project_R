@@ -39,10 +39,16 @@
     <ClCompile Include="Protocol.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="ClientNetwork.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
     <ClCompile Include="main1.cpp">
       <Filter>헤더 파일</Filter>
     </ClCompile>
     <ClCompile Include="ServerApp.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="ServerNetwork.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>
@@ -80,7 +86,13 @@
     <ClInclude Include="Protocol.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="ClientNetwork.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
     <ClInclude Include="ServerApp.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="ServerNetwork.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>

@@ -151,7 +151,9 @@ glew32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="Room.cpp" />
     <ClCompile Include="Protocol.cpp" />
+    <ClCompile Include="ClientNetwork.cpp" />
     <ClCompile Include="ServerApp.cpp" />
+    <ClCompile Include="ServerNetwork.cpp" />
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="Texture.cpp" />
   </ItemGroup>
@@ -163,7 +165,9 @@ glew32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="Room.h" />
     <ClInclude Include="Protocol.h" />
+    <ClInclude Include="ClientNetwork.h" />
     <ClInclude Include="ServerApp.h" />
+    <ClInclude Include="ServerNetwork.h" />
     <ClInclude Include="Shader.h" />
     <ClInclude Include="stb_image.h" />
     <ClInclude Include="stb_truetype.h" />
