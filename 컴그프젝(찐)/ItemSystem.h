@@ -50,3 +50,5 @@ private:
     std::map<PlayerId, PlayerEffectState> playerEffects_;
     std::map<ObjectId, BananaTrap> bananaTraps_;
 };
+
+//..
