@@ -5,6 +5,8 @@ VisualStudioVersion = 17.13.35825.156 d17.13
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "컴그프젝(찐)", "컴그프젝(찐)\컴그프젝(찐).vcxproj", "{EE0CE2E7-C979-45B3-81A7-6C6633D2E591}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Server", "Server\Server.vcxproj", "{4F8D2548-832A-4DE4-8F14-EA315DF5C861}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -13,6 +15,14 @@ Global
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4F8D2548-832A-4DE4-8F14-EA315DF5C861}.Debug|x86.ActiveCfg = Debug|Win32
+		{4F8D2548-832A-4DE4-8F14-EA315DF5C861}.Debug|x86.Build.0 = Debug|Win32
+		{4F8D2548-832A-4DE4-8F14-EA315DF5C861}.Debug|x64.ActiveCfg = Debug|x64
+		{4F8D2548-832A-4DE4-8F14-EA315DF5C861}.Debug|x64.Build.0 = Debug|x64
+		{4F8D2548-832A-4DE4-8F14-EA315DF5C861}.Release|x86.ActiveCfg = Release|Win32
+		{4F8D2548-832A-4DE4-8F14-EA315DF5C861}.Release|x86.Build.0 = Release|Win32
+		{4F8D2548-832A-4DE4-8F14-EA315DF5C861}.Release|x64.ActiveCfg = Release|x64
+		{4F8D2548-832A-4DE4-8F14-EA315DF5C861}.Release|x64.Build.0 = Release|x64
 		{EE0CE2E7-C979-45B3-81A7-6C6633D2E591}.Debug|x64.ActiveCfg = Debug|x64
 		{EE0CE2E7-C979-45B3-81A7-6C6633D2E591}.Debug|x64.Build.0 = Debug|x64
 		{EE0CE2E7-C979-45B3-81A7-6C6633D2E591}.Debug|x86.ActiveCfg = Debug|Win32

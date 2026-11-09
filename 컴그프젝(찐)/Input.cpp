@@ -1,6 +1,8 @@
 #include "Input.h"
 #include "Global.h"
 #include "Logic.h"
+#include "Protocol.h"
+#include <iostream>
 
 void specialKeyboard(int key, int x, int y)
 {
@@ -11,6 +13,22 @@ void specialKeyboard(int key, int x, int y)
 		}
 		return; 
 	}
+
+#ifdef _DEBUG
+	// 실제로 누른 방향키를 MOVE 방향 값으로 변환
+	Direction physicalDirection;
+
+	switch (key) {
+	case GLUT_KEY_UP:    physicalDirection = Direction::UP; break;
+	case GLUT_KEY_DOWN:  physicalDirection = Direction::DOWN; break;
+	case GLUT_KEY_LEFT:  physicalDirection = Direction::LEFT; break;
+	case GLUT_KEY_RIGHT: physicalDirection = Direction::RIGHT; break;
+	default: return;
+	}
+
+	std::cout << "MOVE direction: "
+		<< static_cast<int>(physicalDirection) << '\n';
+#endif
 
 	if (isMoving) return;
 
@@ -77,7 +95,8 @@ void keyboard(unsigned char key, int x, int y)
 	}
 
 	if (key == 'q' || key == 'Q') {
-		exit(0);
+		glutLeaveMainLoop();
+		return;
 	}
 
 	if (key == '0') {

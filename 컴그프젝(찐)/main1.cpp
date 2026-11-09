@@ -1,3 +1,4 @@
+#include "ClientNetwork.h"
 #include "Common.h"
 #include "Global.h"
 #include "Shader.h"
@@ -17,7 +18,7 @@ void Reshape(int w, int h)
     glViewport(0, 0, w, h);
 }
 
-int main(int argc, char** argv)
+bool InitializeClient(int& argc, char** argv)
 {
     srand((unsigned int)time(NULL));
 
@@ -31,7 +32,7 @@ int main(int argc, char** argv)
     if (glewInit() != GLEW_OK)
     {
         std::cerr << "Unable to initialize GLEW" << std::endl;
-        exit(EXIT_FAILURE);
+        return false;
     }
 
     make_vertexShaders();
@@ -46,12 +47,67 @@ int main(int argc, char** argv)
 
     mciSendString(TEXT("play bgm.wav"), NULL, 0, NULL);
 
+    return true;
+}
+
+namespace {
+    ClientNetwork* activeNetwork = nullptr;
+
+    void PollServerConnection(int value)
+    {
+        if (activeNetwork == nullptr || glutGetWindow() == 0) {
+            return;
+        }
+
+        if (activeNetwork->PollDisconnected()) {
+            std::cout << "Server disconnected." << std::endl;
+            return;
+        }
+
+        glutTimerFunc(100, PollServerConnection, value);
+    }
+}
+
+int main(int argc, char** argv)
+{
+    if (argc > 2) {
+        std::cerr << "Usage: " << argv[0] << " [server-ip]\n";
+        return EXIT_FAILURE;
+    }
+
+    ClientNetwork network;
+
+    if (argc == 2) {
+        if (!network.Connect(argv[1], 9000)) {
+            return EXIT_FAILURE;
+        }
+
+        std::cout << "Connected to " << argv[1] << ":9000\n";
+    }
+
+    // GLUT에는 실행 파일명만 전달
+    int glutArgc = 1;
+    char* glutArgv[] = {argv[0], nullptr};
+
+    if (!InitializeClient(glutArgc, glutArgv)) {
+        return EXIT_FAILURE;
+    }
+
+    // 창을 닫으면 main()으로 돌아와 연결 정리
+    glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
+
     glutDisplayFunc(drawScene);
     glutReshapeFunc(Reshape);
     glutSpecialFunc(specialKeyboard);
     glutKeyboardFunc(keyboard);
     glutTimerFunc(16, timer, 0);
 
+    if (argc == 2) {
+        activeNetwork = &network;
+        glutTimerFunc(100, PollServerConnection, 0);
+    }
+
     glutMainLoop();
-    return 0;
+    activeNetwork = nullptr;
+    return EXIT_SUCCESS;
 }

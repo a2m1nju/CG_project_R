@@ -260,6 +260,10 @@ void resetGame() {
 
 void timer(int value)
 {
+	if (glutGetWindow() == 0) {
+		return;
+	}
+
     static int previousTickMs = glutGet(GLUT_ELAPSED_TIME);
     const int nowMs = glutGet(GLUT_ELAPSED_TIME);
     const std::uint32_t elapsedMs = nowMs > previousTickMs
