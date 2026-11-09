@@ -131,8 +131,10 @@ void ServerNetwork::Tick(std::uint64_t tick) {
         Wire::WriteFloat(packet.data() + 20, s.x); Wire::WriteFloat(packet.data() + 24, s.z);
         packet[28] = static_cast<std::uint8_t>(s.status);
         s.sendBuffer.insert(s.sendBuffer.end(), packet.begin(), packet.end());
-        std::cout << "[TICK " << tick << "] player=" << s.id << " round=" << s.roundId
-                  << " x=" << s.x << " z=" << s.z << " alive=" << s.alive << '\n';
+        if (tick % Wire::TickRate == 0) {
+            std::cout << "[TICK " << tick << "] player=" << s.id << " round=" << s.roundId
+                << " x=" << s.x << " z=" << s.z << " alive=" << s.alive << '\n';
+        }
         if (!Flush(s)) RemoveSession(i - 1);
     }
     std::cout.flush();
