@@ -51,20 +51,18 @@ bool InitializeClient(int& argc, char** argv)
 }
 
 namespace {
-    ClientNetwork* activeNetwork = nullptr;
-
     void PollServerConnection(int value)
     {
-        if (activeNetwork == nullptr || glutGetWindow() == 0) {
+        if (activeClientNetwork == nullptr || glutGetWindow() == 0) {
             return;
         }
 
-        if (activeNetwork->PollDisconnected()) {
+        if (activeClientNetwork->PollDisconnected()) {
             std::cout << "Server disconnected." << std::endl;
             return;
         }
 
-        glutTimerFunc(100, PollServerConnection, value);
+        glutTimerFunc(16, PollServerConnection, value);
     }
 }
 
@@ -103,11 +101,11 @@ int main(int argc, char** argv)
     glutTimerFunc(16, timer, 0);
 
     if (argc == 2) {
-        activeNetwork = &network;
-        glutTimerFunc(100, PollServerConnection, 0);
+        activeClientNetwork = &network;
+        glutTimerFunc(16, PollServerConnection, 0);
     }
 
     glutMainLoop();
-    activeNetwork = nullptr;
+    activeClientNetwork = nullptr;
     return EXIT_SUCCESS;
 }

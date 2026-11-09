@@ -1,6 +1,7 @@
 #include "ClientNetwork.h"
 #include <ws2tcpip.h>
 #include <iostream>
+#include <cmath>
 
 #pragma comment(lib, "Ws2_32.lib")
 
@@ -49,32 +50,96 @@ bool ClientNetwork::Connect(const char* serverIp, std::uint16_t port) {
         return false;
     }
 
+    lastState = std::chrono::steady_clock::now();
     return true;
 }
 
-bool ClientNetwork::PollDisconnected() {
-    if (serverSocket == INVALID_SOCKET) {
-        return false;
-    }
+ClientNetwork* activeClientNetwork = nullptr;
 
-    char byte;
-    const int received = recv(serverSocket, &byte, sizeof(byte), MSG_PEEK);
-    if (received > 0) {
-        return false;
+bool ClientNetwork::Flush() {
+    while (!sendBuffer.empty()) {
+        const int n = send(serverSocket, reinterpret_cast<const char*>(sendBuffer.data()),
+                           static_cast<int>(sendBuffer.size()), 0);
+        if (n == SOCKET_ERROR && WSAGetLastError() == WSAEWOULDBLOCK) return true;
+        if (n <= 0) { Disconnect(); return false; }
+        sendBuffer.erase(sendBuffer.begin(), sendBuffer.begin() + n);
     }
-    if (received == SOCKET_ERROR) {
-        const int error = WSAGetLastError();
-        if (error == WSAEWOULDBLOCK) {
-            return false;
-        }
-        std::cerr << "recv failed: " << error << '\n';
-    }
-
-    Disconnect();
     return true;
+}
+bool ClientNetwork::Queue(const std::uint8_t* p, std::size_t size) {
+    if (!IsConnected() || sendBuffer.size() + size > 16384) { Disconnect(); return false; }
+    sendBuffer.insert(sendBuffer.end(), p, p + size); return Flush();
+}
+bool ClientNetwork::PollDisconnected() {
+    if (!IsConnected()) return false;
+    const auto now = std::chrono::steady_clock::now();
+    if (!pollingStarted) { lastState = now; pollingStarted = true; }
+    if (now - lastState > std::chrono::seconds(5) ||
+        (pendingInput && now - pendingSince > std::chrono::seconds(5))) {
+        std::cerr << "Server movement response timed out.\n";
+        Disconnect(); return true;
+    }
+    if (!Flush()) return true;
+    std::uint8_t buffer[4096];
+    const int n = recv(serverSocket, reinterpret_cast<char*>(buffer), sizeof(buffer), 0);
+    if (n == SOCKET_ERROR && WSAGetLastError() == WSAEWOULDBLOCK) return false;
+    if (n <= 0 || receiveBuffer.size() + n > 16384) { Disconnect(); return true; }
+    receiveBuffer.insert(receiveBuffer.end(), buffer, buffer + n);
+    std::size_t offset = 0;
+    while (receiveBuffer.size() - offset >= 2) {
+        const auto* p = receiveBuffer.data() + offset;
+        const std::size_t size = (std::size_t(p[0]) << 8) | p[1];
+        if (size < 8 || size > 1024) { Disconnect(); return true; }
+        if (receiveBuffer.size() - offset < size) break;
+        if (p[2] != 1) { Disconnect(); return true; }
+        if (p[3] == Wire::State && size == Wire::StateSize) {
+            lastState = now;
+            const auto round = Wire::Read32(p + 8);
+            if (roundId == 0) roundId = round;
+            if (round == roundId && pendingInput && Wire::Read32(p + 12) == pendingInput) {
+                pendingInput = 0;
+                if (p[28] == static_cast<std::uint8_t>(Wire::MoveStatus::Accepted)) {
+                    moveX = Wire::ReadFloat(p + 20); moveZ = Wire::ReadFloat(p + 24);
+                    moveReady = std::isfinite(moveX) && std::isfinite(moveZ);
+                }
+            }
+        }
+        offset += size;
+    }
+    receiveBuffer.erase(receiveBuffer.begin(), receiveBuffer.begin() + offset);
+    return false;
+}
+void ClientNetwork::SyncWorld(float x, float z, bool alive) {
+    if (!Ready() || pendingInput || moveReady) return;
+    std::array<std::uint8_t, Wire::PositionSize> p{};
+    Wire::Header(p.data(), p.size(), Wire::WorldPosition, ++sequence);
+    Wire::Write32(p.data() + 8, roundId);
+    Wire::WriteFloat(p.data() + 12, x); Wire::WriteFloat(p.data() + 16, z);
+    p[20] = alive ? 1 : 0; Queue(p.data(), p.size());
+}
+bool ClientNetwork::RequestMove(Direction direction, float x, float z) {
+    if (!Ready() || pendingInput || moveReady) return false;
+    SyncWorld(x, z, true);
+    const auto p = EncodeMovePacket(++sequence, roundId, ++inputSeq, direction);
+    pendingInput = inputSeq; pendingSince = std::chrono::steady_clock::now();
+    return Queue(p.data(), p.size());
+}
+bool ClientNetwork::TakeMove(float& x, float& z) {
+    if (!moveReady) return false;
+    x = moveX; z = moveZ; moveReady = false; return true;
+}
+void ClientNetwork::ResetRound() {
+    if (!Ready()) return;
+    std::array<std::uint8_t, 12> p{};
+    Wire::Header(p.data(), p.size(), Wire::Reset, ++sequence);
+    Wire::Write32(p.data() + 8, ++roundId);
+    inputSeq = pendingInput = 0; moveReady = false;
+    Queue(p.data(), p.size());
 }
 
 void ClientNetwork::Disconnect() {
+    receiveBuffer.clear(); sendBuffer.clear();
+    sequence = inputSeq = pendingInput = roundId = 0; pollingStarted = moveReady = false;
     if (serverSocket != INVALID_SOCKET) {
         closesocket(serverSocket);
         serverSocket = INVALID_SOCKET;

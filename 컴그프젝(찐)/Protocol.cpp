@@ -30,3 +30,14 @@ std::array<std::uint8_t, 17> EncodeMovePacket(
 
     return packet;
 }
+
+
+#include <cstring>
+float Wire::ReadFloat(const std::uint8_t* p) {
+    const auto bits = Read32(p); float value;
+    static_assert(sizeof(value) == sizeof(bits), "32-bit float required");
+    std::memcpy(&value, &bits, sizeof(value)); return value;
+}
+void Wire::WriteFloat(std::uint8_t* p, float value) {
+    std::uint32_t bits; std::memcpy(&bits, &value, sizeof(bits)); Write32(p, bits);
+}

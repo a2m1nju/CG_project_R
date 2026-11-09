@@ -19,7 +19,7 @@ bool ServerApp::Initialize(std::uint16_t port) {
     this->port = port;
     room = RoomState{}; //방 상태 초기화
 
-    // 스레드 구현 시 명령 큐·CS·이벤트 초기화 연결
+    // Network loop owns transport and fixed-step movement state.
     // GameThread 구현 시 접속 대기 스레드보다 먼저 시작
     // 중간 실패 시 생성된 자원만 정리하고 false 반환
 

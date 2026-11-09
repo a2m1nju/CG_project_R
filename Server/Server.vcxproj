@@ -40,6 +40,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="ServerMain.cpp" />
+    <ClCompile Include="..\컴그프젝(찐)\Protocol.cpp" />
     <ClCompile Include="..\컴그프젝(찐)\ServerApp.cpp" />
     <ClCompile Include="..\컴그프젝(찐)\ServerNetwork.cpp" />
     <ClCompile Include="..\컴그프젝(찐)\Room.cpp" />

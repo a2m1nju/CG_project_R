@@ -1,37 +1,35 @@
 #pragma once
-
 #include <winsock2.h>
+#include "Protocol.h"
 #include <array>
 #include <atomic>
-#include <cstddef>
-#include <cstdint>
+#include <vector>
 
 class ServerNetwork {
 public:
     ServerNetwork() = default;
-    ~ServerNetwork() {
-        Shutdown();
-    }
+    ~ServerNetwork() { Shutdown(); }
     ServerNetwork(const ServerNetwork&) = delete;
     ServerNetwork& operator=(const ServerNetwork&) = delete;
-
     bool Initialize(std::uint16_t port);
     void RunAcceptLoop();
     void StopAccepting();
     void Shutdown();
-
 private:
-    void RemoveSession(std::size_t index);
-
     struct TransportSession {
         std::uint32_t id = 0;
         SOCKET socket = INVALID_SOCKET;
-        // 패킷 처리 전까지 세션별로 최대 16 KiB 보관
-        std::array<char, 16 * 1024> receiveBuffer{};
-        std::size_t receivedSize = 0;
+        std::vector<std::uint8_t> receiveBuffer, sendBuffer;
+        std::uint32_t sequence = 0, inputSeq = 0, roundId = 1, sendSeq = 0;
+        std::uint64_t nextMoveTick = 0;
+        float x = 0, z = 0;
+        bool alive = true;
+        Wire::MoveStatus status = Wire::MoveStatus::Idle;
     };
-
-    // 게임 참가 정원과 별도로 TCP 연결 수 제한
+    void RemoveSession(std::size_t index);
+    bool ProcessPackets(TransportSession& session, std::uint64_t tick);
+    bool Flush(TransportSession& session);
+    void Tick(std::uint64_t tick);
     std::array<TransportSession, 8> sessions{};
     std::size_t sessionCount = 0;
     std::uint32_t nextSessionId = 1;

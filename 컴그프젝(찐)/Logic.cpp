@@ -1,3 +1,4 @@
+#include "ClientNetwork.h"
 #include "Logic.h"
 #include "Global.h"
 #include "Renderer.h" 
@@ -228,6 +229,7 @@ void spawnParticles(glm::vec3 pos, glm::vec3 color, int count, float speedScale)
 }
 
 void resetGame() {
+    if (activeClientNetwork) activeClientNetwork->ResetRound();
 	playerPos = glm::vec3(0.0f, 0.5f, 0.0f);
 	playerTargetPos = playerPos;
 	playerStartPos = playerPos;
@@ -260,6 +262,17 @@ void resetGame() {
 
 void timer(int value)
 {
+    if (activeClientNetwork) {
+        float x, z;
+        if (activeClientNetwork->TakeMove(x, z) && !isGameOver && introState == 0) {
+            playerStartPos = playerPos;
+            playerTargetPos = glm::vec3(x, 0.5f, z);
+            isMoving = true; moveTime = 0;
+            if (z < minZ) { minZ = (int)z; ++score; }
+            PlaySound(TEXT("footstep.wav"), NULL, SND_ASYNC | SND_FILENAME);
+        }
+        if (!isMoving || isGameOver) activeClientNetwork->SyncWorld(playerPos.x, playerPos.z, !isGameOver);
+    }
 	if (glutGetWindow() == 0) {
 		return;
 	}

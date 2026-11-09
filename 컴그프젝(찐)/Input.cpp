@@ -1,3 +1,4 @@
+#include "ClientNetwork.h"
 #include "Input.h"
 #include "Global.h"
 #include "Logic.h"
@@ -30,7 +31,8 @@ void specialKeyboard(int key, int x, int y)
 		<< static_cast<int>(physicalDirection) << '\n';
 #endif
 
-	if (isMoving) return;
+	if (isMoving || isGameOver) return;
+	if (activeClientNetwork && (!activeClientNetwork->Ready() || activeClientNetwork->MovePending())) return;
 
 	// 글리치 모드일 때 키 입력 뒤집기
 	const auto* effects = localItems.GetPlayerEffects(1);
@@ -67,6 +69,13 @@ void specialKeyboard(int key, int x, int y)
 	}
 
 	if (!isTreeAt(nextX, nextZ)) {
+        if (activeClientNetwork) {
+            Direction direction = key == GLUT_KEY_UP ? Direction::UP :
+                key == GLUT_KEY_DOWN ? Direction::DOWN :
+                key == GLUT_KEY_LEFT ? Direction::LEFT : Direction::RIGHT;
+            activeClientNetwork->RequestMove(direction, playerPos.x, playerPos.z);
+            return;
+        }
 		if (key == GLUT_KEY_UP && nextZ < minZ) {
 			minZ = nextZ;
 			score++;

@@ -1,5 +1,7 @@
 ﻿#include "ServerNetwork.h"
 #include <cstring>
+#include <chrono>
+#include <cmath>
 #include <iostream>
 
 #pragma comment(lib, "Ws2_32.lib")
@@ -54,89 +56,134 @@ bool ServerNetwork::Initialize(std::uint16_t port) {
     return true;
 }
 
+bool ServerNetwork::Flush(TransportSession& session) {
+    while (!session.sendBuffer.empty()) {
+        const int n = send(session.socket, reinterpret_cast<const char*>(session.sendBuffer.data()),
+                           static_cast<int>(session.sendBuffer.size()), 0);
+        if (n == SOCKET_ERROR && WSAGetLastError() == WSAEWOULDBLOCK) return true;
+        if (n <= 0) return false;
+        session.sendBuffer.erase(session.sendBuffer.begin(), session.sendBuffer.begin() + n);
+    }
+    return true;
+}
+
+bool ServerNetwork::ProcessPackets(TransportSession& s, std::uint64_t tick) {
+    auto& bytes = s.receiveBuffer;
+    std::size_t offset = 0;
+    while (bytes.size() - offset >= 2) {
+        const auto* p = bytes.data() + offset;
+        const std::size_t size = (std::size_t(p[0]) << 8) | p[1];
+        if (size < 8 || size > 1024) return false;
+        if (bytes.size() - offset < size) break; // TCP fragment
+        if (p[2] != 1) return false;
+        const auto seq = Wire::Read32(p + 4);
+        if (Wire::Newer(seq, s.sequence)) {
+            s.sequence = seq;
+            if (p[3] == Wire::Reset && size == 12) {
+                if (Wire::Read32(p + 8) == s.roundId + 1) {
+                    ++s.roundId; s.x = s.z = 0; s.alive = true;
+                    s.inputSeq = 0; s.nextMoveTick = 0; s.status = Wire::MoveStatus::Idle;
+                }
+            } else if (p[3] == Wire::WorldPosition && size == Wire::PositionSize) {
+                // World, logs, banana displacement and death still belong to m_merge's local world.
+                const float x = Wire::ReadFloat(p + 12), z = Wire::ReadFloat(p + 16);
+                if (Wire::Read32(p + 8) == s.roundId && std::isfinite(x) && std::isfinite(z) &&
+                    std::abs(x) < 1000000 && std::abs(z) < 1000000 && p[20] <= 1) {
+                    s.x = x; s.z = z; s.alive = p[20] != 0;
+                }
+            } else if (p[3] == 9 && size == 17) {
+                const auto input = Wire::Read32(p + 12);
+                if (Wire::Read32(p + 8) == s.roundId && Wire::Newer(input, s.inputSeq)) {
+                    s.inputSeq = input;
+                    if (!s.alive || p[16] > 3) s.status = Wire::MoveStatus::Invalid;
+                    else if (tick < s.nextMoveTick) s.status = Wire::MoveStatus::Cooldown;
+                    else {
+                        s.x = std::round(s.x); s.z = std::round(s.z);
+                        switch (static_cast<Direction>(p[16])) {
+                        case Direction::UP: --s.z; break;
+                        case Direction::DOWN: ++s.z; break;
+                        case Direction::LEFT: --s.x; break;
+                        case Direction::RIGHT: ++s.x; break;
+                        }
+                        s.nextMoveTick = tick + Wire::MoveCooldownTicks;
+                        s.status = Wire::MoveStatus::Accepted;
+                    }
+                }
+            } else return false;
+        }
+        offset += size;
+    }
+    bytes.erase(bytes.begin(), bytes.begin() + offset);
+    return true;
+}
+
+void ServerNetwork::Tick(std::uint64_t tick) {
+    for (std::size_t i = sessionCount; i > 0; --i) {
+        auto& s = sessions[i - 1];
+        if (!ProcessPackets(s, tick) || s.sendBuffer.size() + Wire::StateSize > 16384) {
+            RemoveSession(i - 1); continue;
+        }
+        std::array<std::uint8_t, Wire::StateSize> packet{};
+        Wire::Header(packet.data(), packet.size(), Wire::State, ++s.sendSeq);
+        Wire::Write32(packet.data() + 8, s.roundId);
+        Wire::Write32(packet.data() + 12, s.inputSeq);
+        Wire::Write32(packet.data() + 16, static_cast<std::uint32_t>(tick));
+        Wire::WriteFloat(packet.data() + 20, s.x); Wire::WriteFloat(packet.data() + 24, s.z);
+        packet[28] = static_cast<std::uint8_t>(s.status);
+        s.sendBuffer.insert(s.sendBuffer.end(), packet.begin(), packet.end());
+        std::cout << "[TICK " << tick << "] player=" << s.id << " round=" << s.roundId
+                  << " x=" << s.x << " z=" << s.z << " alive=" << s.alive << '\n';
+        if (!Flush(s)) RemoveSession(i - 1);
+    }
+    std::cout.flush();
+}
+
 void ServerNetwork::RunAcceptLoop() {
+    using Clock = std::chrono::steady_clock;
+    const auto interval = std::chrono::nanoseconds(1000000000 / Wire::TickRate);
+    auto nextTick = Clock::now() + interval;
+    std::uint64_t tick = 0;
     while (!stopping.load()) {
-        fd_set readable;
-        FD_ZERO(&readable);
-        FD_SET(listenSocket, &readable);
+        fd_set readable, writable;
+        FD_ZERO(&readable); FD_ZERO(&writable); FD_SET(listenSocket, &readable);
         for (std::size_t i = 0; i < sessionCount; ++i) {
             FD_SET(sessions[i].socket, &readable);
+            if (!sessions[i].sendBuffer.empty()) FD_SET(sessions[i].socket, &writable);
         }
-
-        // 종료 요청을 확인할 수 있도록 최대 100ms만 대기
-        timeval timeout{0, 100000};
-        const int ready = select(0, &readable, nullptr, nullptr, &timeout);
+        const auto remaining = std::chrono::duration_cast<std::chrono::microseconds>(nextTick - Clock::now()).count();
+        timeval timeout{0, static_cast<long>(remaining > 0 ? remaining : 0)};
+        const int ready = select(0, &readable, &writable, nullptr, &timeout);
         if (ready == SOCKET_ERROR) {
-            std::cerr << "select failed: " << WSAGetLastError() << '\n';
-            return;
+            std::cerr << "select failed: " << WSAGetLastError() << '\n'; return;
         }
-        if (ready == 0 || stopping.load()) {
-            continue;
-        }
-
-        // 뒤에서부터 검사해 제거 시 옮긴 세션을 다시 검사하지 않음
+        if (stopping.load()) break;
         for (std::size_t i = sessionCount; i > 0; --i) {
-            const std::size_t index = i - 1;
-            auto& session = sessions[index];
-            if (!FD_ISSET(session.socket, &readable)) {
-                continue;
-            }
-
-            char buffer[1024];
-            const int received = recv(session.socket, buffer, sizeof(buffer), 0);
-            if (received == 0) {
-                RemoveSession(index);
-                continue;
-            }
-            if (received == SOCKET_ERROR) {
-                const int error = WSAGetLastError();
-                if (error != WSAEWOULDBLOCK) {
-                    std::cerr << "recv failed for session " << session.id
-                              << ": " << error << '\n';
-                    RemoveSession(index);
+            auto& s = sessions[i - 1];
+            if (FD_ISSET(s.socket, &writable) && !Flush(s)) { RemoveSession(i - 1); continue; }
+            if (!FD_ISSET(s.socket, &readable)) continue;
+            std::uint8_t buffer[1024];
+            const int n = recv(s.socket, reinterpret_cast<char*>(buffer), sizeof(buffer), 0);
+            if (n == SOCKET_ERROR && WSAGetLastError() == WSAEWOULDBLOCK) continue;
+            if (n <= 0 || s.receiveBuffer.size() + n > 16384) { RemoveSession(i - 1); continue; }
+            s.receiveBuffer.insert(s.receiveBuffer.end(), buffer, buffer + n);
+        }
+        if (FD_ISSET(listenSocket, &readable)) {
+            const SOCKET client = accept(listenSocket, nullptr, nullptr);
+            if (client != INVALID_SOCKET) {
+                u_long nonBlocking = 1;
+                if (sessionCount == sessions.size() || ioctlsocket(client, FIONBIO, &nonBlocking) == SOCKET_ERROR)
+                    closesocket(client);
+                else {
+                    auto& s = sessions[sessionCount++]; s = TransportSession{};
+                    s.id = nextSessionId++; s.socket = client;
+                    std::cout << "TCP session connected: " << s.id << std::endl;
                 }
-                continue;
             }
-
-            const auto size = static_cast<std::size_t>(received);
-            if (size > session.receiveBuffer.size() - session.receivedSize) {
-                std::cerr << "Receive buffer limit exceeded for session "
-                          << session.id << '\n';
-                RemoveSession(index);
-                continue;
-            }
-            std::memcpy(session.receiveBuffer.data() + session.receivedSize, buffer, size);
-            session.receivedSize += size;
         }
-
-        if (!FD_ISSET(listenSocket, &readable) || stopping.load()) {
-            continue;
+        // Fixed-step catch-up; I/O and game state share this one owning thread.
+        while (!stopping.load() && Clock::now() >= nextTick) {
+            Tick(++tick); nextTick += interval;
         }
-
-        const SOCKET clientSocket = accept(listenSocket, nullptr, nullptr);
-        if (clientSocket == INVALID_SOCKET) {
-            const int error = WSAGetLastError();
-            if (error == WSAEWOULDBLOCK || error == WSAECONNRESET) {
-                continue;
-            }
-            std::cerr << "accept failed: " << error << '\n';
-            return;
-        }
-        if (sessionCount == sessions.size()) {
-            closesocket(clientSocket);
-            continue;
-        }
-
-        u_long nonBlocking = 1;
-        if (ioctlsocket(clientSocket, FIONBIO, &nonBlocking) == SOCKET_ERROR) {
-            std::cerr << "client ioctlsocket failed: " << WSAGetLastError() << '\n';
-            closesocket(clientSocket);
-            continue;
-        }
-
-        const auto id = nextSessionId++;
-        sessions[sessionCount++] = {id, clientSocket};
-        std::cout << "TCP session connected: " << id << std::endl;
     }
 }
 
