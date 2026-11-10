@@ -68,20 +68,23 @@ namespace {
 
 int main(int argc, char** argv)
 {
-    if (argc > 2) {
-        std::cerr << "Usage: " << argv[0] << " [server-ip]\n";
+    if (argc != 2 || argv[1][0] == '\0') {
+        if (argc <= 2) {
+            std::cerr << "Server IP address is required.\n";
+        }
+        else {
+            std::cerr << "Expected exactly one argument: the server IP address.\n";
+        }
+        std::cerr << "Usage: \"" << argv[0] << "\" <server-ip>\n";
         return EXIT_FAILURE;
     }
 
     ClientNetwork network;
-
-    if (argc == 2) {
-        if (!network.Connect(argv[1], 9000)) {
-            return EXIT_FAILURE;
-        }
-
-        std::cout << "Connected to " << argv[1] << ":9000\n";
+    if (!network.Connect(argv[1], 9000)) {
+        return EXIT_FAILURE;
     }
+
+    std::cout << "Connected to " << argv[1] << ":9000\n";
 
     // GLUT에는 실행 파일명만 전달
     int glutArgc = 1;
@@ -100,10 +103,8 @@ int main(int argc, char** argv)
     glutKeyboardFunc(keyboard);
     glutTimerFunc(16, timer, 0);
 
-    if (argc == 2) {
-        activeClientNetwork = &network;
-        glutTimerFunc(16, PollServerConnection, 0);
-    }
+    activeClientNetwork = &network;
+    glutTimerFunc(16, PollServerConnection, 0);
 
     glutMainLoop();
     activeClientNetwork = nullptr;
