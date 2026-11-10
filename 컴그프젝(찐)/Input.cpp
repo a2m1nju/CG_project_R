@@ -15,7 +15,6 @@ void specialKeyboard(int key, int x, int y)
 		return; 
 	}
 
-#ifdef _DEBUG
 	// 실제로 누른 방향키를 MOVE 방향 값으로 변환
 	Direction physicalDirection;
 
@@ -29,7 +28,6 @@ void specialKeyboard(int key, int x, int y)
 
 	std::cout << "MOVE direction: "
 		<< static_cast<int>(physicalDirection) << '\n';
-#endif
 
 	if (isMoving || isGameOver) return;
 	if (activeClientNetwork && (!activeClientNetwork->Ready() || activeClientNetwork->MovePending())) return;
