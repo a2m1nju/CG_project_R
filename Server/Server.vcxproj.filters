@@ -24,6 +24,9 @@
     <ClCompile Include="..\컴그프젝(찐)\Room.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="..\컴그프젝(찐)\WorldState.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
     <ClInclude Include="..\컴그프젝(찐)\ServerApp.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
@@ -31,6 +34,9 @@
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="..\컴그프젝(찐)\Room.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="..\컴그프젝(찐)\WorldState.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>

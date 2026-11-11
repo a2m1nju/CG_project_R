@@ -68,7 +68,8 @@ void specialKeyboard(int key, int x, int y)
 	default: return;
 	}
 
-	if (!isTreeAt(nextX, nextZ)) {
+	if ((!activeClientNetwork || mapType.find(nextZ) != mapType.end()) &&
+        !isTreeAt(nextX, nextZ)) {
         if (activeClientNetwork) {
             Direction direction = key == GLUT_KEY_UP ? Direction::UP :
                 key == GLUT_KEY_DOWN ? Direction::DOWN :
@@ -139,7 +140,7 @@ void keyboard(unsigned char key, int x, int y)
         return;
     }
 
-    if (key == '4' || key == '9') {
+    if (!activeClientNetwork && (key == '4' || key == '9')) {
         const int itemX = (int)std::round(playerPos.x);
         const int itemZ = (int)std::round(playerPos.z) - 2;
         if (key == '4') {

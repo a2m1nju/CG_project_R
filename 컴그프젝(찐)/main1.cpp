@@ -80,6 +80,7 @@ int main(int argc, char** argv)
             return EXIT_FAILURE;
         }
 
+        activeClientNetwork = &network;
         std::cout << "Connected to " << argv[1] << ":9000\n";
     }
 
@@ -101,7 +102,6 @@ int main(int argc, char** argv)
     glutTimerFunc(16, timer, 0);
 
     if (argc == 2) {
-        activeClientNetwork = &network;
         glutTimerFunc(16, PollServerConnection, 0);
     }
 

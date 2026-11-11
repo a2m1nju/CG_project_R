@@ -29,6 +29,7 @@ enum ItemType { ITEM_SHIELD, ITEM_REVERSE, ITEM_BLACKOUT, ITEM_BANANA };
 
 // --- Structs ---
 struct Car {
+    unsigned int id = 0;
     float x, z;
     float speed;
     glm::vec3 color;
@@ -55,6 +56,7 @@ struct SeasonColors {
 };
 
 struct Log {
+    unsigned int id = 0;
     float x, z;
     float speed;
     float width;
@@ -73,6 +75,7 @@ struct Particle {
 };
 
 struct Train {
+    unsigned int id = 0;
     float z, x, speed;
     TrainState state;
     int timer;

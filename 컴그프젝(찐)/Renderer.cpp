@@ -2,6 +2,9 @@
 #include "Global.h"
 #include "Logic.h" 
 
+class ClientNetwork;
+extern ClientNetwork* activeClientNetwork;
+
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
@@ -71,9 +74,9 @@ void drawShieldModel(GLuint shader, glm::mat4 baseModel) {
 	drawPart(shader, baseModel, glm::vec3(0.0f, 0.0f, -0.1f), glm::vec3(0.2f, 0.2f, 0.1f), glm::vec3(0.4f, 0.2f, 0.0f));
 }
 
-//  자석 그리기 
-//  물약 그리기 
-//  시계 그리기
+// 자석 그리기
+// 물약 그리기
+// 시계 그리기
 // 나무	그리기
 void drawTree(int x, int z, GLuint shader) {
 
@@ -342,7 +345,8 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 	float groundWidth = 300.0f;
 
 		for (int z = currentZ - drawRangeFront; z <= currentZ + drawRangeBack; ++z) {
-			generateLane(z);
+			if (!activeClientNetwork) generateLane(z);
+			else if (mapType.find(z) == mapType.end()) continue;
 			const SeasonColors& colors = seasonThemes[getSeasonByZ(z)];
 
 			glm::mat4 model = glm::mat4(1.0f);

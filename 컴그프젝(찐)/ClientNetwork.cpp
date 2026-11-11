@@ -92,10 +92,105 @@ bool ClientNetwork::PollDisconnected() {
         if (size < 8 || size > 1024) { Disconnect(); return true; }
         if (receiveBuffer.size() - offset < size) break;
         if (p[2] != 1) { Disconnect(); return true; }
-        if (p[3] == Wire::State && size == Wire::StateSize) {
+        if (p[3] == Wire::WorldBegin && size == Wire::WorldBeginSize) {
+            const auto round = Wire::Read32(p + 8);
+            const auto generation = Wire::Read32(p + 12);
+            const auto minZ = static_cast<std::int32_t>(Wire::Read32(p + 16));
+            const auto maxZ = static_cast<std::int32_t>(Wire::Read32(p + 20));
+            if (round == 0 || generation == 0 || minZ > maxZ ||
+                static_cast<std::int64_t>(maxZ) - minZ > 4096) {
+                Disconnect(); return true;
+            }
+            if (roundId != 0 && !Wire::Newer(round, roundId) && round != roundId) {
+                offset += size;
+                continue;
+            }
+            if (round == roundId && generation < worldGeneration) {
+                offset += size;
+                continue;
+            }
+            if (round != roundId || generation != worldGeneration) {
+                roundId = round;
+                worldGeneration = generation;
+                initialMinZ = minZ;
+                initialMaxZ = maxZ;
+                initialLanes.clear();
+                pendingInput = inputSeq = 0;
+                moveReady = worldReady = resetRequested = false;
+                worldEvents.clear();
+                WorldEvent event{};
+                event.kind = WorldEvent::Kind::Begin;
+                event.roundId = round;
+                event.generation = generation;
+                event.minZ = minZ;
+                event.maxZ = maxZ;
+                worldEvents.push_back(event);
+            }
+        } else if (p[3] == Wire::WorldLane && size == Wire::WorldLaneSize) {
+            const auto round = Wire::Read32(p + 8);
+            const auto generation = Wire::Read32(p + 12);
+            if (round == roundId && generation == worldGeneration) {
+                WorldEvent event{};
+                event.kind = WorldEvent::Kind::Lane;
+                event.roundId = round;
+                event.generation = generation;
+                event.z = static_cast<std::int32_t>(Wire::Read32(p + 16));
+                event.terrain = p[20];
+                event.treeMask = Wire::Read32(p + 21);
+                event.padMask = Wire::Read32(p + 25);
+                event.spawnMask = Wire::Read32(p + 29);
+                if (event.terrain > 3 ||
+                    ((event.treeMask | event.padMask | event.spawnMask) & 0x80000000u) != 0) {
+                    Disconnect(); return true;
+                }
+                if (!worldReady && event.z >= initialMinZ && event.z <= initialMaxZ)
+                    initialLanes.insert(event.z);
+                worldEvents.push_back(event);
+            }
+        } else if (p[3] == Wire::WorldActor && size == Wire::WorldActorSize) {
+            const auto round = Wire::Read32(p + 8);
+            const auto generation = Wire::Read32(p + 12);
+            if (round == roundId && generation == worldGeneration) {
+                WorldEvent event{};
+                event.kind = WorldEvent::Kind::Actor;
+                event.roundId = round;
+                event.generation = generation;
+                event.tick = Wire::Read32(p + 16);
+                event.actorId = Wire::Read32(p + 20);
+                event.actorKind = p[24];
+                event.actorZ = Wire::ReadFloat(p + 25);
+                event.x = Wire::ReadFloat(p + 29);
+                event.speed = Wire::ReadFloat(p + 33);
+                event.width = Wire::ReadFloat(p + 37);
+                event.red = p[41]; event.green = p[42]; event.blue = p[43];
+                event.design = p[44]; event.trainState = p[45];
+                event.trainTimer = (std::uint16_t(p[46]) << 8) | p[47];
+                event.trainLight = p[48];
+                if (event.actorId == 0 || event.actorKind < 1 || event.actorKind > 3 ||
+                    event.design > 3 || event.trainState > 2 || event.trainLight > 1 ||
+                    !std::isfinite(event.actorZ) || !std::isfinite(event.x) ||
+                    !std::isfinite(event.speed) || !std::isfinite(event.width)) {
+                    Disconnect(); return true;
+                }
+                worldEvents.push_back(event);
+            }
+        } else if (p[3] == Wire::WorldEnd && size == Wire::WorldEndSize) {
+            const auto round = Wire::Read32(p + 8);
+            const auto generation = Wire::Read32(p + 12);
+            if (round == roundId && generation == worldGeneration) {
+                if (initialLanes.size() !=
+                    static_cast<std::size_t>(static_cast<std::int64_t>(initialMaxZ) - initialMinZ + 1)) {
+                    Disconnect(); return true;
+                }
+                WorldEvent event{};
+                event.kind = WorldEvent::Kind::End;
+                event.roundId = round;
+                event.generation = generation;
+                worldEvents.push_back(event);
+            }
+        } else if (p[3] == Wire::State && size == Wire::StateSize) {
             lastState = now;
             const auto round = Wire::Read32(p + 8);
-            if (roundId == 0) roundId = round;
             if (round == roundId && pendingInput && Wire::Read32(p + 12) == pendingInput) {
                 pendingInput = 0;
                 if (p[28] == static_cast<std::uint8_t>(Wire::MoveStatus::Accepted)) {
@@ -128,18 +223,27 @@ bool ClientNetwork::TakeMove(float& x, float& z) {
     if (!moveReady) return false;
     x = moveX; z = moveZ; moveReady = false; return true;
 }
+bool ClientNetwork::TakeWorldEvent(WorldEvent& event) {
+    if (worldEvents.empty()) return false;
+    event = worldEvents.front();
+    worldEvents.pop_front();
+    if (event.kind == WorldEvent::Kind::End) worldReady = true;
+    return true;
+}
 void ClientNetwork::ResetRound() {
-    if (!Ready()) return;
+    if (!Ready() || resetRequested) return;
     std::array<std::uint8_t, 12> p{};
     Wire::Header(p.data(), p.size(), Wire::Reset, ++sequence);
-    Wire::Write32(p.data() + 8, ++roundId);
-    inputSeq = pendingInput = 0; moveReady = false;
-    Queue(p.data(), p.size());
+    Wire::Write32(p.data() + 8, roundId + 1);
+    resetRequested = Queue(p.data(), p.size());
 }
 
 void ClientNetwork::Disconnect() {
     receiveBuffer.clear(); sendBuffer.clear();
-    sequence = inputSeq = pendingInput = roundId = 0; pollingStarted = moveReady = false;
+    sequence = inputSeq = pendingInput = roundId = worldGeneration = 0;
+    initialMinZ = 0; initialMaxZ = -1; initialLanes.clear();
+    pollingStarted = moveReady = worldReady = resetRequested = false;
+    worldEvents.clear();
     if (serverSocket != INVALID_SOCKET) {
         closesocket(serverSocket);
         serverSocket = INVALID_SOCKET;
