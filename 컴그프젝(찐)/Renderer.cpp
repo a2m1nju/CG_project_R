@@ -953,16 +953,12 @@ void renderTextTTF(float x, float y, const char* text, float r, float g, float b
 void renderTextWithOutline(float x, float y, const char* text) {
 	float offset = 5.0f; 
 
-	renderTextTTF(x - offset, y, text, 0.0f, 0.0f, 0.0f); // аб
-	renderTextTTF(x + offset, y, text, 0.0f, 0.0f, 0.0f); // ©Л
-	renderTextTTF(x, y - offset, text, 0.0f, 0.0f, 0.0f); // ╩С
-	renderTextTTF(x, y + offset, text, 0.0f, 0.0f, 0.0f); // го
-
-	renderTextTTF(x - offset, y - offset, text, 0.0f, 0.0f, 0.0f);
-	renderTextTTF(x + offset, y - offset, text, 0.0f, 0.0f, 0.0f);
-	renderTextTTF(x - offset, y + offset, text, 0.0f, 0.0f, 0.0f);
-	renderTextTTF(x + offset, y + offset, text, 0.0f, 0.0f, 0.0f);
-
+	const float offsets[][2] = {
+		{-offset, 0.0f}, {offset, 0.0f}, {0.0f, -offset}, {0.0f, offset},
+		{-offset, -offset}, {offset, -offset}, {-offset, offset}, {offset, offset}
+	};
+	for (const auto& d : offsets)
+		renderTextTTF(x + d[0], y + d[1], text, 0.0f, 0.0f, 0.0f);
 	renderTextTTF(x, y, text, 1.0f, 1.0f, 1.0f);
 }
 

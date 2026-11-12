@@ -61,13 +61,6 @@ bool MatchCoordinator::SetReady(SessionId id, LobbyEpoch epoch, bool ready) {
 	// 5. 통신 구현 시 전체 멤버에게
 	// READY_LOBBY_STATE 전송
 
-	const bool allReady = std::all_of( // 전원 준비여부 확인
-		room.ready.begin(), room.ready.end(),
-		[](bool value) { return value; });
-
-	if (allReady) {
-		// RoundController 구현 시 BeginRound(false) 연결
-	}
 	return true;
 }
 

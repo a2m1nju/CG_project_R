@@ -99,28 +99,27 @@ std::vector<WorldLaneData> WorldState::EnsureRange(std::int32_t minZ,
     std::vector<WorldLaneData> added;
     if (minZ > maxZ || maxNewLanes == 0) return added;
     added.reserve(std::min<std::size_t>(maxNewLanes, 64));
+    const auto addLane = [&](std::int32_t z) {
+        auto lane = MakeLane(z);
+        lanes_.emplace(z, lane);
+        added.push_back(lane);
+    };
 
     // 저장된 연속 구간을 한 줄씩 확장한다.
     // 클라이언트 위치가 크게 바뀌어도 틱당 생성량을 제한한다.
     if (lanes_.empty()) {
         for (auto z = minZ; z <= maxZ && added.size() < maxNewLanes; ++z) {
-            auto lane = MakeLane(z);
-            lanes_.emplace(z, lane);
-            added.push_back(lane);
+            addLane(z);
         }
         return added;
     }
     while (MinZ() > minZ && added.size() < maxNewLanes) {
         const auto z = MinZ() - 1;
-        auto lane = MakeLane(z);
-        lanes_.emplace(z, lane);
-        added.push_back(lane);
+        addLane(z);
     }
     while (MaxZ() < maxZ && added.size() < maxNewLanes) {
         const auto z = MaxZ() + 1;
-        auto lane = MakeLane(z);
-        lanes_.emplace(z, lane);
-        added.push_back(lane);
+        addLane(z);
     }
     return added;
 }

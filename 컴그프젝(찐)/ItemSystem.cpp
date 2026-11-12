@@ -66,11 +66,14 @@ bool ItemSystem::ResolveBananaHit(PlayerId playerId, std::int32_t x, std::int32_
 }
 
 void ItemSystem::AdvanceEffects(std::uint32_t elapsedMs) {
+    const auto advance = [elapsedMs](std::uint32_t& remaining) {
+        remaining = remaining > elapsedMs ? remaining - elapsedMs : 0;
+    };
     for (auto& entry : playerEffects_) {
         auto& effects = entry.second;
-        effects.reverseControlsRemainingMs = effects.reverseControlsRemainingMs > elapsedMs ? effects.reverseControlsRemainingMs - elapsedMs : 0;
-        effects.blackoutRemainingMs = effects.blackoutRemainingMs > elapsedMs ? effects.blackoutRemainingMs - elapsedMs : 0;
-        effects.shieldRemainingMs = effects.shieldRemainingMs > elapsedMs ? effects.shieldRemainingMs - elapsedMs : 0;
+        advance(effects.reverseControlsRemainingMs);
+        advance(effects.blackoutRemainingMs);
+        advance(effects.shieldRemainingMs);
     }
 }
 

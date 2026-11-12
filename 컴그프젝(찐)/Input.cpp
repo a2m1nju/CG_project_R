@@ -81,7 +81,6 @@ void specialKeyboard(int key, int x, int y)
 			minZ = nextZ;
 			score++;
 
-			int currentTotalLines = -minZ;
 		}
 
 		playerStartPos = playerPos;
