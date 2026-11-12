@@ -276,7 +276,7 @@ void drawLog(const Log& logObj, GLuint shader) {
 // ¿¬ÀÙ ±×¸®±â
 void drawLilyPad(const LilyPad& pad, GLuint shader) {
 	glm::mat4 model = glm::mat4(1.0f);
-	model = glm::translate(model, glm::vec3(pad.x, 0.41f, pad.z)); 
+	model = glm::translate(model, glm::vec3(pad.x, 0.05f, pad.z));
 
 	glm::vec3 scale = glm::vec3(0.8f, 0.05f, 0.8f);
 	glm::vec3 whiteColor = glm::vec3(1.0f, 1.0f, 1.0f);

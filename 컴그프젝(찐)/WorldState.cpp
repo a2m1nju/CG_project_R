@@ -35,6 +35,8 @@ WorldLaneData WorldState::MakeLane(std::int32_t z) {
     const auto roll = LaneRandom(generation_, z, 0) % 10;
     lane.terrain = roll < 5 ? 1 : roll < 7 ? 2 : roll < 8 ? 3 : 0;
     if (z == -3) lane.terrain = static_cast<std::uint8_t>(1 + generation_ % 3);
+    const bool logLane = lane.terrain == 2 &&
+        (LaneRandom(generation_, z, 200) % 2 == 0);
 
     for (int x = -15; x <= 15; ++x) {
         const auto bit = std::uint32_t{1} << (x + 15);
@@ -43,7 +45,8 @@ WorldLaneData WorldState::MakeLane(std::int32_t z) {
             if (random % 10 == 0) lane.treeMask |= bit;
             else if (x >= -6 && x <= 6 && (random >> 8) % 16 == 0)
                 lane.spawnMask |= bit;
-        } else if (lane.terrain == 2 && (x == 0 || random % 5 == 0)) {
+        } else if (lane.terrain == 2 && !logLane &&
+                   (x == 0 || random % 5 == 0)) {
             lane.padMask |= bit;
         }
     }
@@ -69,7 +72,7 @@ WorldLaneData WorldState::MakeLane(std::int32_t z) {
             actor.design = static_cast<std::uint8_t>(random % 4);
             addActor(actor);
         }
-    } else if (lane.terrain == 2) {
+    } else if (logLane) {
         const int count = 1 + LaneRandom(generation_, z, 201) % 2;
         for (int i = 0; i < count; ++i) {
             const auto random = LaneRandom(generation_, z, 210 + i);
