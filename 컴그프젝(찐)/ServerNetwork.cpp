@@ -176,9 +176,33 @@ void ServerNetwork::RunAcceptLoop() {
                 if (sessionCount == sessions.size() || ioctlsocket(client, FIONBIO, &nonBlocking) == SOCKET_ERROR)
                     closesocket(client);
                 else {
-                    auto& s = sessions[sessionCount++]; s = TransportSession{};
-                    s.id = nextSessionId++; s.socket = client;
-                    std::cout << "TCP session connected: " << s.id << std::endl;
+                    auto& s = sessions[sessionCount++];
+                    s = TransportSession{};
+
+                    s.id = nextSessionId++;
+                    s.socket = client;
+
+                    // 이 접속에 부여한 ID를 메시지에 기록
+                    std::array<std::uint8_t, Wire::AssignedIdSize> packet{};
+
+                    Wire::Header(
+                        packet.data(),
+                        packet.size(),
+                        Wire::AssignedId,
+                        ++s.sendSeq
+                    );
+
+                    Wire::Write32(packet.data() + 8, s.id);
+
+                    // 해당 클라이언트의 송신 대기열에 추가
+                    s.sendBuffer.insert(
+                        s.sendBuffer.end(),
+                        packet.begin(),
+                        packet.end()
+                    );
+
+                    std::cout << "TCP session connected: "
+                        << s.id << std::endl;
                 }
             }
         }

@@ -15,6 +15,9 @@ public:
     void Disconnect();
     bool IsConnected() const { return serverSocket != INVALID_SOCKET; }
     bool Ready() const { return IsConnected() && roundId != 0; }
+    std::uint32_t GetMyPlayerId() const {
+        return myPlayerId;
+    }
     bool RequestMove(Direction direction, float x, float z);
     bool TakeMove(float& x, float& z);
     bool MovePending() const { return pendingInput != 0; }
@@ -27,6 +30,7 @@ private:
     bool winsockInitialized = false;
     std::vector<std::uint8_t> receiveBuffer, sendBuffer;
     std::uint32_t sequence = 0, inputSeq = 0, pendingInput = 0, roundId = 0;
+    std::uint32_t myPlayerId = 0;
     std::chrono::steady_clock::time_point lastState{}, pendingSince{};
     bool pollingStarted = false, moveReady = false;
     float moveX = 0, moveZ = 0;

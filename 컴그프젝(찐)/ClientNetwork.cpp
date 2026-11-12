@@ -92,15 +92,72 @@ bool ClientNetwork::PollDisconnected() {
         if (size < 8 || size > 1024) { Disconnect(); return true; }
         if (receiveBuffer.size() - offset < size) break;
         if (p[2] != 1) { Disconnect(); return true; }
-        if (p[3] == Wire::State && size == Wire::StateSize) {
+        if (p[3] == Wire::AssignedId) {
+            // ID 메시지는 정확히 12바이트여야 함
+            if (size != Wire::AssignedIdSize) {
+                std::cerr << "Invalid assigned ID packet size."
+                    << std::endl;
+                Disconnect();
+                return true;
+            }
+            const std::uint32_t receivedId =
+                Wire::Read32(p + 8);
+            // 0은 미수신 상태로 사용하므로 유효한 ID로 받지 않음.
+            // 같은 연결에서 ID가 갑자기 달라지는 것도 허용하지 않음.
+            if (receivedId == 0 ||
+                (myPlayerId != 0 && myPlayerId != receivedId)) {
+
+                std::cerr << "Invalid assigned player ID."
+                    << std::endl;
+                Disconnect();
+                return true;
+            }
+            // 처음 받았을 때만 저장하고 출력
+            if (myPlayerId == 0) {
+                myPlayerId = receivedId;
+                std::cout << "My player ID: "
+                    << myPlayerId << std::endl;
+            }
+        }
+        else if (p[3] == Wire::State &&
+            size == Wire::StateSize) {
+
             lastState = now;
+
             const auto round = Wire::Read32(p + 8);
-            if (roundId == 0) roundId = round;
-            if (round == roundId && pendingInput && Wire::Read32(p + 12) == pendingInput) {
+
+            if (roundId == 0) {
+                roundId = round;
+            }
+            // 현재 라운드에서 내가 기다리던 이동 응답인지 확인
+            if (round == roundId &&
+                pendingInput &&
+                Wire::Read32(p + 12) == pendingInput) {
                 pendingInput = 0;
-                if (p[28] == static_cast<std::uint8_t>(Wire::MoveStatus::Accepted)) {
-                    moveX = Wire::ReadFloat(p + 20); moveZ = Wire::ReadFloat(p + 24);
-                    moveReady = std::isfinite(moveX) && std::isfinite(moveZ);
+                if (p[28] ==
+                    static_cast<std::uint8_t>(
+                        Wire::MoveStatus::Accepted)) {
+                    // 서버가 승인한 목표 좌표
+                    moveX = Wire::ReadFloat(p + 20);
+                    moveZ = Wire::ReadFloat(p + 24);
+                    moveReady =
+                        std::isfinite(moveX) &&
+                        std::isfinite(moveZ);
+                    // 유효한 승인 좌표와 자기 ID가 있을 때만 출력
+                    if (moveReady && myPlayerId != 0) {
+                        const auto receivedInputSeq =
+                            Wire::Read32(p + 12);
+                        const auto serverTick =
+                            Wire::Read32(p + 16);
+                        std::cout
+                            << "[MOVE ACCEPTED]"
+                            << " id=" << myPlayerId
+                            << " inputSeq=" << receivedInputSeq
+                            << " tick=" << serverTick
+                            << " x=" << moveX
+                            << " z=" << moveZ
+                            << std::endl;
+                    }
                 }
             }
         }
@@ -138,7 +195,9 @@ void ClientNetwork::ResetRound() {
 }
 
 void ClientNetwork::Disconnect() {
-    receiveBuffer.clear(); sendBuffer.clear();
+    myPlayerId = 0;
+    receiveBuffer.clear(); 
+    sendBuffer.clear();
     sequence = inputSeq = pendingInput = roundId = 0; pollingStarted = moveReady = false;
     if (serverSocket != INVALID_SOCKET) {
         closesocket(serverSocket);

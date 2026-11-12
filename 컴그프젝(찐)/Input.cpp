@@ -27,8 +27,8 @@ void specialKeyboard(int key, int x, int y)
 	default: return;
 	}
 
-	std::cout << "MOVE direction: "
-		<< static_cast<int>(physicalDirection) << '\n';
+	//std::cout << "MOVE direction: "
+	//	<< static_cast<int>(physicalDirection) << '\n';
 #endif
 
 	if (isMoving || isGameOver) return;
