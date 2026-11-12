@@ -1,6 +1,7 @@
 #pragma once
 #include <winsock2.h>
 #include "Protocol.h"
+#include "ItemSystem.h"
 #include "WorldState.h"
 #include <array>
 #include <atomic>
@@ -28,6 +29,7 @@ private:
         bool resetVote = false;
         bool snapshotting = false;
         bool snapshotBeginPending = false;
+        bool itemSnapshotPending = false;
         std::int32_t snapshotMinZ = 0, snapshotMaxZ = 0, snapshotNextZ = 0;
         std::int32_t announcedMinZ = 0, announcedMaxZ = 0;
         Wire::MoveStatus status = Wire::MoveStatus::Idle;
@@ -42,9 +44,12 @@ private:
     bool QueueWorldEnd(TransportSession& session);
     void StartWorldSnapshot(TransportSession& session);
     void PumpWorldPackets(TransportSession& session, std::uint32_t tick);
+    bool QueueItemSnapshot(TransportSession& session);
+    bool QueueItemRemoved(TransportSession& session, const PickupResult& result);
     void TryBeginNextRound();
     void Tick(std::uint64_t tick);
     WorldState world;
+    ItemSystem items;
     std::array<TransportSession, 8> sessions{};
     std::size_t sessionCount = 0;
     std::uint32_t nextSessionId = 1;

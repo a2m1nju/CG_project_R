@@ -23,6 +23,10 @@ namespace Wire {
 constexpr std::uint8_t State = 10, WorldPosition = 11, Reset = 12;
 // 공유 월드 메시지의 모든 정수 필드는 네트워크 바이트 순서를 사용한다.
 constexpr std::uint8_t WorldLane = 20, WorldActor = 21, WorldBegin = 22, WorldEnd = 23;
+constexpr std::uint8_t ItemBegin = 30, ItemEntry = 31, ItemEnd = 32,
+    PickupRequest = 33, ItemRemoved = 34, ItemIdentity = 35;
+constexpr std::size_t ItemBeginSize = 16, ItemEntrySize = 25, ItemEndSize = 12,
+    PickupRequestSize = 16, ItemRemovedSize = 21, ItemIdentitySize = 12;
 constexpr std::size_t WorldLaneSize = 33, WorldBeginSize = 24, WorldEndSize = 16;
 constexpr std::size_t WorldActorSize = 49;
 // WorldLane: 헤더, 라운드 ID, 월드 세대, 부호 있는 z, 지형, 나무·연잎·생성 위치 마스크.

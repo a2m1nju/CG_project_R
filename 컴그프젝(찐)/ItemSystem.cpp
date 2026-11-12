@@ -109,6 +109,33 @@ std::vector<PickupResult> ItemSystem::ResolvePickups(
     return results;
 }
 
+bool ItemSystem::TryPickup(ObjectId objectId, const PickupPlayer& player,
+                           PickupResult& result) {
+    const auto item = groundItems_.find(objectId);
+    const auto owner = inventories_.find(player.id);
+    if (item == groundItems_.end() || owner == inventories_.end() || !player.alive ||
+        player.x != item->second.x || player.z != item->second.z) return false;
+    auto& slots = owner->second.slots;
+    for (std::uint8_t slot = 0; slot < slots.size(); ++slot) {
+        if (slots[slot] != ItemKind::Empty) continue;
+        slots[slot] = item->second.kind;
+        result = {player.id, objectId, slot, item->second.kind};
+        groundItems_.erase(item);
+        return true;
+    }
+    return false;
+}
+
+bool ItemSystem::ApplyConfirmedPickup(PlayerId playerId, std::uint8_t slot,
+                                      ItemKind kind) {
+    const auto owner = inventories_.find(playerId);
+    if (owner == inventories_.end() || slot >= owner->second.slots.size() ||
+        kind == ItemKind::Empty || kind > ItemKind::Shield ||
+        owner->second.slots[slot] != ItemKind::Empty) return false;
+    owner->second.slots[slot] = kind;
+    return true;
+}
+
 PlayerId ItemSystem::SelectAttackTarget(PlayerId userId,
     const std::vector<TargetPlayer>& players) const {
     if (inventories_.find(userId) == inventories_.end()) return 0;

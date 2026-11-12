@@ -36,6 +36,8 @@ public:
     bool ResolveBananaHit(PlayerId playerId, std::int32_t x, std::int32_t z);
     void AdvanceEffects(std::uint32_t elapsedMs);
     std::vector<PickupResult> ResolvePickups(const std::vector<PickupPlayer>& players);
+    bool TryPickup(ObjectId objectId, const PickupPlayer& player, PickupResult& result);
+    bool ApplyConfirmedPickup(PlayerId playerId, std::uint8_t slot, ItemKind kind);
     PlayerId SelectAttackTarget(PlayerId userId,
         const std::vector<TargetPlayer>& players) const;
     const PlayerInventory* GetInventory(PlayerId playerId) const;

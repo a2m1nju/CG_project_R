@@ -4,6 +4,7 @@
 #include <vector>
 #include <deque>
 #include <set>
+#include <map>
 #include <chrono>
 
 struct WorldEvent {
@@ -19,6 +20,13 @@ struct WorldEvent {
     float actorZ = 0, x = 0, speed = 0, width = 0;
 };
 
+struct ItemEvent {
+    enum class Kind { Snapshot, Removed } kind;
+    std::uint32_t id = 0, playerId = 0;
+    std::uint8_t itemKind = 0, slot = 0;
+    std::int32_t x = 0, z = 0;
+};
+
 class ClientNetwork {
 public:
     ClientNetwork() = default;
@@ -29,8 +37,11 @@ public:
     bool PollDisconnected(); // 프레임 수신과 부분 전송 대기열을 처리한다.
     void Disconnect();
     bool IsConnected() const { return serverSocket != INVALID_SOCKET; }
-    bool Ready() const { return IsConnected() && roundId != 0 && worldReady; }
+    bool Ready() const { return IsConnected() && roundId != 0 && worldReady && itemReady; }
     bool TakeWorldEvent(WorldEvent& event);
+    bool TakeItemEvent(ItemEvent& event);
+    bool RequestPickup(std::uint32_t itemId);
+    std::uint32_t PlayerId() const { return playerId; }
     bool RequestMove(Direction direction, float x, float z);
     bool TakeMove(float& x, float& z);
     bool MovePending() const { return pendingInput != 0; }
@@ -50,6 +61,11 @@ private:
     bool pollingStarted = false, moveReady = false, worldReady = false, resetRequested = false;
     float moveX = 0, moveZ = 0;
     std::deque<WorldEvent> worldEvents;
+    std::deque<ItemEvent> itemEvents;
+    std::vector<ItemEvent> initialItems;
+    std::map<std::uint32_t, std::chrono::steady_clock::time_point> pendingPickups;
+    std::uint32_t playerId = 0, expectedItems = 0;
+    bool itemSnapshotOpen = false, itemReady = false;
 };
 
 // main이 연결된 클라이언트를 소유할 때만 설정하며, 오프라인 입력은 그대로 유지한다.

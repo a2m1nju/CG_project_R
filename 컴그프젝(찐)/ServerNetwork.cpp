@@ -4,6 +4,7 @@
 #include <cmath>
 #include <iostream>
 #include <algorithm>
+#include <random>
 
 #pragma comment(lib, "Ws2_32.lib")
 
@@ -55,6 +56,76 @@ bool ServerNetwork::Initialize(std::uint16_t port) {
 
     stopping.store(false);
     world.Reset(1);
+    items.ResetRound();
+    std::mt19937 rng(std::random_device{}());
+    std::vector<std::pair<std::int32_t, std::int32_t>> locations;
+    for (const auto& entry : world.Lanes()) {
+        const auto z = entry.first;
+        const auto& lane = entry.second;
+        if (z >= -2 || lane.terrain != 0) continue;
+        std::vector<std::int32_t> freeX;
+        for (int x = -6; x <= 6; ++x) {
+            if ((lane.treeMask & (1u << (x + 15))) == 0) freeX.push_back(x);
+        }
+        if (!freeX.empty()) {
+            const auto index = std::uniform_int_distribution<std::size_t>(0, freeX.size() - 1)(rng);
+            locations.emplace_back(freeX[index], z);
+        }
+    }
+    // 잔디 줄이 생성되지 않아도 시작 지점 근처에 획득 가능한 아이템을 배치한다.
+    locations.emplace_back(std::uniform_int_distribution<int>(-6, 6)(rng), -1);
+    std::shuffle(locations.begin(), locations.end(), rng);
+    const auto count = std::min<std::size_t>(locations.size(),
+        std::uniform_int_distribution<int>(3, 7)(rng));
+    for (std::size_t i = 0; i < count; ++i) {
+        const auto x = locations[i].first;
+        const auto z = locations[i].second;
+        const auto kind = static_cast<ItemKind>(std::uniform_int_distribution<int>(1, 4)(rng));
+        items.AddGroundItem({static_cast<ObjectId>(i + 1), kind, x, z});
+    }
+    return true;
+}
+
+bool ServerNetwork::QueueItemSnapshot(TransportSession& s) {
+    const auto& ground = items.GetGroundItems();
+    const std::size_t bytes = Wire::ItemBeginSize + ground.size() * Wire::ItemEntrySize +
+                              Wire::ItemEndSize;
+    if (s.sendBuffer.size() + bytes + Wire::StateSize > 16384) return false;
+    const auto append = [&s](const auto& packet) {
+        s.sendBuffer.insert(s.sendBuffer.end(), packet.begin(), packet.end());
+    };
+    std::array<std::uint8_t, Wire::ItemBeginSize> begin{};
+    Wire::Header(begin.data(), begin.size(), Wire::ItemBegin, ++s.sendSeq);
+    Wire::Write32(begin.data() + 8, world.RoundId());
+    Wire::Write32(begin.data() + 12, static_cast<std::uint32_t>(ground.size()));
+    append(begin);
+    for (const auto& entry : ground) {
+        const auto& item = entry.second;
+        std::array<std::uint8_t, Wire::ItemEntrySize> packet{};
+        Wire::Header(packet.data(), packet.size(), Wire::ItemEntry, ++s.sendSeq);
+        Wire::Write32(packet.data() + 8, world.RoundId());
+        Wire::Write32(packet.data() + 12, item.id);
+        packet[16] = static_cast<std::uint8_t>(item.kind);
+        Wire::Write32(packet.data() + 17, static_cast<std::uint32_t>(item.x));
+        Wire::Write32(packet.data() + 21, static_cast<std::uint32_t>(item.z));
+        append(packet);
+    }
+    std::array<std::uint8_t, Wire::ItemEndSize> end{};
+    Wire::Header(end.data(), end.size(), Wire::ItemEnd, ++s.sendSeq);
+    Wire::Write32(end.data() + 8, world.RoundId());
+    append(end);
+    return true;
+}
+
+bool ServerNetwork::QueueItemRemoved(TransportSession& s, const PickupResult& result) {
+    if (s.sendBuffer.size() + Wire::ItemRemovedSize + Wire::StateSize > 16384) return false;
+    std::array<std::uint8_t, Wire::ItemRemovedSize> packet{};
+    Wire::Header(packet.data(), packet.size(), Wire::ItemRemoved, ++s.sendSeq);
+    Wire::Write32(packet.data() + 8, world.RoundId());
+    Wire::Write32(packet.data() + 12, result.objectId);
+    Wire::Write32(packet.data() + 16, result.playerId);
+    packet[20] = result.slot;
+    s.sendBuffer.insert(s.sendBuffer.end(), packet.begin(), packet.end());
     return true;
 }
 
@@ -124,6 +195,7 @@ void ServerNetwork::StartWorldSnapshot(TransportSession& s) {
     s.snapshotMinZ = world.MinZ();
     s.snapshotMaxZ = world.MaxZ();
     s.snapshotNextZ = s.snapshotMinZ;
+    s.itemSnapshotPending = true;
 }
 
 void ServerNetwork::PumpWorldPackets(TransportSession& s, std::uint32_t tick) {
@@ -150,6 +222,11 @@ void ServerNetwork::PumpWorldPackets(TransportSession& s, std::uint32_t tick) {
         s.snapshotting = false;
         s.announcedMinZ = s.snapshotMinZ;
         s.announcedMaxZ = s.snapshotMaxZ;
+    }
+
+    if (s.itemSnapshotPending) {
+        if (!QueueItemSnapshot(s)) return;
+        s.itemSnapshotPending = false;
     }
 
     // 초기 스냅샷 구간 밖에 추가된 줄은 스냅샷 이후에 전송한다.
@@ -231,6 +308,24 @@ bool ServerNetwork::ProcessPackets(TransportSession& s, std::uint64_t tick) {
                 if (Wire::Read32(p + 8) == s.roundId && std::isfinite(x) && std::isfinite(z) &&
                     std::abs(x) < 1000000 && std::abs(z) < 1000000 && p[20] <= 1) {
                     s.x = x; s.z = z; s.alive = p[20] != 0;
+                }
+            } else if (p[3] == Wire::PickupRequest && size == Wire::PickupRequestSize) {
+                if (Wire::Read32(p + 8) == world.RoundId()) {
+                    bool snapshotsReady = true;
+                    for (std::size_t i = 0; i < sessionCount; ++i) {
+                        if (sessions[i].itemSnapshotPending ||
+                            sessions[i].sendBuffer.size() + Wire::ItemRemovedSize +
+                            Wire::StateSize > 16384) snapshotsReady = false;
+                    }
+                    if (snapshotsReady) {
+                        PickupResult result{};
+                        const PickupPlayer player{s.id, static_cast<std::int32_t>(std::round(s.x)),
+                                                  static_cast<std::int32_t>(std::round(s.z)), s.alive};
+                        if (items.TryPickup(Wire::Read32(p + 12), player, result)) {
+                            for (std::size_t i = 0; i < sessionCount; ++i)
+                                QueueItemRemoved(sessions[i], result);
+                        }
+                    }
                 }
             } else if (p[3] == 9 && size == 17) {
                 const auto input = Wire::Read32(p + 12);
@@ -347,6 +442,11 @@ void ServerNetwork::RunAcceptLoop() {
                     auto& s = sessions[sessionCount++]; s = TransportSession{};
                     s.id = nextSessionId++; s.socket = client;
                     s.roundId = world.RoundId();
+                    items.AddPlayer(s.id);
+                    std::array<std::uint8_t, Wire::ItemIdentitySize> identity{};
+                    Wire::Header(identity.data(), identity.size(), Wire::ItemIdentity, ++s.sendSeq);
+                    Wire::Write32(identity.data() + 8, s.id);
+                    s.sendBuffer.insert(s.sendBuffer.end(), identity.begin(), identity.end());
                     StartWorldSnapshot(s);
                     std::cout << "TCP session connected: " << s.id << std::endl;
                 }

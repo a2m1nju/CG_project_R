@@ -202,7 +202,7 @@ void generateLane(int z)
 		}
 
 		// Spawn inventory items on grass.
-		if (rand() % 100 < 80) {
+		if (!activeClientNetwork && rand() % 100 < 80) {
 			int spawnX = (rand() % 13) - 6;
 			if (!isTreeAt(spawnX, z) && rand() % 100 < 35) {
 				spawnItem(spawnX, z, static_cast<ItemType>(rand() % 4));
@@ -300,6 +300,31 @@ static void applyWorldEvent(const WorldEvent& event) {
     }
 }
 
+static void applyItemEvent(const ItemEvent& event) {
+    if (event.kind == ItemEvent::Kind::Snapshot) {
+        Item item{};
+        item.id = event.id;
+        item.x = static_cast<float>(event.x);
+        item.z = static_cast<float>(event.z);
+        item.type = event.itemKind == 4 ? ITEM_SHIELD
+            : static_cast<ItemType>(ITEM_REVERSE + event.itemKind - 1);
+        items.push_back(item);
+        return;
+    }
+    const auto found = std::find_if(items.begin(), items.end(),
+        [&event](const Item& item) { return item.id == event.id; });
+    if (found == items.end() || found->isCollected) return;
+    if (activeClientNetwork && event.playerId == activeClientNetwork->PlayerId()) {
+        const ItemKind kind = found->type == ITEM_SHIELD ? ItemKind::Shield
+            : static_cast<ItemKind>(found->type - ITEM_REVERSE + 1);
+        if (localItems.ApplyConfirmedPickup(1, event.slot, kind)) {
+            showItemFeedback("ITEM ACQUIRED");
+            PlaySound(TEXT("item.wav"), NULL, SND_ASYNC | SND_FILENAME);
+        }
+    }
+    found->isCollected = true;
+}
+
 void resetGame() {
     if (activeClientNetwork) {
         activeClientNetwork->ResetRound();
@@ -314,6 +339,8 @@ void timer(int value)
     if (activeClientNetwork) {
         WorldEvent worldEvent;
         while (activeClientNetwork->TakeWorldEvent(worldEvent)) applyWorldEvent(worldEvent);
+        ItemEvent itemEvent;
+        while (activeClientNetwork->TakeItemEvent(itemEvent)) applyItemEvent(itemEvent);
         float x, z;
         if (activeClientNetwork->TakeMove(x, z) && !isGameOver && introState == 0) {
             playerStartPos = playerPos;
@@ -420,6 +447,10 @@ void timer(int value)
 	for (auto& item : items) {
 		if (item.isCollected) continue;
 		if (std::abs(item.z - playerPos.z) < 0.5f && std::abs(item.x - playerPos.x) < 0.5f) {
+            if (activeClientNetwork) {
+                activeClientNetwork->RequestPickup(item.id);
+                continue;
+            }
             if (item.type >= ITEM_SHIELD) {
                 const auto picked = localItems.ResolvePickups({{1,
                     (int)std::round(playerPos.x), (int)std::round(playerPos.z), true}});
