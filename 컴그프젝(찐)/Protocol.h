@@ -17,15 +17,12 @@ std::array<std::uint8_t, 17> EncodeMovePacket(
     Direction physicalDirection);
 
 
+// All messages use the existing big-endian length/version/type/sequence header.
+// MOVE (9) remains the original 17-byte packet and Direction numbering.
 namespace Wire {
 constexpr std::uint8_t State = 10, WorldPosition = 11, Reset = 12;
 constexpr std::size_t StateSize = 29, PositionSize = 21;
-
-// 서버가 클라이언트에게 자기 접속 ID를 알려주는 메시지
-constexpr std::uint8_t AssignedId = 13;
-constexpr std::size_t AssignedIdSize = 12;
-
-constexpr std::uint32_t TickRate = 30, MoveCooldownTicks = 6;
+constexpr std::uint32_t TickRate = 30, MoveCooldownTicks = 3;
 enum class MoveStatus : std::uint8_t { Idle, Accepted, Cooldown, Invalid, Stale };
 inline std::uint32_t Read32(const std::uint8_t* p) {
     return (std::uint32_t(p[0]) << 24) | (std::uint32_t(p[1]) << 16) |
