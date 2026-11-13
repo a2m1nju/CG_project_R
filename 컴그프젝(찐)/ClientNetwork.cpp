@@ -89,7 +89,7 @@ bool ClientNetwork::PollDisconnected() {
     while (receiveBuffer.size() - offset >= 2) {
         const auto* p = receiveBuffer.data() + offset;
         const std::size_t size = (std::size_t(p[0]) << 8) | p[1];
-        if (size < 8 || size > 1024) { Disconnect(); return true; }
+        if (size < Wire::HeaderSize || size > 1024) { Disconnect(); return true; }
         if (receiveBuffer.size() - offset < size) break;
         if (p[2] != 1) { Disconnect(); return true; }
         if (p[3] == Wire::AssignedId) {
@@ -100,10 +100,8 @@ bool ClientNetwork::PollDisconnected() {
                 Disconnect();
                 return true;
             }
-            const std::uint32_t receivedId =
-                Wire::Read32(p + 8);
-            // 0은 미수신 상태로 사용하므로 유효한 ID로 받지 않음.
-            // 같은 연결에서 ID가 갑자기 달라지는 것도 허용하지 않음.
+            // ID 메시지는 공통 헤더 12바이트 + 플레이어 ID 4바이트
+            const std::uint32_t receivedId = Wire::Read32(p + Wire::HeaderSize);
             if (receivedId == 0 ||
                 (myPlayerId != 0 && myPlayerId != receivedId)) {
 
@@ -123,12 +121,12 @@ bool ClientNetwork::PollDisconnected() {
             size == Wire::StateSize) {
 
             lastState = now;
-
-            const auto round = Wire::Read32(p + 8);
+            const auto round = Wire::ReadRoundId(p);
 
             if (roundId == 0) {
                 roundId = round;
             }
+
             // 현재 라운드에서 내가 기다리던 이동 응답인지 확인
             if (round == roundId &&
                 pendingInput &&
@@ -169,8 +167,7 @@ bool ClientNetwork::PollDisconnected() {
 void ClientNetwork::SyncWorld(float x, float z, bool alive) {
     if (!Ready() || pendingInput || moveReady) return;
     std::array<std::uint8_t, Wire::PositionSize> p{};
-    Wire::Header(p.data(), p.size(), Wire::WorldPosition, ++sequence);
-    Wire::Write32(p.data() + 8, roundId);
+    Wire::Header(p.data(), p.size(), Wire::WorldPosition, ++sequence, roundId);
     Wire::WriteFloat(p.data() + 12, x); Wire::WriteFloat(p.data() + 16, z);
     p[20] = alive ? 1 : 0; Queue(p.data(), p.size());
 }
@@ -188,8 +185,7 @@ bool ClientNetwork::TakeMove(float& x, float& z) {
 void ClientNetwork::ResetRound() {
     if (!Ready()) return;
     std::array<std::uint8_t, 12> p{};
-    Wire::Header(p.data(), p.size(), Wire::Reset, ++sequence);
-    Wire::Write32(p.data() + 8, ++roundId);
+    Wire::Header(p.data(), p.size(), Wire::Reset, ++sequence, ++roundId);
     inputSeq = pendingInput = 0; moveReady = false;
     Queue(p.data(), p.size());
 }

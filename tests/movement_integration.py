@@ -17,15 +17,15 @@ class Peer:
         self.buffer = b''
         self.seq = 0
 
-    def packet(self, kind, body):
+    def packet(self, kind, round_id, body=b''):
         self.seq += 1
-        return struct.pack('!HBBI', 8 + len(body), 1, kind, self.seq) + body
+        return struct.pack('!HBBII', 12 + len(body), 1, kind, self.seq, round_id) + body
 
     def move(self, inp, direction, round_id=1):
-        return self.packet(9, struct.pack('!IIB', round_id, inp, direction))
+        return self.packet(9, round_id, struct.pack('!IB', inp, direction))
 
     def sync(self, x, z, alive=True, round_id=1):
-        return self.packet(11, struct.pack('!IffB', round_id, x, z, alive))
+        return self.packet(11, round_id, struct.pack('!ffB', x, z, alive))
 
     def state(self, predicate=lambda s: True):
         until = time.monotonic() + 3
@@ -95,7 +95,7 @@ def main():
             assert a.state(lambda s: s['tick'] > dead['tick'])['x'] == 2.25
 
             # Reset and an old-round MOVE coalesced in one TCP write.
-            a.sock.sendall(a.packet(12, struct.pack('!I', 2)) + a.move(6, 0, 1))
+            a.sock.sendall(a.packet(12, 2) + a.move(6, 0, 1))
             reset = a.state(lambda s: s['round'] == 2)
             assert (reset['input'], reset['x'], reset['z']) == (0, 0, 0)
             a.sock.sendall(a.move(1, 2, 2))
