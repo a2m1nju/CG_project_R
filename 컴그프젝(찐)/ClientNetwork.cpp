@@ -89,12 +89,12 @@ bool ClientNetwork::PollDisconnected() {
     while (receiveBuffer.size() - offset >= 2) {
         const auto* p = receiveBuffer.data() + offset;
         const std::size_t size = (std::size_t(p[0]) << 8) | p[1];
-        if (size < 8 || size > 1024) { Disconnect(); return true; }
+        if (size < Wire::HeaderSize || size > 1024) { Disconnect(); return true; }
         if (receiveBuffer.size() - offset < size) break;
         if (p[2] != 1) { Disconnect(); return true; }
         if (p[3] == Wire::State && size == Wire::StateSize) {
             lastState = now;
-            const auto round = Wire::Read32(p + 8);
+            const auto round = Wire::ReadRoundId(p);
             if (roundId == 0) roundId = round;
             if (round == roundId && pendingInput && Wire::Read32(p + 12) == pendingInput) {
                 pendingInput = 0;
@@ -112,8 +112,7 @@ bool ClientNetwork::PollDisconnected() {
 void ClientNetwork::SyncWorld(float x, float z, bool alive) {
     if (!Ready() || pendingInput || moveReady) return;
     std::array<std::uint8_t, Wire::PositionSize> p{};
-    Wire::Header(p.data(), p.size(), Wire::WorldPosition, ++sequence);
-    Wire::Write32(p.data() + 8, roundId);
+    Wire::Header(p.data(), p.size(), Wire::WorldPosition, ++sequence, roundId);
     Wire::WriteFloat(p.data() + 12, x); Wire::WriteFloat(p.data() + 16, z);
     p[20] = alive ? 1 : 0; Queue(p.data(), p.size());
 }
@@ -131,8 +130,7 @@ bool ClientNetwork::TakeMove(float& x, float& z) {
 void ClientNetwork::ResetRound() {
     if (!Ready()) return;
     std::array<std::uint8_t, 12> p{};
-    Wire::Header(p.data(), p.size(), Wire::Reset, ++sequence);
-    Wire::Write32(p.data() + 8, ++roundId);
+    Wire::Header(p.data(), p.size(), Wire::Reset, ++sequence, ++roundId);
     inputSeq = pendingInput = 0; moveReady = false;
     Queue(p.data(), p.size());
 }

@@ -73,27 +73,28 @@ bool ServerNetwork::ProcessPackets(TransportSession& s, std::uint64_t tick) {
     while (bytes.size() - offset >= 2) {
         const auto* p = bytes.data() + offset;
         const std::size_t size = (std::size_t(p[0]) << 8) | p[1];
-        if (size < 8 || size > 1024) return false;
+        if (size < Wire::HeaderSize || size > 1024) return false;
         if (bytes.size() - offset < size) break; // TCP fragment
         if (p[2] != 1) return false;
         const auto seq = Wire::Read32(p + 4);
+        const auto roundId = Wire::ReadRoundId(p);
         if (Wire::Newer(seq, s.sequence)) {
             s.sequence = seq;
-            if (p[3] == Wire::Reset && size == 12) {
-                if (Wire::Read32(p + 8) == s.roundId + 1) {
+            if (p[3] == Wire::Reset && size == Wire::HeaderSize) {
+                if (roundId == s.roundId + 1) {
                     ++s.roundId; s.x = s.z = 0; s.alive = true;
                     s.inputSeq = 0; s.nextMoveTick = 0; s.status = Wire::MoveStatus::Idle;
                 }
             } else if (p[3] == Wire::WorldPosition && size == Wire::PositionSize) {
                 // World, logs, banana displacement and death still belong to m_merge's local world.
                 const float x = Wire::ReadFloat(p + 12), z = Wire::ReadFloat(p + 16);
-                if (Wire::Read32(p + 8) == s.roundId && std::isfinite(x) && std::isfinite(z) &&
+                if (roundId == s.roundId && std::isfinite(x) && std::isfinite(z) &&
                     std::abs(x) < 1000000 && std::abs(z) < 1000000 && p[20] <= 1) {
                     s.x = x; s.z = z; s.alive = p[20] != 0;
                 }
             } else if (p[3] == 9 && size == 17) {
                 const auto input = Wire::Read32(p + 12);
-                if (Wire::Read32(p + 8) == s.roundId && Wire::Newer(input, s.inputSeq)) {
+                if (roundId == s.roundId && Wire::Newer(input, s.inputSeq)) {
                     s.inputSeq = input;
                     if (!s.alive || p[16] > 3) s.status = Wire::MoveStatus::Invalid;
                     else if (tick < s.nextMoveTick) s.status = Wire::MoveStatus::Cooldown;
@@ -123,13 +124,12 @@ void ServerNetwork::Tick(std::uint64_t tick) {
         if (!ProcessPackets(s, tick) || s.sendBuffer.size() + Wire::StateSize > 16384) {
             RemoveSession(i - 1); continue;
         }
-        std::array<std::uint8_t, Wire::StateSize> packet{};
-        Wire::Header(packet.data(), packet.size(), Wire::State, ++s.sendSeq);
-        Wire::Write32(packet.data() + 8, s.roundId);
-        Wire::Write32(packet.data() + 12, s.inputSeq);
-        Wire::Write32(packet.data() + 16, static_cast<std::uint32_t>(tick));
-        Wire::WriteFloat(packet.data() + 20, s.x); Wire::WriteFloat(packet.data() + 24, s.z);
-        packet[28] = static_cast<std::uint8_t>(s.status);
+        std::array<std::uint8_t, Wire::StateSize> packet{}; // 29바이트 = 헤더 12 + 본문 17
+        Wire::Header(packet.data(), packet.size(), Wire::State, ++s.sendSeq, s.roundId); // 0~11: 서버 송신 순번과 경기 번호를 포함한 공통 헤더
+        Wire::Write32(packet.data() + 12, s.inputSeq); // 12~15: 마지막으로 처리한 이동 요청의 순번
+        Wire::Write32(packet.data() + 16, static_cast<std::uint32_t>(tick)); // 16~19: 서버 틱의 하위 32비트
+        Wire::WriteFloat(packet.data() + 20, s.x); Wire::WriteFloat(packet.data() + 24, s.z); // 20~23: X, 24~27: Z
+        packet[28] = static_cast<std::uint8_t>(s.status); // 28: 이동 처리 결과 (승인, 이동 간격 제한 등)
         s.sendBuffer.insert(s.sendBuffer.end(), packet.begin(), packet.end());
         if (tick % Wire::TickRate == 0) {
             std::cout << "[TICK " << tick << "] player=" << s.id << " round=" << s.roundId
