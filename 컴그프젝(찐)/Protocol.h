@@ -22,7 +22,7 @@ std::array<std::uint8_t, 17> EncodeMovePacket(
 namespace Wire {
 constexpr std::uint8_t State = 10, WorldPosition = 11, Reset = 12;
 constexpr std::size_t StateSize = 29, PositionSize = 21;
-constexpr std::uint32_t TickRate = 30, MoveCooldownTicks = 6;
+constexpr std::uint32_t TickRate = 30, MoveCooldownTicks = 3;
 enum class MoveStatus : std::uint8_t { Idle, Accepted, Cooldown, Invalid, Stale };
 inline std::uint32_t Read32(const std::uint8_t* p) {
     return (std::uint32_t(p[0]) << 24) | (std::uint32_t(p[1]) << 16) |
