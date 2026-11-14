@@ -29,7 +29,8 @@ bool ItemSystem::SwitchSlot(PlayerId playerId, std::uint8_t slot) {
     return true;
 }
 
-bool ItemSystem::UseSelectedItem(PlayerId playerId, std::int32_t x, std::int32_t z) {
+bool ItemSystem::UseSelectedItem(PlayerId playerId, std::int32_t x, std::int32_t z,
+                                 PlayerId targetId) {
     auto inventory = inventories_.find(playerId);
     if (inventory == inventories_.end()) return false;
     auto& kind = inventory->second.slots[inventory->second.selectedSlot];
@@ -42,8 +43,8 @@ bool ItemSystem::UseSelectedItem(PlayerId playerId, std::int32_t x, std::int32_t
     } else if (rule.useMode == ItemUseMode::ActivateShield) {
         playerEffects_[playerId].shieldRemainingMs = rule.effectDurationMs;
     } else if (rule.useMode == ItemUseMode::TargetOpponent) {
-        // Local preview until multiplayer integration is available.
-        auto& effects = playerEffects_[playerId];
+        if (targetId != 0 && !GetInventory(targetId)) return false;
+        auto& effects = playerEffects_[targetId != 0 ? targetId : playerId];
         if (rule.effect == EffectKind::ReverseControls)
             effects.reverseControlsRemainingMs = rule.effectDurationMs;
         else if (rule.effect == EffectKind::Blackout)
@@ -133,6 +134,28 @@ bool ItemSystem::ApplyConfirmedPickup(PlayerId playerId, std::uint8_t slot,
         kind == ItemKind::Empty || kind > ItemKind::Shield ||
         owner->second.slots[slot] != ItemKind::Empty) return false;
     owner->second.slots[slot] = kind;
+    return true;
+}
+
+bool ItemSystem::ApplyInventoryState(PlayerId playerId, std::uint8_t selected,
+                                      ItemKind first, ItemKind second) {
+    auto found = inventories_.find(playerId);
+    if (found == inventories_.end() || selected >= found->second.slots.size() ||
+        first > ItemKind::Shield || second > ItemKind::Shield) return false;
+    found->second.selectedSlot = selected;
+    found->second.slots = {first, second};
+    return true;
+}
+
+bool ItemSystem::ApplyConfirmedEffect(PlayerId playerId, EffectKind effect,
+                                       std::uint32_t durationMs) {
+    auto found = playerEffects_.find(playerId);
+    if (found == playerEffects_.end() || durationMs == 0) return false;
+    if (effect == EffectKind::ReverseControls)
+        found->second.reverseControlsRemainingMs = durationMs;
+    else if (effect == EffectKind::Blackout)
+        found->second.blackoutRemainingMs = durationMs;
+    else return false;
     return true;
 }
 

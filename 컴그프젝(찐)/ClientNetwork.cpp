@@ -235,6 +235,29 @@ bool ClientNetwork::PollDisconnected() {
                 pendingPickups.erase(event.id);
                 itemEvents.push_back(event);
             }
+        } else if (p[3] == Wire::InventoryState && size == Wire::InventoryStateSize) {
+            if (Wire::Read32(p + 8) == roundId && itemReady) {
+                if (p[12] >= 2 || p[13] > 4 || p[14] > 4 || p[15] > 1) {
+                    Disconnect(); return true;
+                }
+                ItemEvent event{};
+                event.kind = ItemEvent::Kind::Inventory;
+                event.slot = p[12]; event.itemKind = p[13];
+                event.secondKind = p[14]; event.accepted = p[15] != 0;
+                itemEvents.push_back(event);
+            }
+        } else if (p[3] == Wire::ItemEffect && size == Wire::ItemEffectSize) {
+            if (Wire::Read32(p + 8) == roundId && itemReady) {
+                if ((p[12] != 1 && p[12] != 2) || Wire::Read32(p + 13) == 0 ||
+                    Wire::Read32(p + 13) > 60000) {
+                    Disconnect(); return true;
+                }
+                ItemEvent event{};
+                event.kind = ItemEvent::Kind::Effect;
+                event.itemKind = p[12];
+                event.durationMs = Wire::Read32(p + 13);
+                itemEvents.push_back(event);
+            }
         } else if (p[3] == Wire::State && size == Wire::StateSize) {
             lastState = now;
             const auto round = Wire::Read32(p + 8);
@@ -296,6 +319,21 @@ bool ClientNetwork::RequestPickup(std::uint32_t itemId) {
     if (!Queue(p.data(), p.size())) return false;
     pendingPickups[itemId] = now;
     return true;
+}
+bool ClientNetwork::RequestSwitch(std::uint8_t slot) {
+    if (!Ready() || slot >= 2) return false;
+    std::array<std::uint8_t, Wire::ItemSwitchSize> p{};
+    Wire::Header(p.data(), p.size(), Wire::ItemSwitch, ++sequence);
+    Wire::Write32(p.data() + 8, roundId);
+    p[12] = slot;
+    return Queue(p.data(), p.size());
+}
+bool ClientNetwork::RequestUse() {
+    if (!Ready()) return false;
+    std::array<std::uint8_t, Wire::ItemUseSize> p{};
+    Wire::Header(p.data(), p.size(), Wire::ItemUse, ++sequence);
+    Wire::Write32(p.data() + 8, roundId);
+    return Queue(p.data(), p.size());
 }
 void ClientNetwork::ResetRound() {
     if (!Ready() || resetRequested) return;

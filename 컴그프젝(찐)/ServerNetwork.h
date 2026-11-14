@@ -46,6 +46,9 @@ private:
     void PumpWorldPackets(TransportSession& session, std::uint32_t tick);
     bool QueueItemSnapshot(TransportSession& session);
     bool QueueItemRemoved(TransportSession& session, const PickupResult& result);
+    bool QueueInventoryState(TransportSession& session, bool accepted);
+    bool QueueItemEffect(TransportSession& session, ItemKind kind,
+                         std::uint32_t durationMs);
     void TryBeginNextRound();
     void Tick(std::uint64_t tick);
     WorldState world;

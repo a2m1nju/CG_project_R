@@ -21,9 +21,12 @@ struct WorldEvent {
 };
 
 struct ItemEvent {
-    enum class Kind { Snapshot, Removed } kind;
+    enum class Kind { Snapshot, Removed, Inventory, Effect } kind;
     std::uint32_t id = 0, playerId = 0;
     std::uint8_t itemKind = 0, slot = 0;
+    std::uint8_t secondKind = 0;
+    std::uint32_t durationMs = 0;
+    bool accepted = false;
     std::int32_t x = 0, z = 0;
 };
 
@@ -41,6 +44,8 @@ public:
     bool TakeWorldEvent(WorldEvent& event);
     bool TakeItemEvent(ItemEvent& event);
     bool RequestPickup(std::uint32_t itemId);
+    bool RequestSwitch(std::uint8_t slot);
+    bool RequestUse();
     std::uint32_t PlayerId() const { return playerId; }
     bool RequestMove(Direction direction, float x, float z);
     bool TakeMove(float& x, float& z);

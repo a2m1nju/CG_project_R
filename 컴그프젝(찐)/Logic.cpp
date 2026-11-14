@@ -201,7 +201,7 @@ void generateLane(int z)
 			}
 		}
 
-		// Spawn inventory items on grass.
+		// 잔디 지형에 획득 가능한 아이템을 생성한다.
 		if (!activeClientNetwork && rand() % 100 < 80) {
 			int spawnX = (rand() % 13) - 6;
 			if (!isTreeAt(spawnX, z) && rand() % 100 < 35) {
@@ -301,6 +301,21 @@ static void applyWorldEvent(const WorldEvent& event) {
 }
 
 static void applyItemEvent(const ItemEvent& event) {
+    if (event.kind == ItemEvent::Kind::Effect) {
+        const auto effect = event.itemKind == 1 ? EffectKind::ReverseControls
+            : EffectKind::Blackout;
+        if (localItems.ApplyConfirmedEffect(1, effect, event.durationMs))
+            showItemFeedback(effect == EffectKind::ReverseControls
+                ? "CONTROLS REVERSED" : "BLACKOUT");
+        return;
+    }
+    if (event.kind == ItemEvent::Kind::Inventory) {
+        localItems.ApplyInventoryState(1, event.slot,
+            static_cast<ItemKind>(event.itemKind),
+            static_cast<ItemKind>(event.secondKind));
+        showItemFeedback(event.accepted ? "ITEM UPDATED" : "ITEM REQUEST REJECTED");
+        return;
+    }
     if (event.kind == ItemEvent::Kind::Snapshot) {
         Item item{};
         item.id = event.id;
@@ -828,7 +843,7 @@ void initGame()
 	sedan.parts.push_back({ glm::vec3(windowXOffset, windowYOffset, -0.45f), glm::vec3(windowScaleX, windowScaleY, 0.1f), windowColor });
 	carDesigns.push_back(sedan);
 
-	//2.suv
+	//2. 스포츠유틸리티차량
 	CarDesign suv_pickup;
 	suv_pickup.baseScale = 1.0f;
 	//바디

@@ -123,11 +123,19 @@ void keyboard(unsigned char key, int x, int y)
 
     if (key == 'z' || key == 'Z') {
         const auto* inventory = localItems.GetInventory(1);
-        if (inventory) localItems.SwitchSlot(1, 1 - inventory->selectedSlot);
+        if (inventory) {
+            const auto next = static_cast<std::uint8_t>(1 - inventory->selectedSlot);
+            if (activeClientNetwork) activeClientNetwork->RequestSwitch(next);
+            else localItems.SwitchSlot(1, next);
+        }
         glutPostRedisplay();
         return;
     }
     if (key == 'x' || key == 'X') {
+        if (activeClientNetwork) {
+            activeClientNetwork->RequestUse();
+            return;
+        }
         const auto* inventory = localItems.GetInventory(1);
         const bool emptySlot = !inventory ||
             inventory->slots[inventory->selectedSlot] == ItemKind::Empty;

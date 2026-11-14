@@ -156,7 +156,7 @@ void drawCar(const Car& car, GLuint shader) {
 // 철로 그리기
 void drawRail(int z, bool isWarning, bool isLightOn, GLuint shader) {
 
-	// 침목 (Sleepers) 
+	// 침목
 	glm::vec3 woodColor = glm::vec3(0.35f, 0.2f, 0.1f);
 
 	for (float x = -50.0f; x <= 50.0f; x += 1.2f) {
@@ -169,7 +169,7 @@ void drawRail(int z, bool isWarning, bool isLightOn, GLuint shader) {
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
 
-	// 철로 (Rails) - 은색
+	// 철로 - 은색
 	glm::vec3 railColor = glm::vec3(0.6f, 0.6f, 0.7f);
 	float railZPositions[] = { -0.3f, 0.3f }; 
 
@@ -183,7 +183,7 @@ void drawRail(int z, bool isWarning, bool isLightOn, GLuint shader) {
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
 
-	// 신호등 (Signal) - 오른쪽 배치
+	// 신호등 - 오른쪽 배치
 	float signalX = 7.0f;
 
 	// 줄무늬 기둥
@@ -357,7 +357,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 
 			if (shader == shaderProgramID) {
 
-				// CASE 1: 강 
+				// 경우 1: 강
 				if (mapType[z] == 2) {
 					glActiveTexture(GL_TEXTURE1);
 					glBindTexture(GL_TEXTURE_2D, riverTexture); 
@@ -368,7 +368,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 
 					glVertexAttrib3f(1, 1.0f, 1.0f, 1.0f);
 				}
-				// CASE 2: 잔디 
+				// 경우 2: 잔디
 				else if (mapType[z] == 0) {
 					glActiveTexture(GL_TEXTURE1);
 					glBindTexture(GL_TEXTURE_2D, grassTexture); 
@@ -379,7 +379,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 
 					glVertexAttrib3f(1, colors.grass.r, colors.grass.g, colors.grass.b);
 				}
-				// CASE 3: 도로 또는 철길
+				// 경우 3: 도로 또는 철길
 				else {
 					glUniform1i(useTexLoc, 0);
 					glUniform2f(uvScaleLoc, 1.0f, 1.0f);
@@ -538,7 +538,7 @@ static void drawShieldAura(const glm::mat4& projection, const glm::mat4& view) {
     constexpr float kPi = 3.14159265f;
     constexpr float kTau = 2.0f * kPi;
 
-    // Draw a transparent shell without hiding the character inside it.
+    // 안쪽 캐릭터가 가려지지 않도록 투명한 보호막을 그린다.
     for (int band = 0; band < kLatitudeBands; ++band) {
         const float lower = -0.5f * kPi + kPi * band / kLatitudeBands;
         const float upper = -0.5f * kPi + kPi * (band + 1) / kLatitudeBands;
@@ -595,7 +595,7 @@ static void drawInventorySlots() {
     constexpr int kSlotTop = 105;
     constexpr int kBorder = 6;
 
-    // Draw the two HUD boxes in screen coordinates.
+    // 화면 좌표에 인벤토리 칸 두 개를 그린다.
     glUseProgram(0);
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -660,7 +660,7 @@ static void drawInventorySlots() {
     glMatrixMode(GL_MODELVIEW);
     glPopMatrix();
 
-    // Render the same 3D models used by world items into each occupied box.
+    // 아이템이 있는 칸에는 월드 아이템과 같은 3D 모델을 그린다.
     glUseProgram(shaderProgramID);
     glBindVertexArray(vao);
     glEnable(GL_DEPTH_TEST);
@@ -781,7 +781,7 @@ GLvoid drawScene()
 
 	renderObjects(shaderProgramID, proj * view);
     drawShieldAura(proj, view);
-	// Draw nearby ground items.
+	// 주변의 바닥 아이템을 그린다.
 	int currentZ = (int)std::round(playerPos.z);
 	int drawRangeFront = 30;
 	int drawRangeBack = 10;
@@ -818,12 +818,12 @@ GLvoid drawScene()
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
 
-	// UI
+	// 사용자 화면
 	// 1. 점수 표시
 	std::string scoreStr = "SCORE: " + std::to_string(score);
 	renderTextWithOutline(20, 60, scoreStr.c_str());
 
-	// Item effect status.
+	// 아이템 효과 상태를 표시한다.
 	float uiY = 120.0f;
 
     if (effects && effects->shieldRemainingMs > 0) {

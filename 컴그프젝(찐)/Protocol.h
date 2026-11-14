@@ -25,6 +25,10 @@ constexpr std::uint8_t State = 10, WorldPosition = 11, Reset = 12;
 constexpr std::uint8_t WorldLane = 20, WorldActor = 21, WorldBegin = 22, WorldEnd = 23;
 constexpr std::uint8_t ItemBegin = 30, ItemEntry = 31, ItemEnd = 32,
     PickupRequest = 33, ItemRemoved = 34, ItemIdentity = 35;
+constexpr std::uint8_t ItemSwitch = 36, ItemUse = 37, InventoryState = 38;
+constexpr std::size_t ItemSwitchSize = 13, ItemUseSize = 12, InventoryStateSize = 17;
+constexpr std::uint8_t ItemEffect = 39;
+constexpr std::size_t ItemEffectSize = 17;
 constexpr std::size_t ItemBeginSize = 16, ItemEntrySize = 25, ItemEndSize = 12,
     PickupRequestSize = 16, ItemRemovedSize = 21, ItemIdentitySize = 12;
 constexpr std::size_t WorldLaneSize = 33, WorldBeginSize = 24, WorldEndSize = 16;

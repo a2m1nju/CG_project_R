@@ -14,7 +14,7 @@ bool ServerApp::Initialize(std::uint16_t port) {
 
     this->port = port;
 
-    // Network loop owns transport and fixed-step movement state.
+    // 네트워크 루프가 통신과 고정 간격 이동 상태를 관리한다.
     // GameThread 구현 시 접속 대기 스레드보다 먼저 시작
     // 중간 실패 시 생성된 자원만 정리하고 false 반환
 

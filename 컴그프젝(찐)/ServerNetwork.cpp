@@ -129,6 +129,35 @@ bool ServerNetwork::QueueItemRemoved(TransportSession& s, const PickupResult& re
     return true;
 }
 
+bool ServerNetwork::QueueInventoryState(TransportSession& s, bool accepted) {
+    const auto* inventory = items.GetInventory(s.id);
+    if (!inventory || s.sendBuffer.size() + Wire::InventoryStateSize + Wire::StateSize > 16384)
+        return false;
+    std::array<std::uint8_t, Wire::InventoryStateSize> packet{};
+    Wire::Header(packet.data(), packet.size(), Wire::InventoryState, ++s.sendSeq);
+    Wire::Write32(packet.data() + 8, world.RoundId());
+    packet[12] = inventory->selectedSlot;
+    packet[13] = static_cast<std::uint8_t>(inventory->slots[0]);
+    packet[14] = static_cast<std::uint8_t>(inventory->slots[1]);
+    packet[15] = accepted ? 1 : 0;
+    packet[16] = 0;
+    s.sendBuffer.insert(s.sendBuffer.end(), packet.begin(), packet.end());
+    return true;
+}
+
+bool ServerNetwork::QueueItemEffect(TransportSession& s, ItemKind kind,
+                                    std::uint32_t durationMs) {
+    if (s.sendBuffer.size() + Wire::ItemEffectSize + Wire::StateSize > 16384)
+        return false;
+    std::array<std::uint8_t, Wire::ItemEffectSize> packet{};
+    Wire::Header(packet.data(), packet.size(), Wire::ItemEffect, ++s.sendSeq);
+    Wire::Write32(packet.data() + 8, world.RoundId());
+    packet[12] = static_cast<std::uint8_t>(kind);
+    Wire::Write32(packet.data() + 13, durationMs);
+    s.sendBuffer.insert(s.sendBuffer.end(), packet.begin(), packet.end());
+    return true;
+}
+
 bool ServerNetwork::QueueWorldBegin(TransportSession& s) {
     if (s.sendBuffer.size() + Wire::WorldBeginSize + Wire::StateSize > 16384) return false;
     std::array<std::uint8_t, Wire::WorldBeginSize> packet{};
@@ -327,6 +356,41 @@ bool ServerNetwork::ProcessPackets(TransportSession& s, std::uint64_t tick) {
                         }
                     }
                 }
+            } else if (p[3] == Wire::ItemSwitch && size == Wire::ItemSwitchSize) {
+                if (Wire::Read32(p + 8) == s.roundId) {
+                    const bool accepted = s.alive && items.SwitchSlot(s.id, p[12]);
+                    if (!QueueInventoryState(s, accepted)) return false;
+                }
+            } else if (p[3] == Wire::ItemUse && size == Wire::ItemUseSize) {
+                if (Wire::Read32(p + 8) == s.roundId) {
+                    std::vector<TargetPlayer> players;
+                    for (std::size_t i = 0; i < sessionCount; ++i)
+                        players.push_back({sessions[i].id,
+                            static_cast<std::int32_t>(std::round(sessions[i].z * 1000)),
+                            sessions[i].alive});
+                    const auto* inventory = items.GetInventory(s.id);
+                    const auto kind = inventory ? inventory->slots[inventory->selectedSlot]
+                        : ItemKind::Empty;
+                    const auto target = items.SelectAttackTarget(s.id, players);
+                    const bool needsTarget = kind == ItemKind::ReverseControls ||
+                        kind == ItemKind::Blackout;
+                    TransportSession* targetSession = nullptr;
+                    if (needsTarget) {
+                        for (std::size_t i = 0; i < sessionCount; ++i)
+                            if (sessions[i].id == target) targetSession = &sessions[i];
+                    }
+                    const bool targetReady = !needsTarget || (targetSession &&
+                        !targetSession->itemSnapshotPending &&
+                        targetSession->sendBuffer.size() + Wire::ItemEffectSize +
+                            Wire::StateSize <= 16384);
+                    const bool accepted = s.alive && targetReady &&
+                        items.UseSelectedItem(s.id,
+                        static_cast<std::int32_t>(std::round(s.x)),
+                        static_cast<std::int32_t>(std::round(s.z)), target);
+                    if (!QueueInventoryState(s, accepted)) return false;
+                    if (accepted && needsTarget && !QueueItemEffect(*targetSession, kind,
+                        GetItemRule(kind).effectDurationMs)) return false;
+                }
             } else if (p[3] == 9 && size == 17) {
                 const auto input = Wire::Read32(p + 12);
                 if (Wire::Read32(p + 8) == s.roundId && Wire::Newer(input, s.inputSeq)) {
@@ -354,6 +418,7 @@ bool ServerNetwork::ProcessPackets(TransportSession& s, std::uint64_t tick) {
 }
 
 void ServerNetwork::Tick(std::uint64_t tick) {
+    items.AdvanceEffects(tick % 3 == 0 ? 34 : 33);
     for (std::size_t i = sessionCount; i > 0; --i) {
         auto& s = sessions[i - 1];
         if (!ProcessPackets(s, tick)) {

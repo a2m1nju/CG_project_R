@@ -32,12 +32,17 @@ public:
     bool AddGroundItem(const GroundItem& item);
     bool AddPlayer(PlayerId playerId);
     bool SwitchSlot(PlayerId playerId, std::uint8_t slot);
-    bool UseSelectedItem(PlayerId playerId, std::int32_t x, std::int32_t z);
+    bool UseSelectedItem(PlayerId playerId, std::int32_t x, std::int32_t z,
+                         PlayerId targetId = 0);
     bool ResolveBananaHit(PlayerId playerId, std::int32_t x, std::int32_t z);
     void AdvanceEffects(std::uint32_t elapsedMs);
     std::vector<PickupResult> ResolvePickups(const std::vector<PickupPlayer>& players);
     bool TryPickup(ObjectId objectId, const PickupPlayer& player, PickupResult& result);
     bool ApplyConfirmedPickup(PlayerId playerId, std::uint8_t slot, ItemKind kind);
+    bool ApplyInventoryState(PlayerId playerId, std::uint8_t selected,
+                             ItemKind first, ItemKind second);
+    bool ApplyConfirmedEffect(PlayerId playerId, EffectKind effect,
+                              std::uint32_t durationMs);
     PlayerId SelectAttackTarget(PlayerId userId,
         const std::vector<TargetPlayer>& players) const;
     const PlayerInventory* GetInventory(PlayerId playerId) const;
