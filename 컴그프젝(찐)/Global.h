@@ -68,3 +68,12 @@ extern GLuint logTexture;
 extern GLuint lilyPadTexture;
 
 extern bool isGodMode;
+
+// 현재 클라이언트가 보여줄 화면
+enum class ClientScreen {
+    Title,
+    Lobby,
+    Playing
+};
+
+extern ClientScreen clientScreen;

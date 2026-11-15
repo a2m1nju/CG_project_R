@@ -262,6 +262,28 @@ void resetGame() {
 
 void timer(int value)
 {
+	if (glutGetWindow() == 0) {
+		return;
+	}
+
+	if (clientScreen != ClientScreen::Playing) {
+		// 타이틀의 기존 로고 등장 애니메이션
+		if (clientScreen == ClientScreen::Title &&
+			introState == 1)
+		{
+			logoX += (logoTargetX - logoX) * 0.05f;
+
+			if (std::abs(logoX - logoTargetX) < 1.0f) {
+				logoX = logoTargetX;
+				introState = 2;
+			}
+		}
+
+		glutPostRedisplay();
+		glutTimerFunc(16, timer, 0);
+		return;
+	}
+
     if (activeClientNetwork) {
         float x, z;
         if (activeClientNetwork->TakeMove(x, z) && !isGameOver && introState == 0) {

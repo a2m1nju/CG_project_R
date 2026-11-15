@@ -7,6 +7,10 @@
 
 void specialKeyboard(int key, int x, int y)
 {
+	if (clientScreen != ClientScreen::Playing) {
+		return;
+	}
+
 	//  인트로 상태 처리
 	if (introState != 0) {
 		if (introState == 2) {
@@ -97,6 +101,14 @@ void specialKeyboard(int key, int x, int y)
 
 void keyboard(unsigned char key, int x, int y)
 {
+	if (clientScreen != ClientScreen::Playing) {
+		if (key == 'q' || key == 'Q') {
+			glutLeaveMainLoop();
+		}
+
+		return;
+	}
+
 	// 게임 오버 시 아무 키나 누르면 재시작
 	if (isGameOver) {
 		resetGame();
@@ -151,4 +163,60 @@ void keyboard(unsigned char key, int x, int y)
         }
     }
 
+}
+
+void mouse(int button, int state, int x, int y)
+{
+	if (button != GLUT_LEFT_BUTTON || state != GLUT_DOWN) {
+		return;
+	}
+
+	const int width = glutGet(GLUT_WINDOW_WIDTH);
+	const int height = glutGet(GLUT_WINDOW_HEIGHT);
+
+	if (width <= 0 || height <= 0) {
+		return;
+	}
+
+	// 실제 창의 마우스 좌표를 UI 기준 좌표로 변환
+	const float uiX = x * 1280.0f / width;
+	const float uiY = y * 960.0f / height;
+
+	// 타이틀의 GAME START
+	if (clientScreen == ClientScreen::Title &&
+		introState == 2)
+	{
+		const bool clicked =
+			uiX >= 460.0f && uiX <= 820.0f &&
+			uiY >= 680.0f && uiY <= 770.0f;
+
+		if (clicked) {
+			// 화면 확인용 이동.
+			// 통신 연결 시 여기에서 JOIN을 요청하고,
+			// 서버 응답에 따라 화면을 전환하도록 변경.
+			clientScreen = ClientScreen::Lobby;
+			introState = 0;
+
+			glutPostRedisplay();
+		}
+
+		return;
+	}
+
+	// 대기방의 BACK
+	if (clientScreen == ClientScreen::Lobby) {
+		const bool clicked =
+			uiX >= 460.0f && uiX <= 820.0f &&
+			uiY >= 780.0f && uiY <= 870.0f;
+
+		if (clicked) {
+			clientScreen = ClientScreen::Title;
+
+			// 돌아갈 때는 로고를 중앙에 바로 표시
+			introState = 2;
+			logoX = logoTargetX;
+
+			glutPostRedisplay();
+		}
+	}
 }

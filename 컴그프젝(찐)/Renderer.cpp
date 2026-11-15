@@ -703,8 +703,208 @@ static void drawInventorySlots() {
     }
 }
 
+static void drawMenuText(float centerX, float y, const char* text, float scale = 1.0f)
+{
+	float width = 0.0f;
+
+	for (const char* p = text; *p; ++p) {
+		const unsigned char ch =
+			static_cast<unsigned char>(*p);
+
+		if (ch >= 32 && ch < 128) {
+			width += cdata[ch - 32].xadvance;
+		}
+	}
+
+	renderTextTTF(
+		centerX - width * scale * 0.5f,
+		y, text,
+		1.0f, 1.0f, 1.0f, scale);
+}
+
+static void drawMenuButton(
+	float x, float y,
+	float width, float height,
+	const char* text)
+{
+	glUseProgram(0);
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	glActiveTexture(GL_TEXTURE1);
+	glDisable(GL_TEXTURE_2D);
+	glActiveTexture(GL_TEXTURE0);
+	glDisable(GL_TEXTURE_2D);
+
+	glDisable(GL_LIGHTING);
+	glDisable(GL_DEPTH_TEST);
+
+	glMatrixMode(GL_PROJECTION);
+	glPushMatrix();
+	glLoadIdentity();
+	gluOrtho2D(0, 1280, 0, 960);
+
+	glMatrixMode(GL_MODELVIEW);
+	glPushMatrix();
+	glLoadIdentity();
+
+	// OpenGL 사각형 좌표는 아래쪽이 원점이므로 변환
+	const float top = 960.0f - y;
+	const float bottom = 960.0f - y - height;
+
+	glColor3f(0.15f, 0.42f, 0.65f);
+
+	glBegin(GL_QUADS);
+	glVertex2f(x, bottom);
+	glVertex2f(x + width, bottom);
+	glVertex2f(x + width, top);
+	glVertex2f(x, top);
+	glEnd();
+
+	glPopMatrix();
+	glMatrixMode(GL_PROJECTION);
+	glPopMatrix();
+	glMatrixMode(GL_MODELVIEW);
+
+	drawMenuText(
+		x + width * 0.5f,
+		y + height * 0.5f + 15.0f,
+		text, 0.7f);
+}
+
+static void drawMenuScreen()
+{
+	const int windowWidth = glutGet(GLUT_WINDOW_WIDTH);
+	const int windowHeight = glutGet(GLUT_WINDOW_HEIGHT);
+
+	if (windowWidth <= 0 || windowHeight <= 0) {
+		return;
+	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glDisable(GL_SCISSOR_TEST);
+	glViewport(0, 0, windowWidth, windowHeight);
+
+	glDepthMask(GL_TRUE);
+	glClearColor(0.08f, 0.12f, 0.18f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	// 타이틀 화면
+	if (clientScreen == ClientScreen::Title) {
+		glUseProgram(0);
+		glBindVertexArray(0);
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glActiveTexture(GL_TEXTURE0);
+
+		drawLogo();
+
+		if (introState == 2) {
+			drawMenuButton(
+				460.0f, 680.0f,
+				360.0f, 90.0f,
+				"GAME START");
+		}
+
+		return;
+	}
+
+	// 대기방의 닭 모델을 그릴 준비
+	glUseProgram(shaderProgramID);
+	glBindVertexArray(vao);
+
+	glEnable(GL_DEPTH_TEST);
+	glDisable(GL_BLEND);
+
+	// 모델 부위별 색상을 drawChicken()에서 지정
+	glDisableVertexAttribArray(1);
+
+	const glm::mat4 projection = glm::perspective(
+		glm::radians(35.0f),
+		260.0f / 300.0f,
+		0.1f, 20.0f);
+
+	// 닭 부리는 -Z 방향이므로 앞쪽에서 바라봄
+	const glm::mat4 view = glm::lookAt(
+		glm::vec3(1.2f, 0.9f, -3.0f),
+		glm::vec3(0.0f, -0.05f, 0.0f),
+		glm::vec3(0.0f, 1.0f, 0.0f));
+
+	// 기존 인벤토리 모델과 같은 그림자 제외 방식
+	const glm::mat4 noShadow = glm::translate(
+		glm::mat4(1.0f),
+		glm::vec3(0.0f, 0.0f, 4.0f));
+
+	glUniformMatrix4fv(
+		glGetUniformLocation(shaderProgramID, "projection"),
+		1, GL_FALSE, glm::value_ptr(projection));
+
+	glUniformMatrix4fv(
+		glGetUniformLocation(shaderProgramID, "view"),
+		1, GL_FALSE, glm::value_ptr(view));
+
+	glUniformMatrix4fv(
+		glGetUniformLocation(shaderProgramID, "lightSpaceMatrix"),
+		1, GL_FALSE, glm::value_ptr(noShadow));
+
+	glUniform1i(
+		glGetUniformLocation(shaderProgramID, "useTexture"), 0);
+
+	glUniform1i(
+		glGetUniformLocation(shaderProgramID, "enableSpotlight"), 0);
+
+	glUniform1i(
+		glGetUniformLocation(shaderProgramID, "isGlitch"), 0);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, depthMap);
+
+	glUniform1i(
+		glGetUniformLocation(shaderProgramID, "shadowMap"), 0);
+
+	// 화면의 세 구역에 같은 닭 모델을 각각 그리기
+	for (int i = 0; i < 3; ++i) {
+		const int centerX = 320 + i * 320;
+
+		glViewport(
+			(centerX - 130) * windowWidth / 1280,
+			360 * windowHeight / 960,
+			260 * windowWidth / 1280,
+			300 * windowHeight / 960);
+
+		drawChicken(shaderProgramID, glm::mat4(1.0f));
+	}
+
+	// 글자는 창 전체를 기준으로 표시
+	glViewport(0, 0, windowWidth, windowHeight);
+
+	drawMenuText(640.0f, 180.0f, "LOBBY");
+
+	const char* labels[] = { "1P", "2P", "3P" };
+
+	for (int i = 0; i < 3; ++i) {
+		drawMenuText(
+			320.0f + i * 320.0f,
+			660.0f,
+			labels[i]);
+	}
+
+	drawMenuButton(
+		460.0f, 780.0f,
+		360.0f, 90.0f,
+		"BACK");
+}
+
+
+
+
 GLvoid drawScene()
 {
+	// 타이틀과 대기방에서는 게임 월드를 그리지 않음
+	if (clientScreen != ClientScreen::Playing) {
+		drawMenuScreen();
+		glutSwapBuffers();
+		return;
+	}
 	glm::vec3 shakeOffset(0.0f, 0.0f, 0.0f);
 
 	if (shakeTimer > 0.0f) {

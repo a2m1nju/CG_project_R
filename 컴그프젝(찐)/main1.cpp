@@ -98,6 +98,7 @@ int main(int argc, char** argv)
     glutReshapeFunc(Reshape);
     glutSpecialFunc(specialKeyboard);
     glutKeyboardFunc(keyboard);
+    glutMouseFunc(mouse);
     glutTimerFunc(16, timer, 0);
 
     if (argc == 2) {
