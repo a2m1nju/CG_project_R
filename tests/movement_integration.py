@@ -49,6 +49,8 @@ class Peer:
         until = time.monotonic() + 3
         while time.monotonic() < until:
             packet = self.frame()
+            if packet[3] in (3, 4):  # Lobby notices share the TCP stream with movement state.
+                continue
             assert len(packet) == 29 and packet[2:4] == b'\x01\x0a'
             values = struct.unpack('!IIIIffB', packet[4:])
             s = dict(zip(('seq', 'round', 'input', 'tick', 'x', 'z', 'status'), values))

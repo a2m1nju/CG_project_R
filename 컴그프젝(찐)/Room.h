@@ -85,6 +85,7 @@ public:
 
     JoinResult Enqueue(SessionId id);
     void TryPromote();
+    const RoomState& GetRoomState() const { return room; }
     bool SetReady(SessionId id, LobbyEpoch epoch, bool ready);
 
     void DissolveReadyLobby(SessionId leaverId);

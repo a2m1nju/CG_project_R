@@ -82,6 +82,55 @@ bool ClientNetwork::Queue(const std::uint8_t* p, std::size_t size) {
     if (!IsConnected() || sendBuffer.size() + size > 16384) { Disconnect(); return false; }
     sendBuffer.insert(sendBuffer.end(), p, p + size); return Flush();
 }
+bool ClientNetwork::ApplyMatchState(const std::uint8_t* p, std::size_t size) {
+    if (!joined || Wire::ReadRoundId(p) != 0) return false;
+    if (p[3] == Wire::QueueState) {
+        if (size != Wire::QueueStateSize || p[16] != Wire::MatchingPhase) return false;
+        const auto position = (std::uint16_t(p[12]) << 8) | p[13];
+        const auto count = (std::uint16_t(p[14]) << 8) | p[15];
+        if (position < 1 || position > count || count > 3) return false;
+        queuePosition = static_cast<std::uint16_t>(position);
+        waitingCount = static_cast<std::uint16_t>(count);
+        lobbyEpoch = 0;
+        lobbyMembers.clear(); //매칭 큐로 돌아오면 이전 대기실 정보 제거
+        std::cout << "QUEUE_STATE position=" << queuePosition
+                  << " waiting=" << waitingCount << std::endl;
+        return true;
+    }
+
+    if (size < Wire::LobbyPrefixSize || p[16] != Wire::LobbyEntered || p[17] != 3) {
+        return false;
+    }
+    std::vector<LobbyMember> members;
+    std::size_t offset = Wire::LobbyPrefixSize;
+    for (std::size_t i = 0; i < p[17]; ++i) {
+        if (size - offset < Wire::LobbyMemberPrefixSize) return false;
+        const auto nicknameSize = p[offset + 6];
+        if (p[offset + 5] > 1 || nicknameSize == 0 ||
+            nicknameSize > Wire::MaxNicknameBytes ||
+            size - offset - Wire::LobbyMemberPrefixSize < nicknameSize) return false;
+
+        members.push_back({Wire::Read32(p + offset), p[offset + 4], p[offset + 5] != 0,
+            std::string(reinterpret_cast<const char*>(p + offset + Wire::LobbyMemberPrefixSize),
+                        nicknameSize)});
+        offset += Wire::LobbyMemberPrefixSize + nicknameSize;
+    }
+    if (offset != size) return false;
+
+    // 전체 멤버를 확인한 뒤 대기실 상태를 한 번에 반영
+    lobbyEpoch = Wire::Read32(p + Wire::HeaderSize);
+    lobbyMembers.swap(members);
+    queuePosition = waitingCount = 0;
+    std::cout << "READY_LOBBY_STATE epoch=" << lobbyEpoch
+              << " members=" << lobbyMembers.size() << '\n';
+    for (const auto& member : lobbyMembers) {
+        std::cout << "  player=" << member.playerId << " nickname=" << member.nickname
+                  << " ready=" << member.ready << '\n';
+    }
+    std::cout.flush();
+    return true;
+}
+
 bool ClientNetwork::PollDisconnected() {
     if (!IsConnected()) return false;
     const auto now = std::chrono::steady_clock::now();
@@ -116,6 +165,8 @@ bool ClientNetwork::PollDisconnected() {
             const auto error = (std::uint16_t(p[12]) << 8) | p[13];
             std::cerr << "JOIN rejected (code " << error << ").\n";
             if (!joined) { Disconnect(); return true; }
+        } else if (p[3] == Wire::QueueState || p[3] == Wire::ReadyLobbyState) {
+            if (!ApplyMatchState(p, size)) { Disconnect(); return true; }
         } else if (joined && p[3] == Wire::State && size == Wire::StateSize) {
             lastState = now;
             const auto round = Wire::ReadRoundId(p);
@@ -162,6 +213,9 @@ void ClientNetwork::ResetRound() {
 void ClientNetwork::Disconnect() {
     receiveBuffer.clear(); sendBuffer.clear();
     joined = false;
+    lobbyMembers.clear();
+    lobbyEpoch = 0;
+    queuePosition = waitingCount = 0;
     sessionId = playerId = 0;
     sequence = inputSeq = pendingInput = roundId = 0; pollingStarted = moveReady = false;
     if (serverSocket != INVALID_SOCKET) {

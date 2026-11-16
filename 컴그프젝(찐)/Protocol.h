@@ -26,6 +26,11 @@ namespace Wire {
 // 패킷 순번은 자주 증가하므로 32비트로 순환 주기를 늘리고, 경기 번호는 RoundId의 32비트 폭을 따른다.
 // 현재 송수신 코드의 패킷 상한은 1024바이트다. 4096바이트는 LLD 상한이며, 큰 INIT/STATE는 조각 전송을 전제로 한다.
 constexpr std::size_t HeaderSize = 12;
+constexpr std::uint8_t QueueState = 3, ReadyLobbyState = 4;
+constexpr std::uint8_t MatchingPhase = 0, LobbyEntered = 0;
+constexpr std::size_t QueueStateSize = HeaderSize + 5;
+constexpr std::size_t LobbyPrefixSize = HeaderSize + 6;
+constexpr std::size_t LobbyMemberPrefixSize = 7;
 constexpr std::uint8_t Join = 1, Welcome = 2, Error = 21; //참가 요청·승인·거절
 constexpr std::size_t MaxNicknameBytes = 32;
 constexpr std::size_t WelcomeSize = HeaderSize + 8, ErrorSize = HeaderSize + 7;

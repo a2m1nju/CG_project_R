@@ -1,5 +1,6 @@
 ﻿#include "ServerNetwork.h"
 #include "Room.h"
+#include <algorithm>
 #include <cstring>
 #include <chrono>
 #include <cmath>
@@ -90,6 +91,8 @@ bool ServerNetwork::HandleJoin(TransportSession& s, const std::uint8_t* p,
         if (result.code == 0) {
             s.joined = true; //송신 실패 시에도 RemoveSession에서 참가 상태 정리
             s.playerId = result.playerId;
+            s.nickname.assign(reinterpret_cast<const char*>(p + Wire::HeaderSize + 1),
+                              p[Wire::HeaderSize]); //길이를 확인한 닉네임 보관
 
             std::array<std::uint8_t, Wire::WelcomeSize> packet{};
             if (s.sendBuffer.size() + packet.size() > 16384) return false;
@@ -98,6 +101,7 @@ bool ServerNetwork::HandleJoin(TransportSession& s, const std::uint8_t* p,
             Wire::Write32(packet.data() + Wire::HeaderSize + 4, s.playerId);
             s.sendBuffer.insert(s.sendBuffer.end(), packet.begin(), packet.end());
             matchCoordinator.TryPromote(); //승인 응답을 큐에 넣은 뒤 대기실 구성
+            matchStateDirty = true; //이번 틱의 최종 방 상태 전송 예약
             return true;
         }
         error = result.code == 2 ? Wire::JoinDuplicate : Wire::JoinBusy;
@@ -169,6 +173,68 @@ bool ServerNetwork::ProcessPackets(TransportSession& s, std::uint64_t tick) {
     return true;
 }
 
+void ServerNetwork::BroadcastMatchState() {
+    matchStateDirty = false;
+    const auto& room = matchCoordinator.GetRoomState();
+    std::vector<std::uint8_t> lobby;
+    if (room.phase == ServicePhase::READY_LOBBY) {
+        lobby.resize(Wire::LobbyPrefixSize);
+        Wire::Write32(lobby.data() + Wire::HeaderSize, room.lobbyEpoch);
+        lobby[16] = Wire::LobbyEntered;
+        lobby[17] = static_cast<std::uint8_t>(room.members.size());
+        for (std::size_t i = 0; i < room.members.size(); ++i) {
+            const auto end = sessions.begin() + sessionCount;
+            const auto member = std::find_if(sessions.begin(), end, [&](const auto& s) {
+                return s.joined && s.id == room.members[i];
+            });
+            if (member == end) return;
+
+            const auto offset = lobby.size();
+            lobby.resize(offset + Wire::LobbyMemberPrefixSize);
+            Wire::Write32(lobby.data() + offset, member->playerId);
+            lobby[offset + 4] = 0; //캐릭터 선택 전 기본값
+            lobby[offset + 5] = room.ready[i] ? 1 : 0;
+            lobby[offset + 6] = static_cast<std::uint8_t>(member->nickname.size());
+            lobby.insert(lobby.end(), member->nickname.begin(), member->nickname.end());
+        }
+    }
+
+    std::array<bool, 8> overflow{};
+    for (std::size_t i = 0; i < sessionCount; ++i) {
+        auto& s = sessions[i];
+        if (!s.joined) continue;
+        const auto queueMember = std::find(room.queue.begin(), room.queue.end(), s.id);
+        std::array<std::uint8_t, Wire::QueueStateSize> queuePacket{};
+        std::uint8_t* packet = nullptr;
+        std::size_t size = 0;
+        std::uint8_t type = 0;
+        if (room.phase == ServicePhase::MATCHING && queueMember != room.queue.end()) {
+            queuePacket[13] = static_cast<std::uint8_t>(queueMember - room.queue.begin() + 1);
+            queuePacket[15] = static_cast<std::uint8_t>(room.queue.size());
+            queuePacket[16] = Wire::MatchingPhase;
+            packet = queuePacket.data();
+            size = queuePacket.size();
+            type = Wire::QueueState;
+        } else if (!lobby.empty() &&
+                   std::find(room.members.begin(), room.members.end(), s.id) != room.members.end()) {
+            packet = lobby.data();
+            size = lobby.size();
+            type = Wire::ReadyLobbyState;
+        }
+        if (!packet) continue;
+        if (s.sendBuffer.size() + size > 16384) {
+            overflow[i] = true;
+            continue;
+        }
+        Wire::Header(packet, size, type, ++s.sendSeq, 0); //경기 전 상태 통지
+        s.sendBuffer.insert(s.sendBuffer.end(), packet, packet + size);
+    }
+    // 통지를 모두 큐에 넣은 뒤 슬롯을 회수
+    for (std::size_t i = sessionCount; i > 0; --i) {
+        if (overflow[i - 1]) RemoveSession(i - 1);
+    }
+}
+
 void ServerNetwork::Tick(std::uint64_t tick) {
     for (std::size_t i = sessionCount; i > 0; --i) {
         auto& s = sessions[i - 1];
@@ -195,6 +261,7 @@ void ServerNetwork::Tick(std::uint64_t tick) {
         }
         if (!Flush(s)) RemoveSession(i - 1);
     }
+    if (matchStateDirty) BroadcastMatchState();
     std::cout.flush();
 }
 
@@ -251,6 +318,7 @@ void ServerNetwork::RemoveSession(std::size_t index) {
     const auto id = sessions[index].id;
     if (sessions[index].joined) {
         matchCoordinator.OnDisconnect(id); //슬롯 이동 전에 방 참가 상태 정리
+        matchStateDirty = true; //이탈로 달라진 대기 순번 통지
     }
     closesocket(sessions[index].socket);
     --sessionCount;

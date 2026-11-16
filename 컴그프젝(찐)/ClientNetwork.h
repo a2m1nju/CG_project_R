@@ -23,6 +23,16 @@ public:
     void SyncWorld(float x, float z, bool alive);
     void ResetRound();
 private:
+    struct LobbyMember {
+        std::uint32_t playerId = 0;
+        std::uint8_t characterId = 0;
+        bool ready = false;
+        std::string nickname;
+    };
+    std::vector<LobbyMember> lobbyMembers;
+    std::uint32_t lobbyEpoch = 0;
+    std::uint16_t queuePosition = 0, waitingCount = 0;
+    bool ApplyMatchState(const std::uint8_t* packet, std::size_t size);
     bool SendJoin(const std::string& nickname);
     bool Queue(const std::uint8_t* p, std::size_t size);
     bool Flush();
