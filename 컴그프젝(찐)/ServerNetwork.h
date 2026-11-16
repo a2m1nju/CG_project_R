@@ -30,6 +30,7 @@ private:
         bool snapshotting = false;
         bool snapshotBeginPending = false;
         bool itemSnapshotPending = false;
+        bool checkBanana = false, awaitingBananaPosition = false;
         std::int32_t snapshotMinZ = 0, snapshotMaxZ = 0, snapshotNextZ = 0;
         std::int32_t announcedMinZ = 0, announcedMaxZ = 0;
         Wire::MoveStatus status = Wire::MoveStatus::Idle;
@@ -49,6 +50,10 @@ private:
     bool QueueInventoryState(TransportSession& session, bool accepted);
     bool QueueItemEffect(TransportSession& session, ItemKind kind,
                          std::uint32_t durationMs);
+    bool QueueBananaPlaced(TransportSession& session, const BananaTrap& trap);
+    bool QueueBananaHit(TransportSession& session, const BananaHitResult& hit,
+                        PlayerId victimId, std::int32_t x, std::int32_t z);
+    bool QueueItemSpawned(TransportSession& session, const GroundItem& item);
     void TryBeginNextRound();
     void Tick(std::uint64_t tick);
     WorldState world;
@@ -56,6 +61,7 @@ private:
     std::array<TransportSession, 8> sessions{};
     std::size_t sessionCount = 0;
     std::uint32_t nextSessionId = 1;
+    ObjectId nextSpawnItemId = 1;
     std::atomic<bool> stopping{false};
     SOCKET listenSocket = INVALID_SOCKET;
     bool winsockInitialized = false;

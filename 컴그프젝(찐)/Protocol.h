@@ -29,6 +29,12 @@ constexpr std::uint8_t ItemSwitch = 36, ItemUse = 37, InventoryState = 38;
 constexpr std::size_t ItemSwitchSize = 13, ItemUseSize = 12, InventoryStateSize = 17;
 constexpr std::uint8_t ItemEffect = 39;
 constexpr std::size_t ItemEffectSize = 17;
+constexpr std::uint8_t BananaPlaced = 40;
+constexpr std::size_t BananaPlacedSize = 28;
+constexpr std::uint8_t BananaHit = 41;
+constexpr std::size_t BananaHitSize = 29;
+constexpr std::uint8_t ItemSpawnRequest = 42, ItemSpawned = 43;
+constexpr std::size_t ItemSpawnRequestSize = 13, ItemSpawnedSize = 25;
 constexpr std::size_t ItemBeginSize = 16, ItemEntrySize = 25, ItemEndSize = 12,
     PickupRequestSize = 16, ItemRemovedSize = 21, ItemIdentitySize = 12;
 constexpr std::size_t WorldLaneSize = 33, WorldBeginSize = 24, WorldEndSize = 16;

@@ -20,6 +20,11 @@ struct PickupResult {
     ItemKind kind;
 };
 
+struct BananaHitResult {
+    ObjectId trapId = 0;
+    bool pushed = false;
+};
+
 // 서버가 확정한 현재 Z 좌표를 밀리 단위 정수로 전달한다.
 struct TargetPlayer {
     PlayerId id;
@@ -34,7 +39,9 @@ public:
     bool SwitchSlot(PlayerId playerId, std::uint8_t slot);
     bool UseSelectedItem(PlayerId playerId, std::int32_t x, std::int32_t z,
                          PlayerId targetId = 0);
-    bool ResolveBananaHit(PlayerId playerId, std::int32_t x, std::int32_t z);
+    bool ResolveBananaHit(PlayerId playerId, std::int32_t x, std::int32_t z,
+                          BananaHitResult* result = nullptr);
+    bool RemoveBananaTrap(ObjectId trapId);
     void AdvanceEffects(std::uint32_t elapsedMs);
     std::vector<PickupResult> ResolvePickups(const std::vector<PickupPlayer>& players);
     bool TryPickup(ObjectId objectId, const PickupPlayer& player, PickupResult& result);
@@ -43,6 +50,7 @@ public:
                              ItemKind first, ItemKind second);
     bool ApplyConfirmedEffect(PlayerId playerId, EffectKind effect,
                               std::uint32_t durationMs);
+    bool ApplyConfirmedBanana(const BananaTrap& trap);
     PlayerId SelectAttackTarget(PlayerId userId,
         const std::vector<TargetPlayer>& players) const;
     const PlayerInventory* GetInventory(PlayerId playerId) const;

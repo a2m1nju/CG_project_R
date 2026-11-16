@@ -222,6 +222,19 @@ bool ClientNetwork::PollDisconnected() {
                 for (const auto& item : initialItems) itemEvents.push_back(item);
                 initialItems.clear(); itemSnapshotOpen = false; itemReady = true;
             }
+        } else if (p[3] == Wire::ItemSpawned && size == Wire::ItemSpawnedSize) {
+            if (Wire::Read32(p + 8) == roundId && itemReady) {
+                ItemEvent event{};
+                event.kind = ItemEvent::Kind::Snapshot;
+                event.id = Wire::Read32(p + 12);
+                event.itemKind = p[16];
+                event.x = static_cast<std::int32_t>(Wire::Read32(p + 17));
+                event.z = static_cast<std::int32_t>(Wire::Read32(p + 21));
+                if (event.id == 0 || event.itemKind < 1 || event.itemKind > 3) {
+                    Disconnect(); return true;
+                }
+                itemEvents.push_back(event);
+            }
         } else if (p[3] == Wire::ItemRemoved && size == Wire::ItemRemovedSize) {
             if (Wire::Read32(p + 8) == roundId && itemReady) {
                 ItemEvent event{};
@@ -256,6 +269,33 @@ bool ClientNetwork::PollDisconnected() {
                 event.kind = ItemEvent::Kind::Effect;
                 event.itemKind = p[12];
                 event.durationMs = Wire::Read32(p + 13);
+                itemEvents.push_back(event);
+            }
+        } else if (p[3] == Wire::BananaPlaced && size == Wire::BananaPlacedSize) {
+            if (Wire::Read32(p + 8) == roundId && itemReady) {
+                ItemEvent event{};
+                event.kind = ItemEvent::Kind::BananaPlaced;
+                event.id = Wire::Read32(p + 12);
+                event.playerId = Wire::Read32(p + 16);
+                event.x = static_cast<std::int32_t>(Wire::Read32(p + 20));
+                event.z = static_cast<std::int32_t>(Wire::Read32(p + 24));
+                if (event.id == 0 || event.playerId == 0) {
+                    Disconnect(); return true;
+                }
+                itemEvents.push_back(event);
+            }
+        } else if (p[3] == Wire::BananaHit && size == Wire::BananaHitSize) {
+            if (Wire::Read32(p + 8) == roundId && itemReady) {
+                ItemEvent event{};
+                event.kind = ItemEvent::Kind::BananaHit;
+                event.id = Wire::Read32(p + 12);
+                event.playerId = Wire::Read32(p + 16);
+                event.x = static_cast<std::int32_t>(Wire::Read32(p + 20));
+                event.z = static_cast<std::int32_t>(Wire::Read32(p + 24));
+                event.accepted = p[28] == 1;
+                if (event.id == 0 || event.playerId == 0 || p[28] > 1) {
+                    Disconnect(); return true;
+                }
                 itemEvents.push_back(event);
             }
         } else if (p[3] == Wire::State && size == Wire::StateSize) {
@@ -333,6 +373,14 @@ bool ClientNetwork::RequestUse() {
     std::array<std::uint8_t, Wire::ItemUseSize> p{};
     Wire::Header(p.data(), p.size(), Wire::ItemUse, ++sequence);
     Wire::Write32(p.data() + 8, roundId);
+    return Queue(p.data(), p.size());
+}
+bool ClientNetwork::RequestSpawn(std::uint8_t itemKind) {
+    if (!Ready() || itemKind < 1 || itemKind > 3) return false;
+    std::array<std::uint8_t, Wire::ItemSpawnRequestSize> p{};
+    Wire::Header(p.data(), p.size(), Wire::ItemSpawnRequest, ++sequence);
+    Wire::Write32(p.data() + 8, roundId);
+    p[12] = itemKind;
     return Queue(p.data(), p.size());
 }
 void ClientNetwork::ResetRound() {

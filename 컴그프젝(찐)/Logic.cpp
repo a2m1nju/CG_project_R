@@ -230,8 +230,11 @@ void spawnParticles(glm::vec3 pos, glm::vec3 color, int count, float speedScale)
 }
 
 static std::map<unsigned int, int> actorLastPacketMs;
+static bool bananaReboundPending = false;
+static glm::vec3 bananaReboundTarget;
 
 static void clearRoundState() {
+    bananaReboundPending = false;
     playerPos = glm::vec3(0.0f, 0.5f, 0.0f);
     playerTargetPos = playerPos;
     playerStartPos = playerPos;
@@ -301,6 +304,24 @@ static void applyWorldEvent(const WorldEvent& event) {
 }
 
 static void applyItemEvent(const ItemEvent& event) {
+    if (event.kind == ItemEvent::Kind::BananaHit) {
+        localItems.RemoveBananaTrap(event.id);
+        if (event.accepted && activeClientNetwork &&
+            event.playerId == activeClientNetwork->PlayerId()) {
+            bananaReboundTarget = glm::vec3(static_cast<float>(event.x), 0.5f,
+                                             static_cast<float>(event.z));
+            playerStartPos = playerPos;
+            playerTargetPos = bananaReboundTarget;
+            playerTargetPos.z -= GetItemRule(ItemKind::Banana).hitPushbackCells;
+            moveTime = 0.0f;
+            isMoving = bananaReboundPending = true;
+        }
+        return;
+    }
+    if (event.kind == ItemEvent::Kind::BananaPlaced) {
+        localItems.ApplyConfirmedBanana({event.id, event.playerId, event.x, event.z});
+        return;
+    }
     if (event.kind == ItemEvent::Kind::Effect) {
         const auto effect = event.itemKind == 1 ? EffectKind::ReverseControls
             : EffectKind::Blackout;
@@ -357,7 +378,9 @@ void timer(int value)
         ItemEvent itemEvent;
         while (activeClientNetwork->TakeItemEvent(itemEvent)) applyItemEvent(itemEvent);
         float x, z;
-        if (activeClientNetwork->TakeMove(x, z) && !isGameOver && introState == 0) {
+        if (activeClientNetwork->TakeMove(x, z) && !bananaReboundPending &&
+            !isGameOver && introState == 0 &&
+            (playerPos.x != x || playerPos.z != z)) {
             playerStartPos = playerPos;
             playerTargetPos = glm::vec3(x, 0.5f, z);
             isMoving = true; moveTime = 0;
@@ -498,7 +521,7 @@ void timer(int value)
         showItemFeedback("INVENTORY FULL");
     wasBlockedByFullInventory = blockedByFullInventory;
 
-    if (localItems.ResolveBananaHit(1, (int)std::round(playerPos.x),
+    if (!activeClientNetwork && localItems.ResolveBananaHit(1, (int)std::round(playerPos.x),
         (int)std::round(playerPos.z))) {
         playerPos.z += 1.0f;
         playerTargetPos = playerPos;
@@ -683,7 +706,15 @@ void timer(int value)
 
 			if (t >= 1.0f) {
 				playerPos = playerTargetPos;
-				isMoving = false;
+				if (bananaReboundPending) {
+					bananaReboundPending = false;
+					playerStartPos = playerPos;
+					playerTargetPos = bananaReboundTarget;
+					moveTime = 0.0f;
+					isMoving = true;
+				} else {
+					isMoving = false;
+				}
 
 				int landZ = (int)std::round(playerPos.z);
 				if (mapType.count(landZ) && mapType[landZ] == 2) {

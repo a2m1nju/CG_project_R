@@ -54,16 +54,30 @@ bool ItemSystem::UseSelectedItem(PlayerId playerId, std::int32_t x, std::int32_t
     return true;
 }
 
-bool ItemSystem::ResolveBananaHit(PlayerId playerId, std::int32_t x, std::int32_t z) {
+bool ItemSystem::ResolveBananaHit(PlayerId playerId, std::int32_t x, std::int32_t z,
+                                  BananaHitResult* result) {
+    if (result) *result = {};
     if (!GetInventory(playerId)) return false;
     for (auto trap = bananaTraps_.begin(); trap != bananaTraps_.end(); ++trap) {
         if (trap->second.x == x && trap->second.z == z) {
+            const ObjectId trapId = trap->first;
             bananaTraps_.erase(trap);
             const auto* effects = GetPlayerEffects(playerId);
-            return !effects || effects->shieldRemainingMs == 0;
+            const bool pushed = !effects || effects->shieldRemainingMs == 0;
+            if (result) *result = {trapId, pushed};
+            return pushed;
         }
     }
     return false;
+}
+
+bool ItemSystem::RemoveBananaTrap(ObjectId trapId) {
+    return bananaTraps_.erase(trapId) != 0;
+}
+
+bool ItemSystem::ApplyConfirmedBanana(const BananaTrap& trap) {
+    if (trap.id == 0 || trap.ownerId == 0) return false;
+    return bananaTraps_.emplace(trap.id, trap).second;
 }
 
 void ItemSystem::AdvanceEffects(std::uint32_t elapsedMs) {

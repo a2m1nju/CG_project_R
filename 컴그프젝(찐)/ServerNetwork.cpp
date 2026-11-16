@@ -83,13 +83,14 @@ bool ServerNetwork::Initialize(std::uint16_t port) {
         const auto kind = static_cast<ItemKind>(std::uniform_int_distribution<int>(1, 4)(rng));
         items.AddGroundItem({static_cast<ObjectId>(i + 1), kind, x, z});
     }
+    nextSpawnItemId = static_cast<ObjectId>(count + 1);
     return true;
 }
 
 bool ServerNetwork::QueueItemSnapshot(TransportSession& s) {
     const auto& ground = items.GetGroundItems();
     const std::size_t bytes = Wire::ItemBeginSize + ground.size() * Wire::ItemEntrySize +
-                              Wire::ItemEndSize;
+                              Wire::ItemEndSize + items.GetBananaTraps().size() * Wire::BananaPlacedSize;
     if (s.sendBuffer.size() + bytes + Wire::StateSize > 16384) return false;
     const auto append = [&s](const auto& packet) {
         s.sendBuffer.insert(s.sendBuffer.end(), packet.begin(), packet.end());
@@ -114,6 +115,8 @@ bool ServerNetwork::QueueItemSnapshot(TransportSession& s) {
     Wire::Header(end.data(), end.size(), Wire::ItemEnd, ++s.sendSeq);
     Wire::Write32(end.data() + 8, world.RoundId());
     append(end);
+    for (const auto& entry : items.GetBananaTraps())
+        if (!QueueBananaPlaced(s, entry.second)) return false;
     return true;
 }
 
@@ -154,6 +157,50 @@ bool ServerNetwork::QueueItemEffect(TransportSession& s, ItemKind kind,
     Wire::Write32(packet.data() + 8, world.RoundId());
     packet[12] = static_cast<std::uint8_t>(kind);
     Wire::Write32(packet.data() + 13, durationMs);
+    s.sendBuffer.insert(s.sendBuffer.end(), packet.begin(), packet.end());
+    return true;
+}
+
+bool ServerNetwork::QueueBananaPlaced(TransportSession& s, const BananaTrap& trap) {
+    if (s.sendBuffer.size() + Wire::BananaPlacedSize + Wire::StateSize > 16384)
+        return false;
+    std::array<std::uint8_t, Wire::BananaPlacedSize> packet{};
+    Wire::Header(packet.data(), packet.size(), Wire::BananaPlaced, ++s.sendSeq);
+    Wire::Write32(packet.data() + 8, world.RoundId());
+    Wire::Write32(packet.data() + 12, trap.id);
+    Wire::Write32(packet.data() + 16, trap.ownerId);
+    Wire::Write32(packet.data() + 20, static_cast<std::uint32_t>(trap.x));
+    Wire::Write32(packet.data() + 24, static_cast<std::uint32_t>(trap.z));
+    s.sendBuffer.insert(s.sendBuffer.end(), packet.begin(), packet.end());
+    return true;
+}
+
+bool ServerNetwork::QueueBananaHit(TransportSession& s, const BananaHitResult& hit,
+                                   PlayerId victimId, std::int32_t x, std::int32_t z) {
+    if (s.sendBuffer.size() + Wire::BananaHitSize + Wire::StateSize > 16384)
+        return false;
+    std::array<std::uint8_t, Wire::BananaHitSize> packet{};
+    Wire::Header(packet.data(), packet.size(), Wire::BananaHit, ++s.sendSeq);
+    Wire::Write32(packet.data() + 8, world.RoundId());
+    Wire::Write32(packet.data() + 12, hit.trapId);
+    Wire::Write32(packet.data() + 16, victimId);
+    Wire::Write32(packet.data() + 20, static_cast<std::uint32_t>(x));
+    Wire::Write32(packet.data() + 24, static_cast<std::uint32_t>(z));
+    packet[28] = hit.pushed ? 1 : 0;
+    s.sendBuffer.insert(s.sendBuffer.end(), packet.begin(), packet.end());
+    return true;
+}
+
+bool ServerNetwork::QueueItemSpawned(TransportSession& s, const GroundItem& item) {
+    if (s.sendBuffer.size() + Wire::ItemSpawnedSize + Wire::StateSize > 16384)
+        return false;
+    std::array<std::uint8_t, Wire::ItemSpawnedSize> packet{};
+    Wire::Header(packet.data(), packet.size(), Wire::ItemSpawned, ++s.sendSeq);
+    Wire::Write32(packet.data() + 8, world.RoundId());
+    Wire::Write32(packet.data() + 12, item.id);
+    packet[16] = static_cast<std::uint8_t>(item.kind);
+    Wire::Write32(packet.data() + 17, static_cast<std::uint32_t>(item.x));
+    Wire::Write32(packet.data() + 21, static_cast<std::uint32_t>(item.z));
     s.sendBuffer.insert(s.sendBuffer.end(), packet.begin(), packet.end());
     return true;
 }
@@ -336,7 +383,12 @@ bool ServerNetwork::ProcessPackets(TransportSession& s, std::uint64_t tick) {
                 const float x = Wire::ReadFloat(p + 12), z = Wire::ReadFloat(p + 16);
                 if (Wire::Read32(p + 8) == s.roundId && std::isfinite(x) && std::isfinite(z) &&
                     std::abs(x) < 1000000 && std::abs(z) < 1000000 && p[20] <= 1) {
-                    s.x = x; s.z = z; s.alive = p[20] != 0;
+                    if (!s.awaitingBananaPosition ||
+                        (std::abs(x - s.x) < 0.01f && std::abs(z - s.z) < 0.01f)) {
+                        s.x = x; s.z = z;
+                        s.awaitingBananaPosition = false;
+                    }
+                    s.alive = p[20] != 0;
                 }
             } else if (p[3] == Wire::PickupRequest && size == Wire::PickupRequestSize) {
                 if (Wire::Read32(p + 8) == world.RoundId()) {
@@ -354,6 +406,25 @@ bool ServerNetwork::ProcessPackets(TransportSession& s, std::uint64_t tick) {
                             for (std::size_t i = 0; i < sessionCount; ++i)
                                 QueueItemRemoved(sessions[i], result);
                         }
+                    }
+                }
+            } else if (p[3] == Wire::ItemSpawnRequest && size == Wire::ItemSpawnRequestSize) {
+                if (Wire::Read32(p + 8) == s.roundId && s.alive &&
+                    p[12] >= 1 && p[12] <= 3 && nextSpawnItemId != 0 &&
+                    items.GetGroundItems().size() < 512) {
+                    bool ready = true;
+                    for (std::size_t i = 0; i < sessionCount; ++i)
+                        if (sessions[i].itemSnapshotPending ||
+                            sessions[i].sendBuffer.size() + Wire::ItemSpawnedSize +
+                                Wire::StateSize > 16384) ready = false;
+                    const GroundItem item{nextSpawnItemId,
+                        static_cast<ItemKind>(p[12]),
+                        static_cast<std::int32_t>(std::round(s.x)),
+                        static_cast<std::int32_t>(std::round(s.z)) - 2};
+                    if (ready && items.AddGroundItem(item)) {
+                        ++nextSpawnItemId;
+                        for (std::size_t i = 0; i < sessionCount; ++i)
+                            QueueItemSpawned(sessions[i], item);
                     }
                 }
             } else if (p[3] == Wire::ItemSwitch && size == Wire::ItemSwitchSize) {
@@ -383,6 +454,10 @@ bool ServerNetwork::ProcessPackets(TransportSession& s, std::uint64_t tick) {
                         !targetSession->itemSnapshotPending &&
                         targetSession->sendBuffer.size() + Wire::ItemEffectSize +
                             Wire::StateSize <= 16384);
+                    std::vector<ObjectId> previousTrapIds;
+                    if (kind == ItemKind::Banana)
+                        for (const auto& trap : items.GetBananaTraps())
+                            previousTrapIds.push_back(trap.first);
                     const bool accepted = s.alive && targetReady &&
                         items.UseSelectedItem(s.id,
                         static_cast<std::int32_t>(std::round(s.x)),
@@ -390,6 +465,17 @@ bool ServerNetwork::ProcessPackets(TransportSession& s, std::uint64_t tick) {
                     if (!QueueInventoryState(s, accepted)) return false;
                     if (accepted && needsTarget && !QueueItemEffect(*targetSession, kind,
                         GetItemRule(kind).effectDurationMs)) return false;
+                    if (accepted && kind == ItemKind::Banana) {
+                        const auto& traps = items.GetBananaTraps();
+                        const auto trap = std::find_if(traps.begin(), traps.end(),
+                            [&previousTrapIds](const auto& entry) {
+                                return std::find(previousTrapIds.begin(), previousTrapIds.end(),
+                                    entry.first) == previousTrapIds.end();
+                            });
+                        if (trap != traps.end())
+                            for (std::size_t i = 0; i < sessionCount; ++i)
+                                if (!QueueBananaPlaced(sessions[i], trap->second)) return false;
+                    }
                 }
             } else if (p[3] == 9 && size == 17) {
                 const auto input = Wire::Read32(p + 12);
@@ -407,6 +493,7 @@ bool ServerNetwork::ProcessPackets(TransportSession& s, std::uint64_t tick) {
                         }
                         s.nextMoveTick = tick + Wire::MoveCooldownTicks;
                         s.status = Wire::MoveStatus::Accepted;
+                        s.checkBanana = true;
                     }
                 }
             } else return false;
@@ -446,6 +533,29 @@ void ServerNetwork::Tick(std::uint64_t tick) {
                 const auto& actor = entry.second;
                 if (actor.z < s.z - 30 || actor.z > s.z + 10) continue;
                 if (!QueueWorldActor(s, actor, static_cast<std::uint32_t>(tick))) break;
+            }
+        }
+        if (s.checkBanana && s.alive) {
+            bool ready = true;
+            for (std::size_t j = 0; j < sessionCount; ++j)
+                if (sessions[j].itemSnapshotPending ||
+                    sessions[j].sendBuffer.size() + Wire::BananaHitSize + Wire::StateSize > 16384)
+                    ready = false;
+            if (ready) {
+                s.checkBanana = false;
+                BananaHitResult hit{};
+                const auto x = static_cast<std::int32_t>(std::round(s.x));
+                const auto z = static_cast<std::int32_t>(std::round(s.z));
+                items.ResolveBananaHit(s.id, x, z, &hit);
+                if (hit.trapId != 0) {
+                    s.x = static_cast<float>(x);
+                    s.z = static_cast<float>(z + (hit.pushed ?
+                        GetItemRule(ItemKind::Banana).hitPushbackCells : 0));
+                    s.awaitingBananaPosition = hit.pushed;
+                    for (std::size_t j = 0; j < sessionCount; ++j)
+                        QueueBananaHit(sessions[j], hit, s.id, x,
+                            static_cast<std::int32_t>(s.z));
+                }
             }
         }
         if (s.sendBuffer.size() + Wire::StateSize > 16384) {

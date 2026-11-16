@@ -72,7 +72,7 @@ typedef struct RoomState {
     RoundId roundId = 0;
 } RoomState;
 
-typedef struct JoinResult {
+struct JoinResult {
     ErrorCode code; // 0:정상, 1:방상태 오류, 2:중복등록 3:인원초과 
     PlayerId playerId;
     uint16_t queuePosition;
