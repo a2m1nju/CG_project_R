@@ -1,4 +1,5 @@
 ﻿#include "ServerNetwork.h"
+#include "Room.h"
 #include <cstring>
 #include <chrono>
 #include <cmath>
@@ -67,6 +68,52 @@ bool ServerNetwork::Flush(TransportSession& session) {
     return true;
 }
 
+bool ServerNetwork::HandleJoin(TransportSession& s, const std::uint8_t* p,
+                               std::size_t size, std::uint32_t sequence) {
+    std::uint16_t error = 0;
+    if (Wire::ReadRoundId(p) != 0 || size < Wire::HeaderSize + 1) {
+        error = Wire::JoinBadPayload;
+    }
+    else {
+        const auto nicknameSize = p[Wire::HeaderSize];
+        if (nicknameSize == 0 || nicknameSize > Wire::MaxNicknameBytes ||
+            size != Wire::HeaderSize + 1 + nicknameSize) { //닉네임 길이와 본문 크기 확인
+            error = Wire::JoinBadPayload;
+        }
+    }
+
+    if (error == 0 && s.joined) {
+        error = Wire::JoinDuplicate; //같은 연결의 중복 참가 방지
+    }
+    if (error == 0) {
+        const auto result = matchCoordinator.Enqueue(s.id);
+        if (result.code == 0) {
+            s.joined = true; //송신 실패 시에도 RemoveSession에서 참가 상태 정리
+            s.playerId = result.playerId;
+
+            std::array<std::uint8_t, Wire::WelcomeSize> packet{};
+            if (s.sendBuffer.size() + packet.size() > 16384) return false;
+            Wire::Header(packet.data(), packet.size(), Wire::Welcome, ++s.sendSeq, 0);
+            Wire::Write32(packet.data() + Wire::HeaderSize, s.id);
+            Wire::Write32(packet.data() + Wire::HeaderSize + 4, s.playerId);
+            s.sendBuffer.insert(s.sendBuffer.end(), packet.begin(), packet.end());
+            matchCoordinator.TryPromote(); //승인 응답을 큐에 넣은 뒤 대기실 구성
+            return true;
+        }
+        error = result.code == 2 ? Wire::JoinDuplicate : Wire::JoinBusy;
+    }
+
+    std::array<std::uint8_t, Wire::ErrorSize> packet{};
+    if (s.sendBuffer.size() + packet.size() > 16384) return false;
+    Wire::Header(packet.data(), packet.size(), Wire::Error, ++s.sendSeq, 0);
+    packet[12] = static_cast<std::uint8_t>(error >> 8);
+    packet[13] = static_cast<std::uint8_t>(error);
+    packet[14] = Wire::Join;
+    Wire::Write32(packet.data() + 15, sequence); //거절된 JOIN의 요청 순번
+    s.sendBuffer.insert(s.sendBuffer.end(), packet.begin(), packet.end());
+    return true;
+}
+
 bool ServerNetwork::ProcessPackets(TransportSession& s, std::uint64_t tick) {
     auto& bytes = s.receiveBuffer;
     std::size_t offset = 0;
@@ -80,7 +127,11 @@ bool ServerNetwork::ProcessPackets(TransportSession& s, std::uint64_t tick) {
         const auto roundId = Wire::ReadRoundId(p);
         if (Wire::Newer(seq, s.sequence)) {
             s.sequence = seq;
-            if (p[3] == Wire::Reset && size == Wire::HeaderSize) {
+            if (p[3] == Wire::Join) {
+                if (!HandleJoin(s, p, size, seq)) return false;
+            } else if (!s.joined) {
+                return false; //참가 승인 전 경기 패킷 차단
+            } else if (p[3] == Wire::Reset && size == Wire::HeaderSize) {
                 if (roundId == s.roundId + 1) {
                     ++s.roundId; s.x = s.z = 0; s.alive = true;
                     s.inputSeq = 0; s.nextMoveTick = 0; s.status = Wire::MoveStatus::Idle;
@@ -121,7 +172,14 @@ bool ServerNetwork::ProcessPackets(TransportSession& s, std::uint64_t tick) {
 void ServerNetwork::Tick(std::uint64_t tick) {
     for (std::size_t i = sessionCount; i > 0; --i) {
         auto& s = sessions[i - 1];
-        if (!ProcessPackets(s, tick) || s.sendBuffer.size() + Wire::StateSize > 16384) {
+        if (!ProcessPackets(s, tick)) {
+            RemoveSession(i - 1); continue;
+        }
+        if (!s.joined) {
+            if (!Flush(s)) RemoveSession(i - 1); //거절 응답만 송신
+            continue;
+        }
+        if (s.sendBuffer.size() + Wire::StateSize > 16384) {
             RemoveSession(i - 1); continue;
         }
         std::array<std::uint8_t, Wire::StateSize> packet{}; // 29바이트 = 헤더 12 + 본문 17
@@ -191,6 +249,9 @@ void ServerNetwork::RunAcceptLoop() {
 
 void ServerNetwork::RemoveSession(std::size_t index) {
     const auto id = sessions[index].id;
+    if (sessions[index].joined) {
+        matchCoordinator.OnDisconnect(id); //슬롯 이동 전에 방 참가 상태 정리
+    }
     closesocket(sessions[index].socket);
     --sessionCount;
     if (index != sessionCount) {

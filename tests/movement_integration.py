@@ -16,6 +16,10 @@ class Peer:
         self.sock.settimeout(2)
         self.buffer = b''
         self.seq = 0
+        self.sock.sendall(self.packet(1, 0, b'\x04Peer'))
+        welcome = self.frame()
+        assert len(welcome) == 20 and welcome[2:4] == b'\x01\x02', welcome
+        assert struct.unpack_from('!I', welcome, 8)[0] == 0
 
     def packet(self, kind, round_id, body=b''):
         self.seq += 1
@@ -27,22 +31,29 @@ class Peer:
     def sync(self, x, z, alive=True, round_id=1):
         return self.packet(11, round_id, struct.pack('!ffB', x, z, alive))
 
-    def state(self, predicate=lambda s: True):
+    def frame(self):
         until = time.monotonic() + 3
         while time.monotonic() < until:
-            while len(self.buffer) >= 2:
+            if len(self.buffer) >= 2:
                 size = struct.unpack('!H', self.buffer[:2])[0]
-                if len(self.buffer) < size:
-                    break
-                packet, self.buffer = self.buffer[:size], self.buffer[size:]
-                assert size == 29 and packet[2:4] == b'\x01\x0a'
-                values = struct.unpack('!IIIIffB', packet[4:])
-                s = dict(zip(('seq', 'round', 'input', 'tick', 'x', 'z', 'status'), values))
-                if predicate(s):
-                    return s
+                assert 12 <= size <= 1024
+                if len(self.buffer) >= size:
+                    packet, self.buffer = self.buffer[:size], self.buffer[size:]
+                    return packet
             data = self.sock.recv(4096)
             assert data, 'unexpected disconnect'
             self.buffer += data
+        raise TimeoutError('No complete frame received')
+
+    def state(self, predicate=lambda s: True):
+        until = time.monotonic() + 3
+        while time.monotonic() < until:
+            packet = self.frame()
+            assert len(packet) == 29 and packet[2:4] == b'\x01\x0a'
+            values = struct.unpack('!IIIIffB', packet[4:])
+            s = dict(zip(('seq', 'round', 'input', 'tick', 'x', 'z', 'status'), values))
+            if predicate(s):
+                return s
         raise AssertionError('state timeout')
 
 

@@ -3,6 +3,7 @@
 #include "Protocol.h"
 #include <vector>
 #include <chrono>
+#include <string>
 
 class ClientNetwork {
 public:
@@ -14,17 +15,21 @@ public:
     bool PollDisconnected(); // Pumps framed receive and partial send queues.
     void Disconnect();
     bool IsConnected() const { return serverSocket != INVALID_SOCKET; }
-    bool Ready() const { return IsConnected() && roundId != 0; }
+    // 임시 이동 테스트는 참가 승인과 첫 STATE 수신 후 이동 허용
+    bool Ready() const { return IsConnected() && joined && roundId != 0; }
     bool RequestMove(Direction direction, float x, float z);
     bool TakeMove(float& x, float& z);
     bool MovePending() const { return pendingInput != 0; }
     void SyncWorld(float x, float z, bool alive);
     void ResetRound();
 private:
+    bool SendJoin(const std::string& nickname);
     bool Queue(const std::uint8_t* p, std::size_t size);
     bool Flush();
     SOCKET serverSocket = INVALID_SOCKET;
     bool winsockInitialized = false;
+    bool joined = false;
+    std::uint32_t sessionId = 0, playerId = 0;
     std::vector<std::uint8_t> receiveBuffer, sendBuffer;
     std::uint32_t sequence = 0, inputSeq = 0, pendingInput = 0, roundId = 0;
     std::chrono::steady_clock::time_point lastState{}, pendingSince{};

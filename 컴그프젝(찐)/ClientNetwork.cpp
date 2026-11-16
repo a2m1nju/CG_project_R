@@ -51,7 +51,19 @@ bool ClientNetwork::Connect(const char* serverIp, std::uint16_t port) {
     }
 
     lastState = std::chrono::steady_clock::now();
-    return true;
+    return SendJoin("Player"); //닉네임 입력 UI 전까지 테스트용 이름 사용
+}
+
+bool ClientNetwork::SendJoin(const std::string& nickname) {
+    if (nickname.empty() || nickname.size() > Wire::MaxNicknameBytes) return false;
+
+    std::vector<std::uint8_t> packet(Wire::HeaderSize + 1 + nickname.size());
+    Wire::Header(packet.data(), packet.size(), Wire::Join, ++sequence, 0);
+    packet[Wire::HeaderSize] = static_cast<std::uint8_t>(nickname.size());
+    for (std::size_t i = 0; i < nickname.size(); ++i) {
+        packet[Wire::HeaderSize + 1 + i] = static_cast<std::uint8_t>(nickname[i]);
+    }
+    return Queue(packet.data(), packet.size());
 }
 
 ClientNetwork* activeClientNetwork = nullptr;
@@ -92,7 +104,19 @@ bool ClientNetwork::PollDisconnected() {
         if (size < Wire::HeaderSize || size > 1024) { Disconnect(); return true; }
         if (receiveBuffer.size() - offset < size) break;
         if (p[2] != 1) { Disconnect(); return true; }
-        if (p[3] == Wire::State && size == Wire::StateSize) {
+        if (p[3] == Wire::Welcome && size == Wire::WelcomeSize &&
+            Wire::ReadRoundId(p) == 0 && !joined) {
+            sessionId = Wire::Read32(p + Wire::HeaderSize);
+            playerId = Wire::Read32(p + Wire::HeaderSize + 4);
+            joined = true; //경기 번호는 이동 테스트용 첫 STATE에서 설정
+            std::cout << "JOIN accepted. Session " << sessionId
+                      << ", player " << playerId << '\n';
+        } else if (p[3] == Wire::Error && size == Wire::ErrorSize &&
+                   Wire::ReadRoundId(p) == 0 && p[14] == Wire::Join) {
+            const auto error = (std::uint16_t(p[12]) << 8) | p[13];
+            std::cerr << "JOIN rejected (code " << error << ").\n";
+            if (!joined) { Disconnect(); return true; }
+        } else if (joined && p[3] == Wire::State && size == Wire::StateSize) {
             lastState = now;
             const auto round = Wire::ReadRoundId(p);
             if (roundId == 0) roundId = round;
@@ -137,6 +161,8 @@ void ClientNetwork::ResetRound() {
 
 void ClientNetwork::Disconnect() {
     receiveBuffer.clear(); sendBuffer.clear();
+    joined = false;
+    sessionId = playerId = 0;
     sequence = inputSeq = pendingInput = roundId = 0; pollingStarted = moveReady = false;
     if (serverSocket != INVALID_SOCKET) {
         closesocket(serverSocket);

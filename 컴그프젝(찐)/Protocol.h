@@ -26,6 +26,10 @@ namespace Wire {
 // 패킷 순번은 자주 증가하므로 32비트로 순환 주기를 늘리고, 경기 번호는 RoundId의 32비트 폭을 따른다.
 // 현재 송수신 코드의 패킷 상한은 1024바이트다. 4096바이트는 LLD 상한이며, 큰 INIT/STATE는 조각 전송을 전제로 한다.
 constexpr std::size_t HeaderSize = 12;
+constexpr std::uint8_t Join = 1, Welcome = 2, Error = 21; //참가 요청·승인·거절
+constexpr std::size_t MaxNicknameBytes = 32;
+constexpr std::size_t WelcomeSize = HeaderSize + 8, ErrorSize = HeaderSize + 7;
+constexpr std::uint16_t JoinBusy = 1, JoinBadPayload = 4, JoinDuplicate = 11;
 // 아래 번호는 현재 구현 기준이다. Reset은 클라이언트 재시작 시 해당 세션의 라운드 상태를 초기화한다.
 // 연결 ID는 서버가 연결에 부여하는 번호다. 별도 ID 메시지를 쓸 경우 서버가 클라이언트에 전달하며, SOCKET 핸들과 구분한다.
 // 공유 월드의 WorldLane은 z 위치 하나의 지형·배치를 나타낸다. 여러 줄의 메시지를 한 번에 송신할 수 있다.
