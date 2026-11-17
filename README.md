@@ -12,6 +12,13 @@ OpenGL 기반 길건너기 게임 프로젝트입니다. 기존 게임에 서버
    - **작업 디렉터리:** `$(ProjectDir)`
 5. 서버를 켜 둔 상태에서 클라이언트를 실행합니다.
 
+cd /d "C:\Users\user\Desktop\넷겜플\netgp\TermProject\CG_project_R"
+x64\Release\Server.exe - 서버
+
+cd /d "C:\Users\user\Desktop\넷겜플\netgp\TermProject\CG_project_R\컴그프젝(찐)"
+set "PATH=%CD%;%PATH%"
+"..\x64\Release\컴그프젝(찐).exe" 127.0.0.1 - 클라
+
 클라이언트를 실행하려면 서버 IPv4 주소를 명령 인수로 지정해야 합니다. 명령 인수를 비우면 콘솔에 `Server IP address is required.`가 표시되고 종료됩니다. 서버 콘솔에서 Enter를 누르면 서버가 종료됩니다.
 
 클라이언트에서 방향키를 누르면 Release 콘솔에도 `MOVE direction:` 로그가 표시됩니다. 위·아래·왼쪽·오른쪽 입력은 각각 0·1·2·3으로 표시됩니다.
