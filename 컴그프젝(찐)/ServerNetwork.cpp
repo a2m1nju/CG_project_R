@@ -107,15 +107,44 @@ bool ServerNetwork::HandleJoin(TransportSession& s, const std::uint8_t* p,
         error = result.code == 2 ? Wire::JoinDuplicate : Wire::JoinBusy;
     }
 
+    return QueueRequestError(s, Wire::Join, sequence, error);
+}
+
+bool ServerNetwork::QueueRequestError(TransportSession& s, std::uint8_t type,
+                                      std::uint32_t sequence, std::uint16_t error) {
     std::array<std::uint8_t, Wire::ErrorSize> packet{};
     if (s.sendBuffer.size() + packet.size() > 16384) return false;
     Wire::Header(packet.data(), packet.size(), Wire::Error, ++s.sendSeq, 0);
     packet[12] = static_cast<std::uint8_t>(error >> 8);
     packet[13] = static_cast<std::uint8_t>(error);
-    packet[14] = Wire::Join;
-    Wire::Write32(packet.data() + 15, sequence); //거절된 JOIN의 요청 순번
+    packet[14] = type;
+    Wire::Write32(packet.data() + 15, sequence); //거절된 요청의 순번
     s.sendBuffer.insert(s.sendBuffer.end(), packet.begin(), packet.end());
     return true;
+}
+
+bool ServerNetwork::HandleReady(TransportSession& s, const std::uint8_t* p,
+                                std::size_t size, std::uint32_t sequence) {
+    if (size != Wire::ReadySize || Wire::ReadRoundId(p) != 0 ||
+        p[Wire::HeaderSize + 4] > 1) {
+        return QueueRequestError(s, Wire::Ready, sequence, Wire::JoinBadPayload);
+    }
+    if (!s.joined) return QueueRequestError(s, Wire::Ready, sequence, Wire::ReadyNotMember);
+
+    const auto epoch = Wire::Read32(p + Wire::HeaderSize);
+    const bool ready = p[Wire::HeaderSize + 4] != 0;
+    switch (matchCoordinator.SetReady(s.id, epoch, ready)) {
+    case ReadyResult::Accepted:
+        matchStateDirty = true; //서버에서 확정한 준비값을 전체 멤버에게 통지
+        return true;
+    case ReadyResult::BadPhase:
+        return QueueRequestError(s, Wire::Ready, sequence, Wire::ReadyBadPhase);
+    case ReadyResult::Stale:
+        return QueueRequestError(s, Wire::Ready, sequence, Wire::ReadyStale);
+    case ReadyResult::NotMember:
+        return QueueRequestError(s, Wire::Ready, sequence, Wire::ReadyNotMember);
+    }
+    return false;
 }
 
 bool ServerNetwork::ProcessPackets(TransportSession& s, std::uint64_t tick) {
@@ -133,6 +162,8 @@ bool ServerNetwork::ProcessPackets(TransportSession& s, std::uint64_t tick) {
             s.sequence = seq;
             if (p[3] == Wire::Join) {
                 if (!HandleJoin(s, p, size, seq)) return false;
+            } else if (p[3] == Wire::Ready) {
+                if (!HandleReady(s, p, size, seq)) return false;
             } else if (!s.joined) {
                 return false; //참가 승인 전 경기 패킷 차단
             } else if (p[3] == Wire::Reset && size == Wire::HeaderSize) {
@@ -180,7 +211,8 @@ void ServerNetwork::BroadcastMatchState() {
     if (room.phase == ServicePhase::READY_LOBBY) {
         lobby.resize(Wire::LobbyPrefixSize);
         Wire::Write32(lobby.data() + Wire::HeaderSize, room.lobbyEpoch);
-        lobby[16] = Wire::LobbyEntered;
+        lobby[16] = room.lobbyEpoch == lastBroadcastLobbyEpoch
+            ? Wire::LobbyUpdated : Wire::LobbyEntered;
         lobby[17] = static_cast<std::uint8_t>(room.members.size());
         for (std::size_t i = 0; i < room.members.size(); ++i) {
             const auto end = sessions.begin() + sessionCount;
@@ -199,6 +231,7 @@ void ServerNetwork::BroadcastMatchState() {
         }
     }
 
+    if (!lobby.empty()) lastBroadcastLobbyEpoch = room.lobbyEpoch;
     std::array<bool, 8> overflow{};
     for (std::size_t i = 0; i < sessionCount; ++i) {
         auto& s = sessions[i];
@@ -341,6 +374,8 @@ void ServerNetwork::Shutdown() {
     }
     sessionCount = 0;
     nextSessionId = 1;
+    lastBroadcastLobbyEpoch = 0;
+    matchStateDirty = false;
 
     if (listenSocket != INVALID_SOCKET) {
         closesocket(listenSocket);

@@ -2,6 +2,7 @@
 #include <ws2tcpip.h>
 #include <iostream>
 #include <cmath>
+#include <algorithm>
 
 #pragma comment(lib, "Ws2_32.lib")
 
@@ -82,6 +83,19 @@ bool ClientNetwork::Queue(const std::uint8_t* p, std::size_t size) {
     if (!IsConnected() || sendBuffer.size() + size > 16384) { Disconnect(); return false; }
     sendBuffer.insert(sendBuffer.end(), p, p + size); return Flush();
 }
+bool ClientNetwork::ToggleLobbyReady() {
+    if (!IsConnected() || !joined || lobbyMembers.empty()) return false;
+    const auto member = std::find_if(lobbyMembers.begin(), lobbyMembers.end(),
+        [this](const LobbyMember& entry) { return entry.playerId == playerId; });
+    if (member == lobbyMembers.end()) return false;
+
+    std::array<std::uint8_t, Wire::ReadySize> packet{};
+    Wire::Header(packet.data(), packet.size(), Wire::Ready, ++sequence, 0);
+    Wire::Write32(packet.data() + Wire::HeaderSize, lobbyEpoch);
+    packet[Wire::HeaderSize + 4] = member->ready ? 0 : 1; //마지막으로 받은 준비값을 기준으로 요청
+    return Queue(packet.data(), packet.size());
+}
+
 bool ClientNetwork::ApplyMatchState(const std::uint8_t* p, std::size_t size) {
     if (!joined || Wire::ReadRoundId(p) != 0) return false;
     if (p[3] == Wire::QueueState) {
@@ -98,7 +112,8 @@ bool ClientNetwork::ApplyMatchState(const std::uint8_t* p, std::size_t size) {
         return true;
     }
 
-    if (size < Wire::LobbyPrefixSize || p[16] != Wire::LobbyEntered || p[17] != 3) {
+    if (size < Wire::LobbyPrefixSize ||
+        (p[16] != Wire::LobbyEntered && p[16] != Wire::LobbyUpdated) || p[17] != 3) {
         return false;
     }
     std::vector<LobbyMember> members;
@@ -165,6 +180,10 @@ bool ClientNetwork::PollDisconnected() {
             const auto error = (std::uint16_t(p[12]) << 8) | p[13];
             std::cerr << "JOIN rejected (code " << error << ").\n";
             if (!joined) { Disconnect(); return true; }
+        } else if (p[3] == Wire::Error && size == Wire::ErrorSize &&
+                   Wire::ReadRoundId(p) == 0 && p[14] == Wire::Ready) {
+            const auto error = (std::uint16_t(p[12]) << 8) | p[13];
+            std::cerr << "READY rejected (code " << error << ").\n";
         } else if (p[3] == Wire::QueueState || p[3] == Wire::ReadyLobbyState) {
             if (!ApplyMatchState(p, size)) { Disconnect(); return true; }
         } else if (joined && p[3] == Wire::State && size == Wire::StateSize) {

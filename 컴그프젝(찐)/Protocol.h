@@ -27,6 +27,9 @@ namespace Wire {
 // 현재 송수신 코드의 패킷 상한은 1024바이트다. 4096바이트는 LLD 상한이며, 큰 INIT/STATE는 조각 전송을 전제로 한다.
 constexpr std::size_t HeaderSize = 12;
 constexpr std::uint8_t QueueState = 3, ReadyLobbyState = 4;
+constexpr std::uint8_t Ready = 5, LobbyUpdated = 1;
+constexpr std::size_t ReadySize = HeaderSize + 5;
+constexpr std::uint16_t ReadyBadPhase = 2, ReadyNotMember = 5, ReadyStale = 10;
 constexpr std::uint8_t MatchingPhase = 0, LobbyEntered = 0;
 constexpr std::size_t QueueStateSize = HeaderSize + 5;
 constexpr std::size_t LobbyPrefixSize = HeaderSize + 6;

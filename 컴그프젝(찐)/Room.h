@@ -78,6 +78,8 @@ typedef struct JoinResult {
     uint16_t queuePosition;
 };
 
+enum class ReadyResult { Accepted, BadPhase, Stale, NotMember };
+
 class MatchCoordinator {
 public:
     explicit MatchCoordinator(RoomState& room)
@@ -86,7 +88,7 @@ public:
     JoinResult Enqueue(SessionId id);
     void TryPromote();
     const RoomState& GetRoomState() const { return room; }
-    bool SetReady(SessionId id, LobbyEpoch epoch, bool ready);
+    ReadyResult SetReady(SessionId id, LobbyEpoch epoch, bool ready);
 
     void DissolveReadyLobby(SessionId leaverId);
     void CancelLoading(SessionId leaverId);

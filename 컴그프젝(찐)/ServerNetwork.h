@@ -38,6 +38,11 @@ private:
     void RemoveSession(std::size_t index);
     void BroadcastMatchState();
     bool matchStateDirty = false;
+    std::uint32_t lastBroadcastLobbyEpoch = 0;
+    bool QueueRequestError(TransportSession& session, std::uint8_t type,
+                           std::uint32_t sequence, std::uint16_t error);
+    bool HandleReady(TransportSession& session, const std::uint8_t* packet,
+                     std::size_t size, std::uint32_t sequence);
     bool HandleJoin(TransportSession& session, const std::uint8_t* packet,
                     std::size_t size, std::uint32_t sequence);
     bool ProcessPackets(TransportSession& session, std::uint64_t tick);

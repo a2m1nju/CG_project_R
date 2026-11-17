@@ -44,22 +44,19 @@ void MatchCoordinator::TryPromote(){ // 준비실 구성
 	// 8. 통신 구현 시 READY_LOBBY_STATE 전송 연결
 }
 
-bool MatchCoordinator::SetReady(SessionId id, LobbyEpoch epoch, bool ready) {
+ReadyResult MatchCoordinator::SetReady(SessionId id, LobbyEpoch epoch, bool ready) {
 	if (room.phase != ServicePhase::READY_LOBBY) { // 준비실인지 확인
-		return false;
+		return ReadyResult::BadPhase;
 	}
 	if (epoch != room.lobbyEpoch) { // 이전 대기실 요청 차단
-		return false;
+		return ReadyResult::Stale;
 	}
 	const auto it = std::find(room.members.begin(), room.members.end(), id); // 옳은 멤버인지 확인
 	if (it == room.members.end()) {
-		return false;
+		return ReadyResult::NotMember;
 	}
 	const auto index = static_cast<std::size_t>(it - room.members.begin()); // 개인 준비상태 변경
 	room.ready[index] = ready;
-
-	// 5. 통신 구현 시 전체 멤버에게
-	// READY_LOBBY_STATE 전송
 
 	const bool allReady = std::all_of( // 전원 준비여부 확인
 		room.ready.begin(), room.ready.end(),
@@ -68,7 +65,7 @@ bool MatchCoordinator::SetReady(SessionId id, LobbyEpoch epoch, bool ready) {
 	if (allReady) {
 		// RoundController 구현 시 BeginRound(false) 연결
 	}
-	return true;
+	return ReadyResult::Accepted;
 }
 
 void MatchCoordinator::DissolveReadyLobby(SessionId leaverId) {

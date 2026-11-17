@@ -14,6 +14,7 @@ public:
     bool Connect(const char* serverIp, std::uint16_t port);
     bool PollDisconnected(); // Pumps framed receive and partial send queues.
     void Disconnect();
+    bool ToggleLobbyReady();
     bool IsConnected() const { return serverSocket != INVALID_SOCKET; }
     // 임시 이동 테스트는 참가 승인과 첫 STATE 수신 후 이동 허용
     bool Ready() const { return IsConnected() && joined && roundId != 0; }

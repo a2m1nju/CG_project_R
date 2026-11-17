@@ -95,6 +95,11 @@ void specialKeyboard(int key, int x, int y)
 
 void keyboard(unsigned char key, int x, int y)
 {
+	if ((key == 'r' || key == 'R') && activeClientNetwork &&
+		activeClientNetwork->ToggleLobbyReady()) { //준비 상태는 서버 응답으로 갱신
+		return;
+	}
+
 	// 게임 오버 시 아무 키나 누르면 재시작
 	if (isGameOver) {
 		resetGame();
