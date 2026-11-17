@@ -147,26 +147,23 @@ void keyboard(unsigned char key, int x, int y)
         return;
     }
 
-    if (key >= '1' && key <= '3') {
+    if (key >= '1' && key <= '4') {
         const auto kind = static_cast<std::uint8_t>(key - '0');
         if (activeClientNetwork) activeClientNetwork->RequestSpawn(kind);
         else spawnItem((int)std::round(playerPos.x),
                        (int)std::round(playerPos.z) - 2,
-                       static_cast<ItemType>(ITEM_REVERSE + kind - 1));
+                       kind == 4 ? ITEM_SHIELD
+                                 : static_cast<ItemType>(ITEM_REVERSE + kind - 1));
         glutPostRedisplay();
         return;
     }
 
-    if (!activeClientNetwork && (key == '4' || key == '9')) {
+    if (!activeClientNetwork && key == '9') {
         const int itemX = (int)std::round(playerPos.x);
         const int itemZ = (int)std::round(playerPos.z) - 2;
-        if (key == '4') {
-            spawnItem(itemX, itemZ, ITEM_SHIELD);
-        } else {
-            static unsigned nextKind = 0;
-            spawnItem(itemX, itemZ, static_cast<ItemType>(ITEM_REVERSE + nextKind));
-            nextKind = (nextKind + 1) % 3;
-        }
+        static unsigned nextKind = 0;
+        spawnItem(itemX, itemZ, static_cast<ItemType>(ITEM_REVERSE + nextKind));
+        nextKind = (nextKind + 1) % 3;
     }
 
 }

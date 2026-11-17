@@ -173,6 +173,14 @@ bool ItemSystem::ApplyConfirmedEffect(PlayerId playerId, EffectKind effect,
     return true;
 }
 
+bool ItemSystem::ApplyConfirmedShield(PlayerId playerId,
+                                      std::uint32_t durationMs) {
+    auto found = playerEffects_.find(playerId);
+    if (found == playerEffects_.end() || durationMs == 0) return false;
+    found->second.shieldRemainingMs = durationMs;
+    return true;
+}
+
 PlayerId ItemSystem::SelectAttackTarget(PlayerId userId,
     const std::vector<TargetPlayer>& players) const {
     if (inventories_.find(userId) == inventories_.end()) return 0;

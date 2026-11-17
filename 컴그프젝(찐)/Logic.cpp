@@ -323,6 +323,11 @@ static void applyItemEvent(const ItemEvent& event) {
         return;
     }
     if (event.kind == ItemEvent::Kind::Effect) {
+        if (event.itemKind == static_cast<std::uint8_t>(ItemKind::Shield)) {
+            if (localItems.ApplyConfirmedShield(1, event.durationMs))
+                showItemFeedback("SHIELD ACTIVE");
+            return;
+        }
         const auto effect = event.itemKind == 1 ? EffectKind::ReverseControls
             : EffectKind::Blackout;
         if (localItems.ApplyConfirmedEffect(1, effect, event.durationMs))

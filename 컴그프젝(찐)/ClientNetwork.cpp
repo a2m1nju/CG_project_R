@@ -230,7 +230,7 @@ bool ClientNetwork::PollDisconnected() {
                 event.itemKind = p[16];
                 event.x = static_cast<std::int32_t>(Wire::Read32(p + 17));
                 event.z = static_cast<std::int32_t>(Wire::Read32(p + 21));
-                if (event.id == 0 || event.itemKind < 1 || event.itemKind > 3) {
+                if (event.id == 0 || event.itemKind < 1 || event.itemKind > 4) {
                     Disconnect(); return true;
                 }
                 itemEvents.push_back(event);
@@ -261,7 +261,7 @@ bool ClientNetwork::PollDisconnected() {
             }
         } else if (p[3] == Wire::ItemEffect && size == Wire::ItemEffectSize) {
             if (Wire::Read32(p + 8) == roundId && itemReady) {
-                if ((p[12] != 1 && p[12] != 2) || Wire::Read32(p + 13) == 0 ||
+                if ((p[12] != 1 && p[12] != 2 && p[12] != 4) || Wire::Read32(p + 13) == 0 ||
                     Wire::Read32(p + 13) > 60000) {
                     Disconnect(); return true;
                 }
@@ -376,7 +376,7 @@ bool ClientNetwork::RequestUse() {
     return Queue(p.data(), p.size());
 }
 bool ClientNetwork::RequestSpawn(std::uint8_t itemKind) {
-    if (!Ready() || itemKind < 1 || itemKind > 3) return false;
+    if (!Ready() || itemKind < 1 || itemKind > 4) return false;
     std::array<std::uint8_t, Wire::ItemSpawnRequestSize> p{};
     Wire::Header(p.data(), p.size(), Wire::ItemSpawnRequest, ++sequence);
     Wire::Write32(p.data() + 8, roundId);

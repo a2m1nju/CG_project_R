@@ -410,7 +410,7 @@ bool ServerNetwork::ProcessPackets(TransportSession& s, std::uint64_t tick) {
                 }
             } else if (p[3] == Wire::ItemSpawnRequest && size == Wire::ItemSpawnRequestSize) {
                 if (Wire::Read32(p + 8) == s.roundId && s.alive &&
-                    p[12] >= 1 && p[12] <= 3 && nextSpawnItemId != 0 &&
+                    p[12] >= 1 && p[12] <= 4 && nextSpawnItemId != 0 &&
                     items.GetGroundItems().size() < 512) {
                     bool ready = true;
                     for (std::size_t i = 0; i < sessionCount; ++i)
@@ -454,17 +454,24 @@ bool ServerNetwork::ProcessPackets(TransportSession& s, std::uint64_t tick) {
                         !targetSession->itemSnapshotPending &&
                         targetSession->sendBuffer.size() + Wire::ItemEffectSize +
                             Wire::StateSize <= 16384);
+                    const bool shieldReady = kind != ItemKind::Shield ||
+                        (!s.itemSnapshotPending &&
+                         s.sendBuffer.size() + Wire::InventoryStateSize +
+                             Wire::ItemEffectSize + Wire::StateSize <= 16384);
                     std::vector<ObjectId> previousTrapIds;
                     if (kind == ItemKind::Banana)
                         for (const auto& trap : items.GetBananaTraps())
                             previousTrapIds.push_back(trap.first);
-                    const bool accepted = s.alive && targetReady &&
+                    const bool accepted = s.alive && targetReady && shieldReady &&
                         items.UseSelectedItem(s.id,
                         static_cast<std::int32_t>(std::round(s.x)),
                         static_cast<std::int32_t>(std::round(s.z)), target);
                     if (!QueueInventoryState(s, accepted)) return false;
                     if (accepted && needsTarget && !QueueItemEffect(*targetSession, kind,
                         GetItemRule(kind).effectDurationMs)) return false;
+                    if (accepted && kind == ItemKind::Shield &&
+                        !QueueItemEffect(s, kind, GetItemRule(kind).effectDurationMs))
+                        return false;
                     if (accepted && kind == ItemKind::Banana) {
                         const auto& traps = items.GetBananaTraps();
                         const auto trap = std::find_if(traps.begin(), traps.end(),
