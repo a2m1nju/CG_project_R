@@ -4,6 +4,8 @@
 #include <array>
 #include <atomic>
 #include <vector>
+#include "Room.h"
+#include <string>
 
 class ServerNetwork {
 public:
@@ -15,6 +17,10 @@ public:
     void RunAcceptLoop();
     void StopAccepting();
     void Shutdown();
+    void AttachLobby(RoomState& state)
+    {
+        lobbyRoom = &state;
+    }
 private:
     struct TransportSession {
         std::uint32_t id = 0;
@@ -25,6 +31,8 @@ private:
         float x = 0, z = 0;
         bool alive = true;
         Wire::MoveStatus status = Wire::MoveStatus::Idle;
+        std::string nickname;
+        bool drop = false;
     };
     void RemoveSession(std::size_t index);
     bool ProcessPackets(TransportSession& session, std::uint64_t tick);
@@ -36,4 +44,19 @@ private:
     std::atomic<bool> stopping{false};
     SOCKET listenSocket = INVALID_SOCKET;
     bool winsockInitialized = false;
+    RoomState* lobbyRoom = nullptr;
+
+    TransportSession* FindSession(SessionId id);
+
+    bool IsLobbyMember(SessionId id) const;
+
+    void SendLobby(TransportSession& session, std::vector<std::uint8_t> packet);
+
+    void SendLobbyError(TransportSession& session, std::uint16_t code, std::uint8_t rejectedType, std::uint32_t rejectedSequence);
+
+    void PublishLobby();
+
+    void CloseLobby(SessionId leaverId);
+
+    int HandleLobbyPacket(TransportSession& session, const std::uint8_t* packet, std::size_t size);
 };

@@ -2,6 +2,7 @@
 #include <ws2tcpip.h>
 #include <iostream>
 #include <cmath>
+#include <utility>
 
 #pragma comment(lib, "Ws2_32.lib")
 
@@ -70,6 +71,248 @@ bool ClientNetwork::Queue(const std::uint8_t* p, std::size_t size) {
     if (!IsConnected() || sendBuffer.size() + size > 16384) { Disconnect(); return false; }
     sendBuffer.insert(sendBuffer.end(), p, p + size); return Flush();
 }
+bool ClientNetwork::RequestJoin(const std::string& nickname)
+{
+    if (!IsConnected()) {
+        lobby.message = "NOT CONNECTED TO SERVER";
+        return false;
+    }
+    if (lobby.stage != LobbyStage::Title) {
+        return false;
+    }
+    if (nickname.empty() || nickname.size() > 24) {
+        return false;
+    }
+    for (const unsigned char ch : nickname) {
+        if (ch < 32 || ch > 126) {
+            return false;
+        }
+    }
+    auto packet = LobbyWire::MakePacket(
+        LobbyWire::Join, 1 + nickname.size(), ++sequence);
+    packet[12] =
+        static_cast<std::uint8_t>(nickname.size());
+    for (std::size_t i = 0; i < nickname.size(); ++i) {
+        packet[13 + i] =
+            static_cast<std::uint8_t>(nickname[i]);
+    }
+    lobby = LobbyView{};
+    lobby.stage = LobbyStage::Joining;
+    lobby.message = "JOINING...";
+    return Queue(packet.data(), packet.size());
+}
+bool ClientNetwork::RequestReady(bool ready)
+{
+    if (!IsConnected() ||
+        lobby.stage != LobbyStage::Ready ||
+        !lobby.joined ||
+        lobby.readyPending ||
+        lobby.leaving)
+    {
+        return false;
+    }
+    auto packet =
+        LobbyWire::MakePacket(LobbyWire::Ready, 5, ++sequence);
+    Wire::Write32(packet.data() + 12, lobby.epoch);
+    packet[16] = ready ? 1 : 0;
+    lobby.readyPending = true;
+    return Queue(packet.data(), packet.size());
+}
+bool ClientNetwork::RequestLeave()
+{
+    if (!IsConnected() ||
+        lobby.stage == LobbyStage::Title ||
+        lobby.leaving)
+    {
+        return false;
+    }
+    auto packet =
+        LobbyWire::MakePacket(LobbyWire::Leave, 1, ++sequence);
+    packet[12] = 0;
+    // 서버의 ROOM_CLOSE를 받은 뒤 타이틀로 복귀.
+    lobby.leaving = true;
+    lobby.message = "LEAVING...";
+
+    return Queue(packet.data(), packet.size());
+}
+int ClientNetwork::HandleLobbyPacket(
+    const std::uint8_t* packet,
+    std::size_t size)
+{
+    const auto type = packet[3];
+    if (type != LobbyWire::Welcome &&
+        type != LobbyWire::QueueState &&
+        type != LobbyWire::ReadyLobbyState &&
+        type != LobbyWire::RoomClose &&
+        type != LobbyWire::Error)
+    {
+        return 0;
+    }
+    if (Wire::ReadRoundId(packet) != 0) {
+        return -1;
+    }
+    if (type == LobbyWire::Welcome) {
+        if (size != 20) {
+            return -1;
+        }
+        const auto playerId = Wire::Read32(packet + 16);
+        if (playerId == 0 ||
+            (myPlayerId != 0 && myPlayerId != playerId))
+        {
+            return -1;
+        }
+        if (lobby.stage == LobbyStage::Joining) {
+            myPlayerId = playerId;
+            lobby.joined = true;
+
+            std::cout << "JOIN accepted. player="
+                << myPlayerId << '\n';
+        }
+        return 1;
+    }
+    if (type == LobbyWire::QueueState) {
+        if (size != 17 || packet[16] != 0) {
+            return -1;
+        }
+        const auto position = LobbyWire::Read16(packet + 12);
+        const auto count = LobbyWire::Read16(packet + 14);
+        if (count < 1 || count > 3 ||
+            position < 1 || position > count)
+        {
+            return -1;
+        }
+        if (!lobby.joined ||
+            lobby.stage == LobbyStage::Title ||
+            lobby.leaving)
+        {
+            return 1;
+        }
+        lobby.stage = LobbyStage::Matching;
+        lobby.position = position;
+        lobby.count = count;
+        lobby.members.clear();
+        lobby.message = "WAITING FOR PLAYERS";
+        return 1;
+    }
+    if (type == LobbyWire::ReadyLobbyState) {
+        if (size < 18 || packet[16] != 0 || packet[17] != 3) {
+            return -1;
+        }
+        const auto epoch = Wire::Read32(packet + 12);
+        std::vector<LobbyMemberView> members;
+        std::size_t offset = 18;
+        for (int i = 0; i < 3; ++i) {
+            if (offset + 7 > size) {
+                return -1;
+            }
+            LobbyMemberView member;
+            member.id = Wire::Read32(packet + offset);
+            const auto ready = packet[offset + 5];
+            const std::size_t nameLength = packet[offset + 6];
+            if (member.id == 0 ||
+                ready > 1 ||
+                nameLength > 24 ||
+                offset + 7 + nameLength > size)
+            {
+                return -1;
+            }
+            for (const auto& previous : members) {
+                if (previous.id == member.id) {
+                    return -1;
+                }
+            }
+            member.ready = ready != 0;
+            member.nickname.assign(
+                reinterpret_cast<const char*>(packet + offset + 7),
+                nameLength);
+
+            members.push_back(std::move(member));
+            offset += 7 + nameLength;
+        }
+
+        if (offset != size) {
+            return -1;
+        }
+
+        bool containsMe = false;
+        bool allReady = true;
+
+        for (const auto& member : members) {
+            containsMe = containsMe || member.id == myPlayerId;
+            allReady = allReady && member.ready;
+        }
+
+        if (!containsMe) {
+            return -1;
+        }
+
+        if (!lobby.joined ||
+            lobby.stage == LobbyStage::Title ||
+            lobby.leaving)
+        {
+            return 1;
+        }
+
+        if (lobby.epoch != 0 &&
+            epoch != lobby.epoch &&
+            !Wire::Newer(epoch, lobby.epoch))
+        {
+            return 1;
+        }
+
+        lobby.stage = LobbyStage::Ready;
+        lobby.epoch = epoch;
+        lobby.count = 3;
+        lobby.members = std::move(members);
+        lobby.readyPending = false;
+
+        lobby.message = allReady
+            ? "ALL READY - WAITING FOR INIT"
+            : "WAITING FOR READY";
+
+        return 1;
+    }
+
+    if (type == LobbyWire::RoomClose) {
+        if (size != 13) {
+            return -1;
+        }
+
+        lobby = LobbyView{};
+        lobby.message = "ROOM CLOSED. JOIN AGAIN TO PARTICIPATE.";
+
+        return 1;
+    }
+
+    // ERROR
+    if (size != 19) {
+        return -1;
+    }
+
+    const auto code = LobbyWire::Read16(packet + 12);
+
+    if (lobby.stage == LobbyStage::Joining && !lobby.joined) {
+        lobby = LobbyView{};
+    }
+
+    lobby.readyPending = false;
+    lobby.leaving = false;
+
+    if (code == LobbyWire::Busy) {
+        lobby.message = "ROOM IS FULL OR UNAVAILABLE";
+    }
+    else if (code == LobbyWire::Duplicate) {
+        lobby.message = "ALREADY JOINED";
+    }
+    else if (code == LobbyWire::Stale) {
+        lobby.message = "OLD LOBBY REQUEST REJECTED";
+    }
+    else {
+        lobby.message = "REQUEST NOT ALLOWED IN THIS PHASE";
+    }
+
+    return 1;
+}
 bool ClientNetwork::PollDisconnected() {
     if (!IsConnected()) return false;
     const auto now = std::chrono::steady_clock::now();
@@ -92,7 +335,18 @@ bool ClientNetwork::PollDisconnected() {
         if (size < Wire::HeaderSize || size > 1024) { Disconnect(); return true; }
         if (receiveBuffer.size() - offset < size) break;
         if (p[2] != 1) { Disconnect(); return true; }
-        if (p[3] == Wire::AssignedId) {
+        const int lobbyResult =
+            HandleLobbyPacket(p, size);
+
+        if (lobbyResult < 0) {
+            Disconnect();
+            return true;
+        }
+
+        // 대기방 응답도 서버 수신 시간에 반영.
+        lastState = now;
+
+        if (lobbyResult == 0 && p[3] == Wire::AssignedId) {
             // ID 메시지는 정확히 12바이트여야 함
             if (size != Wire::AssignedIdSize) {
                 std::cerr << "Invalid assigned ID packet size."
@@ -117,8 +371,7 @@ bool ClientNetwork::PollDisconnected() {
                     << myPlayerId << std::endl;
             }
         }
-        else if (p[3] == Wire::State &&
-            size == Wire::StateSize) {
+        else if (lobbyResult == 0 && p[3] == Wire::State && size == Wire::StateSize) {
 
             lastState = now;
             const auto round = Wire::ReadRoundId(p);
@@ -191,6 +444,8 @@ void ClientNetwork::ResetRound() {
 }
 
 void ClientNetwork::Disconnect() {
+    lobby = LobbyView{};
+    lobby.message = "SERVER DISCONNECTED";
     myPlayerId = 0;
     receiveBuffer.clear(); 
     sendBuffer.clear();

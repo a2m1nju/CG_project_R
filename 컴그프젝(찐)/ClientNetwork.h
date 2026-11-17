@@ -4,6 +4,35 @@
 #include <vector>
 #include <chrono>
 
+enum class LobbyStage {
+    Title,
+    Joining,
+    Matching,
+    Ready,
+    Playing
+};
+
+struct LobbyMemberView {
+    std::uint32_t id = 0;
+    bool ready = false;
+    std::string nickname;
+};
+
+struct LobbyView {
+    LobbyStage stage = LobbyStage::Title;
+
+    bool joined = false;
+    bool readyPending = false;
+    bool leaving = false;
+
+    std::uint16_t position = 0;
+    std::uint16_t count = 0;
+    std::uint32_t epoch = 0;
+
+    std::vector<LobbyMemberView> members;
+    std::string message;
+};
+
 class ClientNetwork {
 public:
     ClientNetwork() = default;
@@ -14,7 +43,12 @@ public:
     bool PollDisconnected(); // Pumps framed receive and partial send queues.
     void Disconnect();
     bool IsConnected() const { return serverSocket != INVALID_SOCKET; }
-    bool Ready() const { return IsConnected() && roundId != 0; }
+    bool Ready() const
+    {
+        return IsConnected() &&
+            lobby.stage == LobbyStage::Playing &&
+            roundId != 0;
+    }
     std::uint32_t GetMyPlayerId() const {
         return myPlayerId;
     }
@@ -23,6 +57,26 @@ public:
     bool MovePending() const { return pendingInput != 0; }
     void SyncWorld(float x, float z, bool alive);
     void ResetRound();
+    const LobbyView& GetLobby() const
+    {
+        return lobby;
+    }
+
+    bool RequestJoin(const std::string& nickname);
+    bool RequestReady(bool ready);
+    bool RequestLeave();
+
+    bool IsMyLobbyReady() const
+    {
+        for (const auto& member : lobby.members) {
+            if (member.id == myPlayerId) {
+                return member.ready;
+            }
+        }
+
+        return false;
+    }
+
 private:
     bool Queue(const std::uint8_t* p, std::size_t size);
     bool Flush();
@@ -34,6 +88,11 @@ private:
     std::chrono::steady_clock::time_point lastState{}, pendingSince{};
     bool pollingStarted = false, moveReady = false;
     float moveX = 0, moveZ = 0;
+    LobbyView lobby;
+
+    int HandleLobbyPacket(
+        const std::uint8_t* packet,
+        std::size_t size);
 };
 
 // Set only while main owns the connected client; offline input stays unchanged.

@@ -3,6 +3,8 @@
 #include <chrono>
 #include <cmath>
 #include <iostream>
+#include <algorithm>
+#include <utility>
 
 #pragma comment(lib, "Ws2_32.lib")
 
@@ -67,6 +69,256 @@ bool ServerNetwork::Flush(TransportSession& session) {
     return true;
 }
 
+ServerNetwork::TransportSession*
+ServerNetwork::FindSession(SessionId id)
+{
+    for (std::size_t i = 0; i < sessionCount; ++i) {
+        if (sessions[i].id == id) {
+            return &sessions[i];
+        }
+    }
+    return nullptr;
+}
+bool ServerNetwork::IsLobbyMember(SessionId id) const
+{
+    if (!lobbyRoom) {
+        return false;
+    }
+
+    const auto& room = *lobbyRoom;
+
+    return
+        std::find(room.queue.begin(), room.queue.end(), id)
+        != room.queue.end() ||
+        std::find(room.members.begin(), room.members.end(), id)
+        != room.members.end();
+}
+void ServerNetwork::SendLobby(TransportSession& session, std::vector<std::uint8_t> packet)
+{
+    if (session.sendBuffer.size() + packet.size() > 16384) {
+        // 배열을 순회하는 도중 세션을 제거하지 않음.
+        session.drop = true;
+        return;
+    }
+
+    const auto type = packet[3];
+
+    Wire::Header(
+        packet.data(), packet.size(),
+        type, ++session.sendSeq, 0);
+
+    session.sendBuffer.insert(
+        session.sendBuffer.end(),
+        packet.begin(), packet.end());
+}
+
+void ServerNetwork::SendLobbyError(TransportSession& session, std::uint16_t code, std::uint8_t rejectedType, std::uint32_t rejectedSequence)
+{
+    auto packet = LobbyWire::MakePacket(LobbyWire::Error, 7);
+    LobbyWire::Write16(packet.data() + 12, code);
+    packet[14] = rejectedType;
+    Wire::Write32(packet.data() + 15, rejectedSequence);
+
+    SendLobby(session, std::move(packet));
+}
+
+void ServerNetwork::PublishLobby()
+{
+    if (!lobbyRoom) {
+        return;
+    }
+    const auto& room = *lobbyRoom;
+    if (room.phase == ServicePhase::MATCHING) {
+        // 매칭 대기 중에는 순번·인원만 전달.
+        for (std::size_t i = 0; i < room.queue.size(); ++i) {
+            auto* session = FindSession(room.queue[i]);
+            if (!session) {
+                continue;
+            }
+            auto packet =
+                LobbyWire::MakePacket(LobbyWire::QueueState, 5);
+            LobbyWire::Write16(
+                packet.data() + 12,
+                static_cast<std::uint16_t>(i + 1));
+            LobbyWire::Write16(
+                packet.data() + 14,
+                static_cast<std::uint16_t>(room.queue.size()));
+            packet[16] = 0; // MATCHING
+            SendLobby(*session, std::move(packet));
+        }
+        return;
+    }
+    if (room.phase != ServicePhase::READY_LOBBY) {
+        return;
+    }
+    auto packet =
+        LobbyWire::MakePacket(LobbyWire::ReadyLobbyState, 6);
+    Wire::Write32(packet.data() + 12, room.lobbyEpoch);
+    packet[16] = 0; // 활성 준비 대기실
+    packet[17] = 3; // 참가자 수
+
+    for (std::size_t i = 0; i < room.members.size(); ++i) {
+        const auto id = room.members[i];
+        const auto* session = FindSession(id);
+        const std::string nickname =
+            session ? session->nickname : "Player";
+        LobbyWire::Append32(packet, id);
+        packet.push_back(0); // characterId: 현재는 모두 닭
+        packet.push_back(room.ready[i] ? 1 : 0);
+        packet.push_back(
+            static_cast<std::uint8_t>(nickname.size()));
+        packet.insert(
+            packet.end(), nickname.begin(), nickname.end());
+    }
+    for (const auto id : room.members) {
+        if (auto* session = FindSession(id)) {
+            SendLobby(*session, packet);
+        }
+    }
+}
+
+void ServerNetwork::CloseLobby(SessionId leaverId)
+{
+    if (!lobbyRoom || !IsLobbyMember(leaverId)) {
+        return;
+    }
+    auto& room = *lobbyRoom;
+    // 초기화 전에 통지할 참가자 목록을 보관.
+    std::vector<SessionId> recipients;
+    if (room.phase == ServicePhase::MATCHING) {
+        recipients = room.queue;
+    }
+    else {
+        for (const auto id : room.members) {
+            if (id != 0) {
+                recipients.push_back(id);
+            }
+        }
+    }
+    const auto nextEpoch = room.lobbyEpoch + 1;
+    const auto previousRound = room.roundId;
+    room = RoomState{};
+    room.lobbyEpoch = nextEpoch;
+    room.roundId = previousRound;
+    // 나가기 버튼을 누른 당사자도 완료 통지를 받음.
+    for (const auto id : recipients) {
+        if (auto* session = FindSession(id)) {
+            auto packet =
+                LobbyWire::MakePacket(LobbyWire::RoomClose, 1);
+
+            packet[12] = 0;
+            SendLobby(*session, std::move(packet));
+        }
+    }
+    std::cout << "Lobby dissolved. Return to title.\n";
+}
+
+int ServerNetwork::HandleLobbyPacket(
+    TransportSession& session,
+    const std::uint8_t* packet,
+    std::size_t size)
+{
+    const auto type = packet[3];
+    if (type != LobbyWire::Join && type != LobbyWire::Ready && type != LobbyWire::Leave)
+    {
+        return 0; // 기존 이동 처리에 전달
+    }
+    if (!lobbyRoom || Wire::ReadRoundId(packet) != 0) {
+        return -1;
+    }
+    auto& room = *lobbyRoom;
+    const auto sequence = Wire::Read32(packet + 4);
+    if (type == LobbyWire::Join) {
+        if (size < 13) {
+            return -1;
+        }
+        const std::size_t nameLength = packet[12];
+        if (nameLength == 0 ||
+            nameLength > 24 ||
+            size != 13 + nameLength)
+        {
+            return -1;
+        }
+        // 현재 입력은 ASCII 이름으로 제한.
+        for (std::size_t i = 0; i < nameLength; ++i) {
+            const auto ch = packet[13 + i];
+
+            if (ch < 32 || ch > 126) {
+                return -1;
+            }
+        }
+        if (IsLobbyMember(session.id)) {
+            SendLobbyError(session, LobbyWire::Duplicate, type, sequence);
+            return 1;
+        }
+        MatchCoordinator coordinator(room);
+        const auto result = coordinator.Enqueue(session.id);
+        if (result.code != 0) {
+            SendLobbyError(session, LobbyWire::Busy, type, sequence);
+            return 1;
+        }
+        session.nickname.assign(reinterpret_cast<const char*>(packet + 13), nameLength);
+        auto welcome = LobbyWire::MakePacket(LobbyWire::Welcome, 8);
+        Wire::Write32(welcome.data() + 12, session.id);
+        Wire::Write32(welcome.data() + 16, session.id);
+        SendLobby(session, std::move(welcome));
+        coordinator.TryPromote();
+        PublishLobby();
+        std::cout << "JOIN accepted: " << session.id << '\n';
+        return 1;
+    }
+    if (type == LobbyWire::Ready) {
+        if (size != 17 || packet[16] > 1) {
+            return -1;
+        }
+
+        if (room.phase != ServicePhase::READY_LOBBY ||
+            !IsLobbyMember(session.id))
+        {
+            SendLobbyError(session, LobbyWire::BadPhase, type, sequence);
+            return 1;
+        }
+        const auto epoch = Wire::Read32(packet + 12);
+        if (epoch != room.lobbyEpoch) {
+            SendLobbyError(session, LobbyWire::Stale, type, sequence);
+            return 1;
+        }
+
+        MatchCoordinator coordinator(room);
+
+        if (!coordinator.SetReady(
+            session.id, epoch, packet[16] != 0))
+        {
+            SendLobbyError(session, LobbyWire::BadPhase, type, sequence);
+            return 1;
+        }
+        PublishLobby();
+        const bool allReady = std::all_of(
+            room.ready.begin(), room.ready.end(),
+            [](bool ready) { return ready; });
+        if (allReady) {
+            // 다음 작업에서 여기에 BeginRound/INIT 연결.
+            std::cout << "All players ready. INIT not connected yet.\n";
+        }
+
+        return 1;
+    }
+    // LEAVE
+    if (size != 13) {
+        return -1;
+    }
+    if (IsLobbyMember(session.id)) {
+        CloseLobby(session.id);
+    }
+    else {
+        auto close =LobbyWire::MakePacket(LobbyWire::RoomClose, 1);
+
+        close[12] = 0;
+        SendLobby(session, std::move(close));
+    }
+    return 1;
+}
+
 bool ServerNetwork::ProcessPackets(TransportSession& s, std::uint64_t tick) {
     auto& bytes = s.receiveBuffer;
     std::size_t offset = 0;
@@ -80,6 +332,33 @@ bool ServerNetwork::ProcessPackets(TransportSession& s, std::uint64_t tick) {
         const auto roundId = Wire::ReadRoundId(p);
         if (Wire::Newer(seq, s.sequence)) {
             s.sequence = seq;
+            const int lobbyResult =
+                HandleLobbyPacket(s, p, size);
+            if (lobbyResult < 0) {
+                return false;
+            }
+            if (lobbyResult > 0) {
+                offset += size;
+                continue;
+            }
+            // 준비 대기 중에는 게임 입력을 처리하지 않음.
+            if (!lobbyRoom ||
+                lobbyRoom->phase != ServicePhase::PLAYING)
+            {
+                if (p[3] == Wire::Reset ||
+                    p[3] == Wire::WorldPosition ||
+                    p[3] == 9)
+                {
+                    SendLobbyError(
+                        s, LobbyWire::BadPhase,
+                        p[3], seq);
+
+                    offset += size;
+                    continue;
+                }
+
+                return false;
+            }
             if (p[3] == Wire::Reset && size == Wire::HeaderSize) {
                 if (roundId == s.roundId + 1) {
                     ++s.roundId; s.x = s.z = 0; s.alive = true;
@@ -121,7 +400,7 @@ bool ServerNetwork::ProcessPackets(TransportSession& s, std::uint64_t tick) {
 void ServerNetwork::Tick(std::uint64_t tick) {
     for (std::size_t i = sessionCount; i > 0; --i) {
         auto& s = sessions[i - 1];
-        if (!ProcessPackets(s, tick) || s.sendBuffer.size() + Wire::StateSize > 16384) {
+        if (s.drop || !ProcessPackets(s, tick) || s.drop || s.sendBuffer.size() + Wire::StateSize > 16384) {
             RemoveSession(i - 1); continue;
         }
         std::array<std::uint8_t, Wire::StateSize> packet{}; // 29바이트 = 헤더 12 + 본문 17
@@ -220,6 +499,7 @@ void ServerNetwork::RunAcceptLoop() {
 }
 
 void ServerNetwork::RemoveSession(std::size_t index) {
+    CloseLobby(sessions[index].id);
     const auto id = sessions[index].id;
     closesocket(sessions[index].socket);
     --sessionCount;

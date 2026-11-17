@@ -170,53 +170,56 @@ void mouse(int button, int state, int x, int y)
 	if (button != GLUT_LEFT_BUTTON || state != GLUT_DOWN) {
 		return;
 	}
-
 	const int width = glutGet(GLUT_WINDOW_WIDTH);
 	const int height = glutGet(GLUT_WINDOW_HEIGHT);
 
 	if (width <= 0 || height <= 0) {
 		return;
 	}
-
-	// 실제 창의 마우스 좌표를 UI 기준 좌표로 변환
 	const float uiX = x * 1280.0f / width;
 	const float uiY = y * 960.0f / height;
 
-	// 타이틀의 GAME START
+	const auto inside = [&](float left, float top,
+		float w, float h)
+		{
+			return uiX >= left && uiX <= left + w &&
+				uiY >= top && uiY <= top + h;
+		};
+
 	if (clientScreen == ClientScreen::Title &&
 		introState == 2)
 	{
-		const bool clicked =
-			uiX >= 460.0f && uiX <= 820.0f &&
-			uiY >= 680.0f && uiY <= 770.0f;
+		if (inside(460, 680, 360, 90)) {
+			if (!activeClientNetwork) {
+				std::cout
+					<< "Start the server and run with 127.0.0.1.\n";
+				return;
+			}
 
-		if (clicked) {
-			// 화면 확인용 이동.
-			// 통신 연결 시 여기에서 JOIN을 요청하고,
-			// 서버 응답에 따라 화면을 전환하도록 변경.
-			clientScreen = ClientScreen::Lobby;
-			introState = 0;
-
-			glutPostRedisplay();
+			activeClientNetwork->RequestJoin("Player");
 		}
 
 		return;
 	}
+	if (!activeClientNetwork) {
+		return;
+	}
+	if (clientScreen == ClientScreen::Matching) {
+		if (inside(460, 780, 360, 90)) {
+			activeClientNetwork->RequestLeave();
+		}
 
-	// 대기방의 BACK
+		return;
+	}
 	if (clientScreen == ClientScreen::Lobby) {
-		const bool clicked =
-			uiX >= 460.0f && uiX <= 820.0f &&
-			uiY >= 780.0f && uiY <= 870.0f;
-
-		if (clicked) {
-			clientScreen = ClientScreen::Title;
-
-			// 돌아갈 때는 로고를 중앙에 바로 표시
-			introState = 2;
-			logoX = logoTargetX;
-
-			glutPostRedisplay();
+		// 준비 / 준비 취소
+		if (inside(460, 780, 360, 90)) {
+			activeClientNetwork->RequestReady(
+				!activeClientNetwork->IsMyLobbyReady());
+		}
+		// 나가기
+		else if (inside(1000, 820, 200, 70)) {
+			activeClientNetwork->RequestLeave();
 		}
 	}
 }

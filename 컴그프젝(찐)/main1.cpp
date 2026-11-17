@@ -53,15 +53,43 @@ bool InitializeClient(int& argc, char** argv)
 namespace {
     void PollServerConnection(int value)
     {
-        if (activeClientNetwork == nullptr || glutGetWindow() == 0) {
+        if (activeClientNetwork == nullptr ||
+            glutGetWindow() == 0)
+        {
             return;
         }
 
         if (activeClientNetwork->PollDisconnected()) {
-            std::cout << "Server disconnected." << std::endl;
-            return;
+            std::cout << "Server disconnected.\n";
         }
-
+        const auto& lobby = activeClientNetwork->GetLobby();
+        ClientScreen nextScreen = ClientScreen::Title;
+        switch (lobby.stage) {
+        case LobbyStage::Joining:
+        case LobbyStage::Matching:
+            nextScreen = ClientScreen::Matching;
+            break;
+        case LobbyStage::Ready:
+            nextScreen = ClientScreen::Lobby;
+            break;
+        case LobbyStage::Playing:
+            nextScreen = ClientScreen::Playing;
+            break;
+        default:
+            nextScreen = ClientScreen::Title;
+            break;
+        }
+        if (nextScreen == ClientScreen::Title &&
+            clientScreen != ClientScreen::Title)
+        {
+            introState = 2;
+            logoX = logoTargetX;
+        }
+        if (nextScreen != ClientScreen::Title) {
+            introState = 0;
+        }
+        clientScreen = nextScreen;
+        glutPostRedisplay();
         glutTimerFunc(16, PollServerConnection, value);
     }
 }

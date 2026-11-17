@@ -2,6 +2,8 @@
 
 #include <array>
 #include <cstdint>
+#include <vector>
+#include <string>
 
 enum class Direction : std::uint8_t {
     UP = 0,
@@ -53,7 +55,61 @@ inline void Header(std::uint8_t* p, std::size_t size, std::uint8_t type,
     p[2] = 1; p[3] = type; Write32(p + 4, seq); // 2: 현재 버전, 3: 종류, 4~7: 이 송신 방향의 패킷 순번
     Write32(p + 8, roundId); // 8~11: 경기 회차. 수신 측이 이전 라운드의 요청을 구별할 때 사용
 }
-// IEEE-754 bits are also written in network byte order (no packed structs).
 float ReadFloat(const std::uint8_t* p);
 void WriteFloat(std::uint8_t* p, float v);
+}
+
+namespace LobbyWire {
+    constexpr std::uint8_t Join = 1;
+    constexpr std::uint8_t Welcome = 2;
+    constexpr std::uint8_t QueueState = 3;
+    constexpr std::uint8_t ReadyLobbyState = 4;
+    constexpr std::uint8_t Ready = 5;
+    constexpr std::uint8_t Leave = 17;
+    constexpr std::uint8_t RoomClose = 18;
+    constexpr std::uint8_t Error = 21;
+
+    // 오류 코드라서 내일 머지할 때 바꿔야됨
+    constexpr std::uint16_t Busy = 1;
+    constexpr std::uint16_t BadPhase = 2;
+    constexpr std::uint16_t Duplicate = 3;
+    constexpr std::uint16_t Stale = 4;
+
+    inline std::uint16_t Read16(const std::uint8_t* p)
+    {
+        return static_cast<std::uint16_t>(
+            (std::uint16_t(p[0]) << 8) | p[1]);
+    }
+
+    inline void Write16(std::uint8_t* p, std::uint16_t value)
+    {
+        p[0] = static_cast<std::uint8_t>(value >> 8);
+        p[1] = static_cast<std::uint8_t>(value);
+    }
+
+    inline std::vector<std::uint8_t> MakePacket(
+        std::uint8_t type,
+        std::size_t bodySize,
+        std::uint32_t sequence = 0)
+    {
+        std::vector<std::uint8_t> packet(
+            Wire::HeaderSize + bodySize, 0);
+
+        // 참가·준비 메시지는 경기 시작 전이므로 roundId = 0.
+        Wire::Header(
+            packet.data(), packet.size(),
+            type, sequence, 0);
+
+        return packet;
+    }
+
+    inline void Append32(
+        std::vector<std::uint8_t>& packet,
+        std::uint32_t value)
+    {
+        const std::size_t offset = packet.size();
+        packet.resize(offset + 4);
+
+        Wire::Write32(packet.data() + offset, value);
+    }
 }

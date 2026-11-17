@@ -1,6 +1,7 @@
 #include "Renderer.h"
 #include "Global.h"
 #include "Logic.h" 
+#include "ClientNetwork.h"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
@@ -722,10 +723,7 @@ static void drawMenuText(float centerX, float y, const char* text, float scale =
 		1.0f, 1.0f, 1.0f, scale);
 }
 
-static void drawMenuButton(
-	float x, float y,
-	float width, float height,
-	const char* text)
+static void drawMenuButton(float x, float y, float width, float height, const char* text)
 {
 	glUseProgram(0);
 	glBindVertexArray(0);
@@ -777,6 +775,8 @@ static void drawMenuScreen()
 	const int windowWidth = glutGet(GLUT_WINDOW_WIDTH);
 	const int windowHeight = glutGet(GLUT_WINDOW_HEIGHT);
 
+	const LobbyView* lobby = activeClientNetwork ? &activeClientNetwork->GetLobby() : nullptr;
+
 	if (windowWidth <= 0 || windowHeight <= 0) {
 		return;
 	}
@@ -804,6 +804,44 @@ static void drawMenuScreen()
 				360.0f, 90.0f,
 				"GAME START");
 		}
+		if (lobby) {
+			drawMenuText(
+				640.0f, 920.0f,
+				lobby->message.c_str(), 0.35f);
+		}
+		else {
+			drawMenuText(
+				640.0f, 920.0f,
+				"START SERVER AND RUN WITH SERVER IP",
+				0.35f);
+		}
+		return;
+	}
+	if (!lobby) {
+		drawMenuText(
+			640.0f, 480.0f,
+			"NOT CONNECTED", 0.7f);
+		return;
+	}
+
+	if (clientScreen == ClientScreen::Matching) {
+		drawMenuText(640.0f, 300.0f, "MATCHING");
+
+		const std::string countText =
+			std::to_string(lobby->count) + " / 3";
+
+		drawMenuText(
+			640.0f, 450.0f,
+			countText.c_str());
+
+		drawMenuText(
+			640.0f, 550.0f,
+			lobby->message.c_str(), 0.45f);
+
+		drawMenuButton(
+			460.0f, 780.0f,
+			360.0f, 90.0f,
+			lobby->leaving ? "LEAVING..." : "BACK");
 
 		return;
 	}
@@ -862,7 +900,9 @@ static void drawMenuScreen()
 		glGetUniformLocation(shaderProgramID, "shadowMap"), 0);
 
 	// 화면의 세 구역에 같은 닭 모델을 각각 그리기
-	for (int i = 0; i < 3; ++i) {
+	for (int i = 0;
+		i < static_cast<int>(lobby->members.size()) && i < 3;
+		++i){
 		const int centerX = 320 + i * 320;
 
 		glViewport(
@@ -879,21 +919,49 @@ static void drawMenuScreen()
 
 	drawMenuText(640.0f, 180.0f, "LOBBY");
 
-	const char* labels[] = { "1P", "2P", "3P" };
+	drawMenuText(
+		640.0f, 250.0f,
+		lobby->message.c_str(), 0.4f);
 
-	for (int i = 0; i < 3; ++i) {
+	for (int i = 0;
+		i < static_cast<int>(lobby->members.size()) && i < 3;
+		++i)
+	{
+		const auto& member = lobby->members[i];
+		std::string label = std::to_string(i + 1) + "P";
+		if (member.id == activeClientNetwork->GetMyPlayerId()) {
+			label += " (YOU)";
+		}
 		drawMenuText(
 			320.0f + i * 320.0f,
 			660.0f,
-			labels[i]);
+			label.c_str(), 0.75f);
+
+		drawMenuText(
+			320.0f + i * 320.0f,
+			720.0f,
+			member.ready ? "READY" : "NOT READY",
+			0.45f);
+	}
+	const char* readyLabel = activeClientNetwork->IsMyLobbyReady() ? "CANCEL READY" : "READY";
+
+	if (lobby->readyPending) {
+		readyLabel = "WAITING...";
 	}
 
+	if (lobby->leaving) {
+		readyLabel = "LEAVING...";
+	}
 	drawMenuButton(
 		460.0f, 780.0f,
 		360.0f, 90.0f,
+		readyLabel);
+
+	drawMenuButton(
+		1000.0f, 820.0f,
+		200.0f, 70.0f,
 		"BACK");
 }
-
 
 
 
