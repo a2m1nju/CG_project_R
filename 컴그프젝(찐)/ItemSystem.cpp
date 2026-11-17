@@ -19,6 +19,12 @@ bool ItemSystem::AddPlayer(PlayerId playerId) {
     return added;
 }
 
+bool ItemSystem::RemovePlayer(PlayerId playerId) {
+    const bool removed = inventories_.erase(playerId) != 0;
+    playerEffects_.erase(playerId);
+    return removed;
+}
+
 bool ItemSystem::SwitchSlot(PlayerId playerId, std::uint8_t slot) {
     auto it = inventories_.find(playerId);
     if (it == inventories_.end() || slot >= it->second.slots.size()) {

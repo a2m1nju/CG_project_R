@@ -36,6 +36,7 @@ class ItemSystem {
 public:
     bool AddGroundItem(const GroundItem& item);
     bool AddPlayer(PlayerId playerId);
+    bool RemovePlayer(PlayerId playerId);
     bool SwitchSlot(PlayerId playerId, std::uint8_t slot);
     bool UseSelectedItem(PlayerId playerId, std::int32_t x, std::int32_t z,
                          PlayerId targetId = 0);

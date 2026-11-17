@@ -644,6 +644,7 @@ void ServerNetwork::RunAcceptLoop() {
 void ServerNetwork::RemoveSession(std::size_t index) {
     const auto id = sessions[index].id;
     closesocket(sessions[index].socket);
+    items.RemovePlayer(id);
     --sessionCount;
     if (index != sessionCount) {
         sessions[index] = sessions[sessionCount];
