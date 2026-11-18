@@ -71,3 +71,5 @@ GLuint logTexture;
 GLuint lilyPadTexture;
 
 bool isGodMode = false;
+
+ClientScreen clientScreen = ClientScreen::Title;

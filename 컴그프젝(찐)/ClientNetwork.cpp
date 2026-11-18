@@ -2,7 +2,7 @@
 #include <ws2tcpip.h>
 #include <iostream>
 #include <cmath>
-#include <algorithm>
+#include <utility>
 
 #pragma comment(lib, "Ws2_32.lib")
 
@@ -71,6 +71,248 @@ bool ClientNetwork::Queue(const std::uint8_t* p, std::size_t size) {
     if (!IsConnected() || sendBuffer.size() + size > 16384) { Disconnect(); return false; }
     sendBuffer.insert(sendBuffer.end(), p, p + size); return Flush();
 }
+bool ClientNetwork::RequestJoin(const std::string& nickname)
+{
+    if (!IsConnected()) {
+        lobby.message = "NOT CONNECTED TO SERVER";
+        return false;
+    }
+    if (lobby.stage != LobbyStage::Title) {
+        return false;
+    }
+    if (nickname.empty() || nickname.size() > 24) {
+        return false;
+    }
+    for (const unsigned char ch : nickname) {
+        if (ch < 32 || ch > 126) {
+            return false;
+        }
+    }
+    auto packet = LobbyWire::MakePacket(
+        LobbyWire::Join, 1 + nickname.size(), ++sequence);
+    packet[12] =
+        static_cast<std::uint8_t>(nickname.size());
+    for (std::size_t i = 0; i < nickname.size(); ++i) {
+        packet[13 + i] =
+            static_cast<std::uint8_t>(nickname[i]);
+    }
+    lobby = LobbyView{};
+    lobby.stage = LobbyStage::Joining;
+    lobby.message = "JOINING...";
+    return Queue(packet.data(), packet.size());
+}
+bool ClientNetwork::RequestReady(bool ready)
+{
+    if (!IsConnected() ||
+        lobby.stage != LobbyStage::Ready ||
+        !lobby.joined ||
+        lobby.readyPending ||
+        lobby.leaving)
+    {
+        return false;
+    }
+    auto packet =
+        LobbyWire::MakePacket(LobbyWire::Ready, 5, ++sequence);
+    Wire::Write32(packet.data() + 12, lobby.epoch);
+    packet[16] = ready ? 1 : 0;
+    lobby.readyPending = true;
+    return Queue(packet.data(), packet.size());
+}
+bool ClientNetwork::RequestLeave()
+{
+    if (!IsConnected() ||
+        lobby.stage == LobbyStage::Title ||
+        lobby.leaving)
+    {
+        return false;
+    }
+    auto packet =
+        LobbyWire::MakePacket(LobbyWire::Leave, 1, ++sequence);
+    packet[12] = 0;
+    // 서버의 ROOM_CLOSE를 받은 뒤 타이틀로 복귀.
+    lobby.leaving = true;
+    lobby.message = "LEAVING...";
+
+    return Queue(packet.data(), packet.size());
+}
+int ClientNetwork::HandleLobbyPacket(
+    const std::uint8_t* packet,
+    std::size_t size)
+{
+    const auto type = packet[3];
+    if (type != LobbyWire::Welcome &&
+        type != LobbyWire::QueueState &&
+        type != LobbyWire::ReadyLobbyState &&
+        type != LobbyWire::RoomClose &&
+        type != LobbyWire::Error)
+    {
+        return 0;
+    }
+    if (Wire::ReadRoundId(packet) != 0) {
+        return -1;
+    }
+    if (type == LobbyWire::Welcome) {
+        if (size != 20) {
+            return -1;
+        }
+        const auto playerId = Wire::Read32(packet + 16);
+        if (playerId == 0 ||
+            (myPlayerId != 0 && myPlayerId != playerId))
+        {
+            return -1;
+        }
+        if (lobby.stage == LobbyStage::Joining) {
+            myPlayerId = playerId;
+            lobby.joined = true;
+
+            std::cout << "JOIN accepted. player="
+                << myPlayerId << '\n';
+        }
+        return 1;
+    }
+    if (type == LobbyWire::QueueState) {
+        if (size != 17 || packet[16] != 0) {
+            return -1;
+        }
+        const auto position = LobbyWire::Read16(packet + 12);
+        const auto count = LobbyWire::Read16(packet + 14);
+        if (count < 1 || count > 3 ||
+            position < 1 || position > count)
+        {
+            return -1;
+        }
+        if (!lobby.joined ||
+            lobby.stage == LobbyStage::Title ||
+            lobby.leaving)
+        {
+            return 1;
+        }
+        lobby.stage = LobbyStage::Matching;
+        lobby.position = position;
+        lobby.count = count;
+        lobby.members.clear();
+        lobby.message = "WAITING FOR PLAYERS";
+        return 1;
+    }
+    if (type == LobbyWire::ReadyLobbyState) {
+        if (size < 18 || packet[16] != 0 || packet[17] != 3) {
+            return -1;
+        }
+        const auto epoch = Wire::Read32(packet + 12);
+        std::vector<LobbyMemberView> members;
+        std::size_t offset = 18;
+        for (int i = 0; i < 3; ++i) {
+            if (offset + 7 > size) {
+                return -1;
+            }
+            LobbyMemberView member;
+            member.id = Wire::Read32(packet + offset);
+            const auto ready = packet[offset + 5];
+            const std::size_t nameLength = packet[offset + 6];
+            if (member.id == 0 ||
+                ready > 1 ||
+                nameLength > 24 ||
+                offset + 7 + nameLength > size)
+            {
+                return -1;
+            }
+            for (const auto& previous : members) {
+                if (previous.id == member.id) {
+                    return -1;
+                }
+            }
+            member.ready = ready != 0;
+            member.nickname.assign(
+                reinterpret_cast<const char*>(packet + offset + 7),
+                nameLength);
+
+            members.push_back(std::move(member));
+            offset += 7 + nameLength;
+        }
+
+        if (offset != size) {
+            return -1;
+        }
+
+        bool containsMe = false;
+        bool allReady = true;
+
+        for (const auto& member : members) {
+            containsMe = containsMe || member.id == myPlayerId;
+            allReady = allReady && member.ready;
+        }
+
+        if (!containsMe) {
+            return -1;
+        }
+
+        if (!lobby.joined ||
+            lobby.stage == LobbyStage::Title ||
+            lobby.leaving)
+        {
+            return 1;
+        }
+
+        if (lobby.epoch != 0 &&
+            epoch != lobby.epoch &&
+            !Wire::Newer(epoch, lobby.epoch))
+        {
+            return 1;
+        }
+
+        lobby.stage = LobbyStage::Ready;
+        lobby.epoch = epoch;
+        lobby.count = 3;
+        lobby.members = std::move(members);
+        lobby.readyPending = false;
+
+        lobby.message = allReady
+            ? "ALL READY - WAITING FOR INIT"
+            : "WAITING FOR READY";
+
+        return 1;
+    }
+
+    if (type == LobbyWire::RoomClose) {
+        if (size != 13) {
+            return -1;
+        }
+        ClearWorld();
+        lobby = LobbyView{};
+        lobby.message = "ROOM CLOSED. JOIN AGAIN TO PARTICIPATE.";
+
+        return 1;
+    }
+
+    // ERROR
+    if (size != 19) {
+        return -1;
+    }
+
+    const auto code = LobbyWire::Read16(packet + 12);
+
+    if (lobby.stage == LobbyStage::Joining && !lobby.joined) {
+        lobby = LobbyView{};
+    }
+
+    lobby.readyPending = false;
+    lobby.leaving = false;
+
+    if (code == LobbyWire::Busy) {
+        lobby.message = "ROOM IS FULL OR UNAVAILABLE";
+    }
+    else if (code == LobbyWire::Duplicate) {
+        lobby.message = "ALREADY JOINED";
+    }
+    else if (code == LobbyWire::Stale) {
+        lobby.message = "OLD LOBBY REQUEST REJECTED";
+    }
+    else {
+        lobby.message = "REQUEST NOT ALLOWED IN THIS PHASE";
+    }
+
+    return 1;
+}
 bool ClientNetwork::PollDisconnected() {
     if (!IsConnected()) return false;
     const auto now = std::chrono::steady_clock::now();
@@ -90,222 +332,79 @@ bool ClientNetwork::PollDisconnected() {
     while (receiveBuffer.size() - offset >= 2) {
         const auto* p = receiveBuffer.data() + offset;
         const std::size_t size = (std::size_t(p[0]) << 8) | p[1];
-        if (size < 8 || size > 1024) { Disconnect(); return true; }
+        if (size < Wire::HeaderSize || size > 1024) { Disconnect(); return true; }
         if (receiveBuffer.size() - offset < size) break;
         if (p[2] != 1) { Disconnect(); return true; }
-        if (p[3] == Wire::WorldBegin && size == Wire::WorldBeginSize) {
-            const auto round = Wire::Read32(p + 8);
-            const auto generation = Wire::Read32(p + 12);
-            const auto minZ = static_cast<std::int32_t>(Wire::Read32(p + 16));
-            const auto maxZ = static_cast<std::int32_t>(Wire::Read32(p + 20));
-            if (round == 0 || generation == 0 || minZ > maxZ ||
-                static_cast<std::int64_t>(maxZ) - minZ > 4096) {
-                Disconnect(); return true;
+        const int itemResult = HandleItemPacket(p, size);
+
+        const int worldResult = itemResult != 0
+            ? itemResult : HandleWorldPacket(p, size);
+
+        const int lobbyResult = worldResult != 0
+            ? worldResult  : HandleLobbyPacket(p, size);
+        if (lobbyResult < 0) {
+            Disconnect();
+            return true;
+        }
+
+        // 대기방 응답도 서버 수신 시간에 반영.
+        lastState = now;
+
+        if (lobbyResult == 0 && p[3] == Wire::AssignedId) {
+            // ID 메시지는 정확히 12바이트여야 함
+            if (size != Wire::AssignedIdSize) {
+                std::cerr << "Invalid assigned ID packet size." << std::endl;
+                Disconnect();
+                return true;
             }
-            if (roundId != 0 && !Wire::Newer(round, roundId) && round != roundId) {
-                offset += size;
-                continue;
+            // ID 메시지는 공통 헤더 12바이트 + 플레이어 ID 4바이트
+            const std::uint32_t receivedId = Wire::Read32(p + Wire::HeaderSize);
+            if (receivedId == 0 ||
+                (myPlayerId != 0 && myPlayerId != receivedId)) {
+                std::cerr << "Invalid assigned player ID."  << std::endl;
+                Disconnect();
+                return true;
             }
-            if (round == roundId && generation < worldGeneration) {
-                offset += size;
-                continue;
+            // 처음 받았을 때만 저장하고 출력
+            if (myPlayerId == 0) {
+                myPlayerId = receivedId;
+                std::cout << "My player ID: "
+                    << myPlayerId << std::endl;
             }
-            if (round != roundId || generation != worldGeneration) {
-                roundId = round;
-                worldGeneration = generation;
-                initialMinZ = minZ;
-                initialMaxZ = maxZ;
-                initialLanes.clear();
-                pendingInput = inputSeq = 0;
-                moveReady = worldReady = resetRequested = false;
-                worldEvents.clear();
-                itemEvents.clear(); initialItems.clear(); pendingPickups.clear();
-                itemSnapshotOpen = itemReady = false;
-                WorldEvent event{};
-                event.kind = WorldEvent::Kind::Begin;
-                event.roundId = round;
-                event.generation = generation;
-                event.minZ = minZ;
-                event.maxZ = maxZ;
-                worldEvents.push_back(event);
-            }
-        } else if (p[3] == Wire::WorldLane && size == Wire::WorldLaneSize) {
-            const auto round = Wire::Read32(p + 8);
-            const auto generation = Wire::Read32(p + 12);
-            if (round == roundId && generation == worldGeneration) {
-                WorldEvent event{};
-                event.kind = WorldEvent::Kind::Lane;
-                event.roundId = round;
-                event.generation = generation;
-                event.z = static_cast<std::int32_t>(Wire::Read32(p + 16));
-                event.terrain = p[20];
-                event.treeMask = Wire::Read32(p + 21);
-                event.padMask = Wire::Read32(p + 25);
-                event.spawnMask = Wire::Read32(p + 29);
-                if (event.terrain > 3 ||
-                    ((event.treeMask | event.padMask | event.spawnMask) & 0x80000000u) != 0) {
-                    Disconnect(); return true;
-                }
-                if (!worldReady && event.z >= initialMinZ && event.z <= initialMaxZ)
-                    initialLanes.insert(event.z);
-                worldEvents.push_back(event);
-            }
-        } else if (p[3] == Wire::WorldActor && size == Wire::WorldActorSize) {
-            const auto round = Wire::Read32(p + 8);
-            const auto generation = Wire::Read32(p + 12);
-            if (round == roundId && generation == worldGeneration) {
-                WorldEvent event{};
-                event.kind = WorldEvent::Kind::Actor;
-                event.roundId = round;
-                event.generation = generation;
-                event.tick = Wire::Read32(p + 16);
-                event.actorId = Wire::Read32(p + 20);
-                event.actorKind = p[24];
-                event.actorZ = Wire::ReadFloat(p + 25);
-                event.x = Wire::ReadFloat(p + 29);
-                event.speed = Wire::ReadFloat(p + 33);
-                event.width = Wire::ReadFloat(p + 37);
-                event.red = p[41]; event.green = p[42]; event.blue = p[43];
-                event.design = p[44]; event.trainState = p[45];
-                event.trainTimer = (std::uint16_t(p[46]) << 8) | p[47];
-                event.trainLight = p[48];
-                if (event.actorId == 0 || event.actorKind < 1 || event.actorKind > 3 ||
-                    event.design > 3 || event.trainState > 2 || event.trainLight > 1 ||
-                    !std::isfinite(event.actorZ) || !std::isfinite(event.x) ||
-                    !std::isfinite(event.speed) || !std::isfinite(event.width)) {
-                    Disconnect(); return true;
-                }
-                worldEvents.push_back(event);
-            }
-        } else if (p[3] == Wire::WorldEnd && size == Wire::WorldEndSize) {
-            const auto round = Wire::Read32(p + 8);
-            const auto generation = Wire::Read32(p + 12);
-            if (round == roundId && generation == worldGeneration) {
-                if (initialLanes.size() !=
-                    static_cast<std::size_t>(static_cast<std::int64_t>(initialMaxZ) - initialMinZ + 1)) {
-                    Disconnect(); return true;
-                }
-                WorldEvent event{};
-                event.kind = WorldEvent::Kind::End;
-                event.roundId = round;
-                event.generation = generation;
-                worldEvents.push_back(event);
-            }
-        } else if (p[3] == Wire::ItemIdentity && size == Wire::ItemIdentitySize) {
-            playerId = Wire::Read32(p + 8);
-            if (playerId == 0) { Disconnect(); return true; }
-        } else if (p[3] == Wire::ItemBegin && size == Wire::ItemBeginSize) {
-            if (Wire::Read32(p + 8) == roundId && !itemReady && !itemSnapshotOpen) {
-                expectedItems = Wire::Read32(p + 12);
-                if (expectedItems > 512) { Disconnect(); return true; }
-                initialItems.clear(); itemSnapshotOpen = true;
-            }
-        } else if (p[3] == Wire::ItemEntry && size == Wire::ItemEntrySize) {
-            if (Wire::Read32(p + 8) == roundId && itemSnapshotOpen) {
-                ItemEvent event{};
-                event.kind = ItemEvent::Kind::Snapshot;
-                event.id = Wire::Read32(p + 12);
-                event.itemKind = p[16];
-                event.x = static_cast<std::int32_t>(Wire::Read32(p + 17));
-                event.z = static_cast<std::int32_t>(Wire::Read32(p + 21));
-                if (event.id == 0 || event.itemKind < 1 || event.itemKind > 4 ||
-                    initialItems.size() >= expectedItems ||
-                    std::any_of(initialItems.begin(), initialItems.end(),
-                        [&event](const ItemEvent& item) { return item.id == event.id; })) {
-                    Disconnect(); return true;
-                }
-                initialItems.push_back(event);
-            }
-        } else if (p[3] == Wire::ItemEnd && size == Wire::ItemEndSize) {
-            if (Wire::Read32(p + 8) == roundId && itemSnapshotOpen) {
-                if (initialItems.size() != expectedItems) { Disconnect(); return true; }
-                for (const auto& item : initialItems) itemEvents.push_back(item);
-                initialItems.clear(); itemSnapshotOpen = false; itemReady = true;
-            }
-        } else if (p[3] == Wire::ItemSpawned && size == Wire::ItemSpawnedSize) {
-            if (Wire::Read32(p + 8) == roundId && itemReady) {
-                ItemEvent event{};
-                event.kind = ItemEvent::Kind::Snapshot;
-                event.id = Wire::Read32(p + 12);
-                event.itemKind = p[16];
-                event.x = static_cast<std::int32_t>(Wire::Read32(p + 17));
-                event.z = static_cast<std::int32_t>(Wire::Read32(p + 21));
-                if (event.id == 0 || event.itemKind < 1 || event.itemKind > 4) {
-                    Disconnect(); return true;
-                }
-                itemEvents.push_back(event);
-            }
-        } else if (p[3] == Wire::ItemRemoved && size == Wire::ItemRemovedSize) {
-            if (Wire::Read32(p + 8) == roundId && itemReady) {
-                ItemEvent event{};
-                event.kind = ItemEvent::Kind::Removed;
-                event.id = Wire::Read32(p + 12);
-                event.playerId = Wire::Read32(p + 16);
-                event.slot = p[20];
-                if (event.id == 0 || event.playerId == 0 || event.slot >= 2) {
-                    Disconnect(); return true;
-                }
-                pendingPickups.erase(event.id);
-                itemEvents.push_back(event);
-            }
-        } else if (p[3] == Wire::InventoryState && size == Wire::InventoryStateSize) {
-            if (Wire::Read32(p + 8) == roundId && itemReady) {
-                if (p[12] >= 2 || p[13] > 4 || p[14] > 4 || p[15] > 1) {
-                    Disconnect(); return true;
-                }
-                ItemEvent event{};
-                event.kind = ItemEvent::Kind::Inventory;
-                event.slot = p[12]; event.itemKind = p[13];
-                event.secondKind = p[14]; event.accepted = p[15] != 0;
-                itemEvents.push_back(event);
-            }
-        } else if (p[3] == Wire::ItemEffect && size == Wire::ItemEffectSize) {
-            if (Wire::Read32(p + 8) == roundId && itemReady) {
-                if ((p[12] != 1 && p[12] != 2 && p[12] != 4) || Wire::Read32(p + 13) == 0 ||
-                    Wire::Read32(p + 13) > 60000) {
-                    Disconnect(); return true;
-                }
-                ItemEvent event{};
-                event.kind = ItemEvent::Kind::Effect;
-                event.itemKind = p[12];
-                event.durationMs = Wire::Read32(p + 13);
-                itemEvents.push_back(event);
-            }
-        } else if (p[3] == Wire::BananaPlaced && size == Wire::BananaPlacedSize) {
-            if (Wire::Read32(p + 8) == roundId && itemReady) {
-                ItemEvent event{};
-                event.kind = ItemEvent::Kind::BananaPlaced;
-                event.id = Wire::Read32(p + 12);
-                event.playerId = Wire::Read32(p + 16);
-                event.x = static_cast<std::int32_t>(Wire::Read32(p + 20));
-                event.z = static_cast<std::int32_t>(Wire::Read32(p + 24));
-                if (event.id == 0 || event.playerId == 0) {
-                    Disconnect(); return true;
-                }
-                itemEvents.push_back(event);
-            }
-        } else if (p[3] == Wire::BananaHit && size == Wire::BananaHitSize) {
-            if (Wire::Read32(p + 8) == roundId && itemReady) {
-                ItemEvent event{};
-                event.kind = ItemEvent::Kind::BananaHit;
-                event.id = Wire::Read32(p + 12);
-                event.playerId = Wire::Read32(p + 16);
-                event.x = static_cast<std::int32_t>(Wire::Read32(p + 20));
-                event.z = static_cast<std::int32_t>(Wire::Read32(p + 24));
-                event.accepted = p[28] == 1;
-                if (event.id == 0 || event.playerId == 0 || p[28] > 1) {
-                    Disconnect(); return true;
-                }
-                itemEvents.push_back(event);
-            }
-        } else if (p[3] == Wire::State && size == Wire::StateSize) {
+        }
+        else if (lobbyResult == 0 && p[3] == Wire::State && size == Wire::StateSize) {
+
             lastState = now;
-            const auto round = Wire::Read32(p + 8);
-            if (round == roundId && pendingInput && Wire::Read32(p + 12) == pendingInput) {
+            const auto round = Wire::ReadRoundId(p);
+            // 현재 라운드에서 내가 기다리던 이동 응답인지 확인
+            if (round == roundId &&
+                pendingInput &&
+                Wire::Read32(p + 12) == pendingInput) {
                 pendingInput = 0;
-                if (p[28] == static_cast<std::uint8_t>(Wire::MoveStatus::Accepted)) {
-                    moveX = Wire::ReadFloat(p + 20); moveZ = Wire::ReadFloat(p + 24);
-                    moveReady = std::isfinite(moveX) && std::isfinite(moveZ);
+                if (p[28] ==
+                    static_cast<std::uint8_t>(
+                        Wire::MoveStatus::Accepted)) {
+                    // 서버가 승인한 목표 좌표
+                    moveX = Wire::ReadFloat(p + 20);
+                    moveZ = Wire::ReadFloat(p + 24);
+                    moveReady =
+                        std::isfinite(moveX) &&
+                        std::isfinite(moveZ);
+                    // 유효한 승인 좌표와 자기 ID가 있을 때만 출력
+                    if (moveReady && myPlayerId != 0) {
+                        const auto receivedInputSeq =
+                            Wire::Read32(p + 12);
+                        const auto serverTick =
+                            Wire::Read32(p + 16);
+                        std::cout
+                            << "[MOVE ACCEPTED]"
+                            << " id=" << myPlayerId
+                            << " inputSeq=" << receivedInputSeq
+                            << " tick=" << serverTick
+                            << " x=" << moveX
+                            << " z=" << moveZ
+                            << std::endl;
+                    }
                 }
             }
         }
@@ -317,8 +416,7 @@ bool ClientNetwork::PollDisconnected() {
 void ClientNetwork::SyncWorld(float x, float z, bool alive) {
     if (!Ready() || pendingInput || moveReady) return;
     std::array<std::uint8_t, Wire::PositionSize> p{};
-    Wire::Header(p.data(), p.size(), Wire::WorldPosition, ++sequence);
-    Wire::Write32(p.data() + 8, roundId);
+    Wire::Header(p.data(), p.size(), Wire::WorldPosition, ++sequence, roundId);
     Wire::WriteFloat(p.data() + 12, x); Wire::WriteFloat(p.data() + 16, z);
     p[20] = alive ? 1 : 0; Queue(p.data(), p.size());
 }
@@ -333,73 +431,30 @@ bool ClientNetwork::TakeMove(float& x, float& z) {
     if (!moveReady) return false;
     x = moveX; z = moveZ; moveReady = false; return true;
 }
-bool ClientNetwork::TakeWorldEvent(WorldEvent& event) {
-    if (worldEvents.empty()) return false;
-    event = worldEvents.front();
-    worldEvents.pop_front();
-    if (event.kind == WorldEvent::Kind::End) worldReady = true;
-    return true;
-}
-bool ClientNetwork::TakeItemEvent(ItemEvent& event) {
-    if (itemEvents.empty()) return false;
-    event = itemEvents.front();
-    itemEvents.pop_front();
-    return true;
-}
-bool ClientNetwork::RequestPickup(std::uint32_t itemId) {
-    if (!Ready() || itemId == 0) return false;
-    const auto now = std::chrono::steady_clock::now();
-    const auto pending = pendingPickups.find(itemId);
-    if (pending != pendingPickups.end() &&
-        now - pending->second < std::chrono::milliseconds(500)) return false;
-    std::array<std::uint8_t, Wire::PickupRequestSize> p{};
-    Wire::Header(p.data(), p.size(), Wire::PickupRequest, ++sequence);
-    Wire::Write32(p.data() + 8, roundId);
-    Wire::Write32(p.data() + 12, itemId);
-    if (!Queue(p.data(), p.size())) return false;
-    pendingPickups[itemId] = now;
-    return true;
-}
-bool ClientNetwork::RequestSwitch(std::uint8_t slot) {
-    if (!Ready() || slot >= 2) return false;
-    std::array<std::uint8_t, Wire::ItemSwitchSize> p{};
-    Wire::Header(p.data(), p.size(), Wire::ItemSwitch, ++sequence);
-    Wire::Write32(p.data() + 8, roundId);
-    p[12] = slot;
-    return Queue(p.data(), p.size());
-}
-bool ClientNetwork::RequestUse() {
-    if (!Ready()) return false;
-    std::array<std::uint8_t, Wire::ItemUseSize> p{};
-    Wire::Header(p.data(), p.size(), Wire::ItemUse, ++sequence);
-    Wire::Write32(p.data() + 8, roundId);
-    return Queue(p.data(), p.size());
-}
-bool ClientNetwork::RequestSpawn(std::uint8_t itemKind) {
-    if (!Ready() || itemKind < 1 || itemKind > 4) return false;
-    std::array<std::uint8_t, Wire::ItemSpawnRequestSize> p{};
-    Wire::Header(p.data(), p.size(), Wire::ItemSpawnRequest, ++sequence);
-    Wire::Write32(p.data() + 8, roundId);
-    p[12] = itemKind;
-    return Queue(p.data(), p.size());
-}
-void ClientNetwork::ResetRound() {
-    if (!Ready() || resetRequested) return;
-    std::array<std::uint8_t, 12> p{};
-    Wire::Header(p.data(), p.size(), Wire::Reset, ++sequence);
-    Wire::Write32(p.data() + 8, roundId + 1);
-    resetRequested = Queue(p.data(), p.size());
+void ClientNetwork::ResetRound()
+{
+    if (!Ready() || resetRequested) {
+        return;
+    }
+    std::array<std::uint8_t, Wire::HeaderSize> packet{};
+    Wire::Header(
+        packet.data(),
+        packet.size(),
+        Wire::Reset,
+        ++sequence,
+        roundId);
+
+    resetRequested = Queue(packet.data(), packet.size());
 }
 
 void ClientNetwork::Disconnect() {
-    receiveBuffer.clear(); sendBuffer.clear();
-    sequence = inputSeq = pendingInput = roundId = worldGeneration = 0;
-    initialMinZ = 0; initialMaxZ = -1; initialLanes.clear();
-    pollingStarted = moveReady = worldReady = resetRequested = false;
-    worldEvents.clear();
-    itemEvents.clear(); initialItems.clear(); pendingPickups.clear();
-    playerId = expectedItems = 0;
-    itemSnapshotOpen = itemReady = false;
+    ClearWorld();
+    lobby = LobbyView{};
+    lobby.message = "SERVER DISCONNECTED";
+    myPlayerId = 0;
+    receiveBuffer.clear(); 
+    sendBuffer.clear();
+    sequence = inputSeq = pendingInput = roundId = 0; pollingStarted = moveReady = false;
     if (serverSocket != INVALID_SOCKET) {
         closesocket(serverSocket);
         serverSocket = INVALID_SOCKET;

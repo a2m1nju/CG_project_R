@@ -1,9 +1,7 @@
 #include "Renderer.h"
 #include "Global.h"
 #include "Logic.h" 
-
-class ClientNetwork;
-extern ClientNetwork* activeClientNetwork;
+#include "ClientNetwork.h"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
@@ -74,9 +72,9 @@ void drawShieldModel(GLuint shader, glm::mat4 baseModel) {
 	drawPart(shader, baseModel, glm::vec3(0.0f, 0.0f, -0.1f), glm::vec3(0.2f, 0.2f, 0.1f), glm::vec3(0.4f, 0.2f, 0.0f));
 }
 
-// 자석 그리기
-// 물약 그리기
-// 시계 그리기
+//  자석 그리기 
+//  물약 그리기 
+//  시계 그리기
 // 나무	그리기
 void drawTree(int x, int z, GLuint shader) {
 
@@ -156,7 +154,7 @@ void drawCar(const Car& car, GLuint shader) {
 // 철로 그리기
 void drawRail(int z, bool isWarning, bool isLightOn, GLuint shader) {
 
-	// 침목
+	// 침목 (Sleepers) 
 	glm::vec3 woodColor = glm::vec3(0.35f, 0.2f, 0.1f);
 
 	for (float x = -50.0f; x <= 50.0f; x += 1.2f) {
@@ -169,7 +167,7 @@ void drawRail(int z, bool isWarning, bool isLightOn, GLuint shader) {
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
 
-	// 철로 - 은색
+	// 철로 (Rails) - 은색
 	glm::vec3 railColor = glm::vec3(0.6f, 0.6f, 0.7f);
 	float railZPositions[] = { -0.3f, 0.3f }; 
 
@@ -183,7 +181,7 @@ void drawRail(int z, bool isWarning, bool isLightOn, GLuint shader) {
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
 
-	// 신호등 - 오른쪽 배치
+	// 신호등 (Signal) - 오른쪽 배치
 	float signalX = 7.0f;
 
 	// 줄무늬 기둥
@@ -274,14 +272,21 @@ void drawLog(const Log& logObj, GLuint shader) {
 }
 
 // 연잎 그리기
-void drawLilyPad(const LilyPad& pad, GLuint shader) {
+void drawLilyPad(const LilyPad& pad, GLuint shader)
+{
 	glm::mat4 model = glm::mat4(1.0f);
-	model = glm::translate(model, glm::vec3(pad.x, 0.05f, pad.z));
 
-	glm::vec3 scale = glm::vec3(0.8f, 0.05f, 0.8f);
-	glm::vec3 whiteColor = glm::vec3(1.0f, 1.0f, 1.0f);
+	model = glm::translate(model,glm::vec3(pad.x, 0.05f, pad.z));
 
-	drawPart(shader, model, glm::vec3(0.0f), scale, whiteColor);
+	glm::vec3 scale(0.8f, 0.05f, 0.8f);
+	glm::vec3 whiteColor(1.0f, 1.0f, 1.0f);
+
+	drawPart(
+		shader,
+		model,
+		glm::vec3(0.0f),
+		scale,
+		whiteColor);
 }
 
 // 아이템 그리기
@@ -345,8 +350,12 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 	float groundWidth = 300.0f;
 
 		for (int z = currentZ - drawRangeFront; z <= currentZ + drawRangeBack; ++z) {
-			if (!activeClientNetwork) generateLane(z);
-			else if (mapType.find(z) == mapType.end()) continue;
+			if (!activeClientNetwork) {
+				generateLane(z);
+			}
+			else if (mapType.find(z) == mapType.end()) {
+				continue;
+			}
 			const SeasonColors& colors = seasonThemes[getSeasonByZ(z)];
 
 			glm::mat4 model = glm::mat4(1.0f);
@@ -357,7 +366,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 
 			if (shader == shaderProgramID) {
 
-				// 경우 1: 강
+				// CASE 1: 강 
 				if (mapType[z] == 2) {
 					glActiveTexture(GL_TEXTURE1);
 					glBindTexture(GL_TEXTURE_2D, riverTexture); 
@@ -368,7 +377,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 
 					glVertexAttrib3f(1, 1.0f, 1.0f, 1.0f);
 				}
-				// 경우 2: 잔디
+				// CASE 2: 잔디 
 				else if (mapType[z] == 0) {
 					glActiveTexture(GL_TEXTURE1);
 					glBindTexture(GL_TEXTURE_2D, grassTexture); 
@@ -379,7 +388,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 
 					glVertexAttrib3f(1, colors.grass.r, colors.grass.g, colors.grass.b);
 				}
-				// 경우 3: 도로 또는 철길
+				// CASE 3: 도로 또는 철길
 				else {
 					glUniform1i(useTexLoc, 0);
 					glUniform2f(uvScaleLoc, 1.0f, 1.0f);
@@ -502,6 +511,32 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 
 		drawChicken(shader, pModel);
 	}
+	if (activeClientNetwork) {
+		for (const auto& player :
+			activeClientNetwork->GetPlayers())
+		{
+			if (player.id ==
+				activeClientNetwork->GetMyPlayerId() ||
+				!player.alive)
+			{
+				continue;
+			}
+			glm::mat4 model = glm::translate(
+				glm::mat4(1.0f),
+				glm::vec3(player.x, 0.5f, player.z));
+
+			model = glm::rotate(
+				model,
+				glm::radians(player.rotation),
+				glm::vec3(0.0f, 1.0f, 0.0f));
+
+			model = glm::scale(
+				model,
+				glm::vec3(0.7f));
+
+			drawChicken(shader, model);
+		}
+	}
 }
 
 static void drawShieldAura(const glm::mat4& projection, const glm::mat4& view) {
@@ -538,7 +573,7 @@ static void drawShieldAura(const glm::mat4& projection, const glm::mat4& view) {
     constexpr float kPi = 3.14159265f;
     constexpr float kTau = 2.0f * kPi;
 
-    // 안쪽 캐릭터가 가려지지 않도록 투명한 보호막을 그린다.
+    // Draw a transparent shell without hiding the character inside it.
     for (int band = 0; band < kLatitudeBands; ++band) {
         const float lower = -0.5f * kPi + kPi * band / kLatitudeBands;
         const float upper = -0.5f * kPi + kPi * (band + 1) / kLatitudeBands;
@@ -595,7 +630,7 @@ static void drawInventorySlots() {
     constexpr int kSlotTop = 105;
     constexpr int kBorder = 6;
 
-    // 화면 좌표에 인벤토리 칸 두 개를 그린다.
+    // Draw the two HUD boxes in screen coordinates.
     glUseProgram(0);
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -660,7 +695,7 @@ static void drawInventorySlots() {
     glMatrixMode(GL_MODELVIEW);
     glPopMatrix();
 
-    // 아이템이 있는 칸에는 월드 아이템과 같은 3D 모델을 그린다.
+    // Render the same 3D models used by world items into each occupied box.
     glUseProgram(shaderProgramID);
     glBindVertexArray(vao);
     glEnable(GL_DEPTH_TEST);
@@ -707,8 +742,278 @@ static void drawInventorySlots() {
     }
 }
 
+static void drawMenuText(float centerX, float y, const char* text, float scale = 1.0f)
+{
+	float width = 0.0f;
+
+	for (const char* p = text; *p; ++p) {
+		const unsigned char ch =
+			static_cast<unsigned char>(*p);
+
+		if (ch >= 32 && ch < 128) {
+			width += cdata[ch - 32].xadvance;
+		}
+	}
+
+	renderTextTTF(
+		centerX - width * scale * 0.5f,
+		y, text,
+		1.0f, 1.0f, 1.0f, scale);
+}
+
+static void drawMenuButton(float x, float y, float width, float height, const char* text)
+{
+	glUseProgram(0);
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	glActiveTexture(GL_TEXTURE1);
+	glDisable(GL_TEXTURE_2D);
+	glActiveTexture(GL_TEXTURE0);
+	glDisable(GL_TEXTURE_2D);
+
+	glDisable(GL_LIGHTING);
+	glDisable(GL_DEPTH_TEST);
+
+	glMatrixMode(GL_PROJECTION);
+	glPushMatrix();
+	glLoadIdentity();
+	gluOrtho2D(0, 1280, 0, 960);
+
+	glMatrixMode(GL_MODELVIEW);
+	glPushMatrix();
+	glLoadIdentity();
+
+	// OpenGL 사각형 좌표는 아래쪽이 원점이므로 변환
+	const float top = 960.0f - y;
+	const float bottom = 960.0f - y - height;
+
+	glColor3f(0.15f, 0.42f, 0.65f);
+
+	glBegin(GL_QUADS);
+	glVertex2f(x, bottom);
+	glVertex2f(x + width, bottom);
+	glVertex2f(x + width, top);
+	glVertex2f(x, top);
+	glEnd();
+
+	glPopMatrix();
+	glMatrixMode(GL_PROJECTION);
+	glPopMatrix();
+	glMatrixMode(GL_MODELVIEW);
+
+	drawMenuText(
+		x + width * 0.5f,
+		y + height * 0.5f + 15.0f,
+		text, 0.7f);
+}
+
+static void drawMenuScreen()
+{
+	const int windowWidth = glutGet(GLUT_WINDOW_WIDTH);
+	const int windowHeight = glutGet(GLUT_WINDOW_HEIGHT);
+
+	const LobbyView* lobby = activeClientNetwork ? &activeClientNetwork->GetLobby() : nullptr;
+
+	if (windowWidth <= 0 || windowHeight <= 0) {
+		return;
+	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glDisable(GL_SCISSOR_TEST);
+	glViewport(0, 0, windowWidth, windowHeight);
+
+	glDepthMask(GL_TRUE);
+	glClearColor(0.08f, 0.12f, 0.18f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	// 타이틀 화면
+	if (clientScreen == ClientScreen::Title) {
+		glUseProgram(0);
+		glBindVertexArray(0);
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glActiveTexture(GL_TEXTURE0);
+
+		drawLogo();
+
+		if (introState == 2) {
+			drawMenuButton(
+				460.0f, 680.0f,
+				360.0f, 90.0f,
+				"GAME START");
+		}
+		if (lobby) {
+			drawMenuText(
+				640.0f, 920.0f,
+				lobby->message.c_str(), 0.35f);
+		}
+		else {
+			drawMenuText(
+				640.0f, 920.0f,
+				"START SERVER AND RUN WITH SERVER IP",
+				0.35f);
+		}
+		return;
+	}
+	if (!lobby) {
+		drawMenuText(
+			640.0f, 480.0f,
+			"NOT CONNECTED", 0.7f);
+		return;
+	}
+
+	if (clientScreen == ClientScreen::Matching) {
+		drawMenuText(640.0f, 300.0f, "MATCHING");
+
+		const std::string countText =
+			std::to_string(lobby->count) + " / 3";
+
+		drawMenuText(
+			640.0f, 450.0f,
+			countText.c_str());
+
+		drawMenuText(
+			640.0f, 550.0f,
+			lobby->message.c_str(), 0.45f);
+
+		drawMenuButton(
+			460.0f, 780.0f,
+			360.0f, 90.0f,
+			lobby->leaving ? "LEAVING..." : "BACK");
+
+		return;
+	}
+
+	// 대기방의 닭 모델을 그릴 준비
+	glUseProgram(shaderProgramID);
+	glBindVertexArray(vao);
+
+	glEnable(GL_DEPTH_TEST);
+	glDisable(GL_BLEND);
+
+	// 모델 부위별 색상을 drawChicken()에서 지정
+	glDisableVertexAttribArray(1);
+
+	const glm::mat4 projection = glm::perspective(
+		glm::radians(35.0f),
+		260.0f / 300.0f,
+		0.1f, 20.0f);
+
+	// 닭 부리는 -Z 방향이므로 앞쪽에서 바라봄
+	const glm::mat4 view = glm::lookAt(
+		glm::vec3(1.2f, 0.9f, -3.0f),
+		glm::vec3(0.0f, -0.05f, 0.0f),
+		glm::vec3(0.0f, 1.0f, 0.0f));
+
+	// 기존 인벤토리 모델과 같은 그림자 제외 방식
+	const glm::mat4 noShadow = glm::translate(
+		glm::mat4(1.0f),
+		glm::vec3(0.0f, 0.0f, 4.0f));
+
+	glUniformMatrix4fv(
+		glGetUniformLocation(shaderProgramID, "projection"),
+		1, GL_FALSE, glm::value_ptr(projection));
+
+	glUniformMatrix4fv(
+		glGetUniformLocation(shaderProgramID, "view"),
+		1, GL_FALSE, glm::value_ptr(view));
+
+	glUniformMatrix4fv(
+		glGetUniformLocation(shaderProgramID, "lightSpaceMatrix"),
+		1, GL_FALSE, glm::value_ptr(noShadow));
+
+	glUniform1i(
+		glGetUniformLocation(shaderProgramID, "useTexture"), 0);
+
+	glUniform1i(
+		glGetUniformLocation(shaderProgramID, "enableSpotlight"), 0);
+
+	glUniform1i(
+		glGetUniformLocation(shaderProgramID, "isGlitch"), 0);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, depthMap);
+
+	glUniform1i(
+		glGetUniformLocation(shaderProgramID, "shadowMap"), 0);
+
+	// 화면의 세 구역에 같은 닭 모델을 각각 그리기
+	for (int i = 0;
+		i < static_cast<int>(lobby->members.size()) && i < 3;
+		++i){
+		const int centerX = 320 + i * 320;
+
+		glViewport(
+			(centerX - 130) * windowWidth / 1280,
+			360 * windowHeight / 960,
+			260 * windowWidth / 1280,
+			300 * windowHeight / 960);
+
+		drawChicken(shaderProgramID, glm::mat4(1.0f));
+	}
+
+	// 글자는 창 전체를 기준으로 표시
+	glViewport(0, 0, windowWidth, windowHeight);
+
+	drawMenuText(640.0f, 180.0f, "LOBBY");
+
+	drawMenuText(
+		640.0f, 250.0f,
+		lobby->message.c_str(), 0.4f);
+
+	for (int i = 0;
+		i < static_cast<int>(lobby->members.size()) && i < 3;
+		++i)
+	{
+		const auto& member = lobby->members[i];
+		std::string label = std::to_string(i + 1) + "P";
+		if (member.id == activeClientNetwork->GetMyPlayerId()) {
+			label += " (YOU)";
+		}
+		drawMenuText(
+			320.0f + i * 320.0f,
+			660.0f,
+			label.c_str(), 0.75f);
+
+		drawMenuText(
+			320.0f + i * 320.0f,
+			720.0f,
+			member.ready ? "READY" : "NOT READY",
+			0.45f);
+	}
+	if (lobby->stage == LobbyStage::Loading) {
+		return;
+	}
+	const char* readyLabel = activeClientNetwork->IsMyLobbyReady() ? "CANCEL READY" : "READY";
+
+	if (lobby->readyPending) {
+		readyLabel = "WAITING...";
+	}
+
+	if (lobby->leaving) {
+		readyLabel = "LEAVING...";
+	}
+	drawMenuButton(
+		460.0f, 780.0f,
+		360.0f, 90.0f,
+		readyLabel);
+
+	drawMenuButton(
+		1000.0f, 820.0f,
+		200.0f, 70.0f,
+		"BACK");
+}
+
+
+
 GLvoid drawScene()
 {
+	// 타이틀과 대기방에서는 게임 월드를 그리지 않음
+	if (clientScreen != ClientScreen::Playing) {
+		drawMenuScreen();
+		glutSwapBuffers();
+		return;
+	}
 	glm::vec3 shakeOffset(0.0f, 0.0f, 0.0f);
 
 	if (shakeTimer > 0.0f) {
@@ -781,7 +1086,7 @@ GLvoid drawScene()
 
 	renderObjects(shaderProgramID, proj * view);
     drawShieldAura(proj, view);
-	// 주변의 바닥 아이템을 그린다.
+	// Draw nearby ground items.
 	int currentZ = (int)std::round(playerPos.z);
 	int drawRangeFront = 30;
 	int drawRangeBack = 10;
@@ -818,12 +1123,12 @@ GLvoid drawScene()
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
 
-	// 사용자 화면
+	// UI
 	// 1. 점수 표시
 	std::string scoreStr = "SCORE: " + std::to_string(score);
 	renderTextWithOutline(20, 60, scoreStr.c_str());
 
-	// 아이템 효과 상태를 표시한다.
+	// Item effect status.
 	float uiY = 120.0f;
 
     if (effects && effects->shieldRemainingMs > 0) {
@@ -953,12 +1258,16 @@ void renderTextTTF(float x, float y, const char* text, float r, float g, float b
 void renderTextWithOutline(float x, float y, const char* text) {
 	float offset = 5.0f; 
 
-	const float offsets[][2] = {
-		{-offset, 0.0f}, {offset, 0.0f}, {0.0f, -offset}, {0.0f, offset},
-		{-offset, -offset}, {offset, -offset}, {-offset, offset}, {offset, offset}
-	};
-	for (const auto& d : offsets)
-		renderTextTTF(x + d[0], y + d[1], text, 0.0f, 0.0f, 0.0f);
+	renderTextTTF(x - offset, y, text, 0.0f, 0.0f, 0.0f); // 좌
+	renderTextTTF(x + offset, y, text, 0.0f, 0.0f, 0.0f); // 우
+	renderTextTTF(x, y - offset, text, 0.0f, 0.0f, 0.0f); // 상
+	renderTextTTF(x, y + offset, text, 0.0f, 0.0f, 0.0f); // 하
+
+	renderTextTTF(x - offset, y - offset, text, 0.0f, 0.0f, 0.0f);
+	renderTextTTF(x + offset, y - offset, text, 0.0f, 0.0f, 0.0f);
+	renderTextTTF(x - offset, y + offset, text, 0.0f, 0.0f, 0.0f);
+	renderTextTTF(x + offset, y + offset, text, 0.0f, 0.0f, 0.0f);
+
 	renderTextTTF(x, y, text, 1.0f, 1.0f, 1.0f);
 }
 

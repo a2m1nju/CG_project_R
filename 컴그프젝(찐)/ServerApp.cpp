@@ -4,7 +4,11 @@
 #include <thread>
 
 bool ServerApp::Initialize(std::uint16_t port) {
-    if (initialized || port == 0) {
+    if (initialized) { //중복 초기화 방지
+        return false;
+    }
+
+    if (port == 0) { //고정 접속 포트로 사용할 값인지 확인
         return false;
     }
 
@@ -13,8 +17,9 @@ bool ServerApp::Initialize(std::uint16_t port) {
     }
 
     this->port = port;
-
-    // 네트워크 루프가 통신과 고정 간격 이동 상태를 관리한다.
+    room = RoomState{}; //방 상태 초기화
+    network.AttachLobby(room);
+    // Network loop owns transport and fixed-step movement state.
     // GameThread 구현 시 접속 대기 스레드보다 먼저 시작
     // 중간 실패 시 생성된 자원만 정리하고 false 반환
 
@@ -43,6 +48,7 @@ void ServerApp::Shutdown() {
 
     // 스레드 구현 시 네트워크 종료 전에 정리
     network.Shutdown();
+    room = RoomState{};
     port = 0;
     initialized = false;
 }

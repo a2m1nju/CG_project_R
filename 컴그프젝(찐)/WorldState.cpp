@@ -1,5 +1,5 @@
 ﻿#include "WorldState.h"
-
+#include "WorldMotion.h"
 #include <algorithm>
 
 namespace {
@@ -45,8 +45,10 @@ WorldLaneData WorldState::MakeLane(std::int32_t z) {
             if (random % 10 == 0) lane.treeMask |= bit;
             else if (x >= -6 && x <= 6 && (random >> 8) % 16 == 0)
                 lane.spawnMask |= bit;
-        } else if (lane.terrain == 2 && !logLane &&
-                   (x == 0 || random % 5 == 0)) {
+        }
+        else if (lane.terrain == 2 && !logLane &&
+            (x == 0 || random % 5 == 0))
+        {
             lane.padMask |= bit;
         }
     }
@@ -102,27 +104,28 @@ std::vector<WorldLaneData> WorldState::EnsureRange(std::int32_t minZ,
     std::vector<WorldLaneData> added;
     if (minZ > maxZ || maxNewLanes == 0) return added;
     added.reserve(std::min<std::size_t>(maxNewLanes, 64));
-    const auto addLane = [&](std::int32_t z) {
-        auto lane = MakeLane(z);
-        lanes_.emplace(z, lane);
-        added.push_back(lane);
-    };
 
     // 저장된 연속 구간을 한 줄씩 확장한다.
     // 클라이언트 위치가 크게 바뀌어도 틱당 생성량을 제한한다.
     if (lanes_.empty()) {
         for (auto z = minZ; z <= maxZ && added.size() < maxNewLanes; ++z) {
-            addLane(z);
+            auto lane = MakeLane(z);
+            lanes_.emplace(z, lane);
+            added.push_back(lane);
         }
         return added;
     }
     while (MinZ() > minZ && added.size() < maxNewLanes) {
         const auto z = MinZ() - 1;
-        addLane(z);
+        auto lane = MakeLane(z);
+        lanes_.emplace(z, lane);
+        added.push_back(lane);
     }
     while (MaxZ() < maxZ && added.size() < maxNewLanes) {
         const auto z = MaxZ() + 1;
-        addLane(z);
+        auto lane = MakeLane(z);
+        lanes_.emplace(z, lane);
+        added.push_back(lane);
     }
     return added;
 }

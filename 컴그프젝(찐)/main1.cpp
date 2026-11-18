@@ -7,6 +7,7 @@
 #include "Input.h"
 
 #pragma comment(lib, "opengl32.lib")
+#pragma comment(lib, "glew32.lib")
 #pragma comment(lib, "freeglut.lib")
 #pragma comment(lib, "winmm.lib")
 #pragma comment(lib, "glew32.lib")
@@ -52,15 +53,44 @@ bool InitializeClient(int& argc, char** argv)
 namespace {
     void PollServerConnection(int value)
     {
-        if (activeClientNetwork == nullptr || glutGetWindow() == 0) {
+        if (activeClientNetwork == nullptr ||
+            glutGetWindow() == 0)
+        {
             return;
         }
 
         if (activeClientNetwork->PollDisconnected()) {
-            std::cout << "Server disconnected." << std::endl;
-            return;
+            std::cout << "Server disconnected.\n";
         }
-
+        const auto& lobby = activeClientNetwork->GetLobby();
+        ClientScreen nextScreen = ClientScreen::Title;
+        switch (lobby.stage) {
+        case LobbyStage::Joining:
+        case LobbyStage::Matching:
+            nextScreen = ClientScreen::Matching;
+            break;
+        case LobbyStage::Loading:
+        case LobbyStage::Ready:
+            nextScreen = ClientScreen::Lobby;
+            break;
+        case LobbyStage::Playing:
+            nextScreen = ClientScreen::Playing;
+            break;
+        default:
+            nextScreen = ClientScreen::Title;
+            break;
+        }
+        if (nextScreen == ClientScreen::Title &&
+            clientScreen != ClientScreen::Title)
+        {
+            introState = 2;
+            logoX = logoTargetX;
+        }
+        if (nextScreen != ClientScreen::Title) {
+            introState = 0;
+        }
+        clientScreen = nextScreen;
+        glutPostRedisplay();
         glutTimerFunc(16, PollServerConnection, value);
     }
 }
@@ -78,7 +108,6 @@ int main(int argc, char** argv)
         if (!network.Connect(argv[1], 9000)) {
             return EXIT_FAILURE;
         }
-
         activeClientNetwork = &network;
         std::cout << "Connected to " << argv[1] << ":9000\n";
     }
@@ -98,9 +127,11 @@ int main(int argc, char** argv)
     glutReshapeFunc(Reshape);
     glutSpecialFunc(specialKeyboard);
     glutKeyboardFunc(keyboard);
+    glutMouseFunc(mouse);
     glutTimerFunc(16, timer, 0);
 
     if (argc == 2) {
+        activeClientNetwork = &network;
         glutTimerFunc(16, PollServerConnection, 0);
     }
 

@@ -1,5 +1,7 @@
 #include "Protocol.h"
 
+#include <cstddef>
+
 std::array<std::uint8_t, 17> EncodeMovePacket(
     std::uint32_t sequence,
     std::uint32_t roundId,
@@ -8,10 +10,9 @@ std::array<std::uint8_t, 17> EncodeMovePacket(
 {
     std::array<std::uint8_t, 17> packet{};
 
-    Wire::Header(packet.data(), packet.size(), 9, sequence);
-    Wire::Write32(packet.data() + 8, roundId);
-    Wire::Write32(packet.data() + 12, inputSeq);
-    packet[16] = static_cast<std::uint8_t>(physicalDirection);
+    Wire::Header(packet.data(), packet.size(), 9, sequence, roundId);
+    Wire::Write32(packet.data() + Wire::HeaderSize, inputSeq);
+    packet[Wire::HeaderSize + 4] = static_cast<std::uint8_t>(physicalDirection);
 
     return packet;
 }

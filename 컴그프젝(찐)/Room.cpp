@@ -44,24 +44,21 @@ void MatchCoordinator::TryPromote(){ // 준비실 구성
 	// 8. 통신 구현 시 READY_LOBBY_STATE 전송 연결
 }
 
-bool MatchCoordinator::SetReady(SessionId id, LobbyEpoch epoch, bool ready) {
+ReadyResult MatchCoordinator::SetReady(SessionId id, LobbyEpoch epoch, bool ready) {
 	if (room.phase != ServicePhase::READY_LOBBY) { // 준비실인지 확인
-		return false;
+		return ReadyResult::BadPhase;
 	}
 	if (epoch != room.lobbyEpoch) { // 이전 대기실 요청 차단
-		return false;
+		return ReadyResult::Stale;
 	}
 	const auto it = std::find(room.members.begin(), room.members.end(), id); // 옳은 멤버인지 확인
 	if (it == room.members.end()) {
-		return false;
+		return ReadyResult::NotMember;
 	}
 	const auto index = static_cast<std::size_t>(it - room.members.begin()); // 개인 준비상태 변경
 	room.ready[index] = ready;
 
-	// 5. 통신 구현 시 전체 멤버에게
-	// READY_LOBBY_STATE 전송
-
-	return true;
+	return ReadyResult::Accepted;
 }
 
 void MatchCoordinator::DissolveReadyLobby(SessionId leaverId) {
@@ -156,33 +153,43 @@ void MatchCoordinator::OnDisconnect(SessionId id) {
 	}
 }
 
-void RoundController::BeginRound(bool rematch) { // 첫경기인지 재경기인지 구분
+bool RoundController::BeginRound(bool rematch) { // 첫경기인지 재경기인지 구분
 	if (rematch) { //재경기인지 확인
 		if (room.phase != ServicePhase::RESULT) { // 재경기: 호출 전에 연결된 3명의 전원 동의 확인 필요
-			return;
+			return false;
 		}
 	}
 	else { // 첫 경기: 준비 대기실에서만 시작 가능
 		if (room.phase != ServicePhase::READY_LOBBY) {
-			return;
+			return false;
 		}
 		
 		const bool allReady = std::all_of( // 첫 경기는 전원 준비 필요
 			room.ready.begin(), room.ready.end(),
 			[](bool value) { return value; });
 		if (!allReady) {
-			return;
+			return false;
 		}
 	}
+	PrepareRound();
+	return true;
+}
+
+bool RoundController::ReloadRound() { //전원 재시작 요청 후 공유 월드를 다시 로딩
+	if (room.phase != ServicePhase::PLAYING) {
+		return false;
+	}
+	PrepareRound();
+	return true;
+}
+
+void RoundController::PrepareRound() {
 	++room.roundId; // 새로운 라운드 번호 발급
 	room.ready.fill(false); // 이전 준비·로딩 상태 초기화
 	room.loaded.fill(false);
 
-	// 5. 월드·플레이어 구현 시 연결
-	// - 새로운 초기 월드 생성
-	// - 참가자 3명의 위치·생존 상태 초기화
-	// - 아이템 슬롯·효과 초기화
-	// - 거리·생존 시간·입력 기록 초기화
+	// 5. 참가자와 라운드 기록 초기화
+	// 공유 월드·아이템 생성은 ServerNetwork의 StartRoundSnapshots에서 처리
 	for (std::size_t i = 0; i < room.players.size(); ++i) {
 		room.players[i] = PlayerState{};
 		room.players[i].playerId = room.members[i];
@@ -195,7 +202,7 @@ void RoundController::BeginRound(bool rematch) { // 첫경기인지 재경기인
 	// 6. 로딩 단계로 전환
 	room.phase = ServicePhase::LOADING;
 
-	// 7. 통신 구현 시 새 roundId의 INIT 전송
+	// 7. 호출부에서 같은 roundId의 맵·아이템 스냅샷 전송
 }
 
 bool RoundController::MarkLoaded(PlayerId id, RoundId roundId) //로딩완료기록, 플레이로 전환
@@ -224,7 +231,7 @@ bool RoundController::MarkLoaded(PlayerId id, RoundId roundId) //로딩완료기
 
 		room.phase = ServicePhase::PLAYING;
 
-		// 8. 통신 구현 시 전체 참가자에게 START 전송
+		// 8. 호출부에서 전체 참가자에게 START 전송
 	}
 	return true;
 }

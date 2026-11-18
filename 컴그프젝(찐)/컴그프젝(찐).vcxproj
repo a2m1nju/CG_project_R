@@ -154,14 +154,15 @@ glew32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <ClCompile Include="Protocol.cpp" />
-    <ClCompile Include="ClientNetwork.cpp" />
+    <ClCompile Include="ClientNetwork.cpp"><AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions></ClCompile>
     <ClCompile Include="ServerApp.cpp">
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
-    <ClCompile Include="ServerNetwork.cpp" />
-    <ClCompile Include="WorldState.cpp" />
+    <ClCompile Include="ServerNetwork.cpp"><AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions></ClCompile>
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="Texture.cpp" />
+    <ClCompile Include="WorldClient.cpp" />
+    <ClCompile Include="WorldState.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Common.h" />
@@ -176,11 +177,12 @@ glew32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     <ClInclude Include="ClientNetwork.h" />
     <ClInclude Include="ServerApp.h" />
     <ClInclude Include="ServerNetwork.h" />
-    <ClInclude Include="WorldState.h" />
     <ClInclude Include="Shader.h" />
     <ClInclude Include="stb_image.h" />
     <ClInclude Include="stb_truetype.h" />
     <ClInclude Include="Texture.h" />
+    <ClInclude Include="WorldMotion.h" />
+    <ClInclude Include="WorldState.h" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="logo.png" />
