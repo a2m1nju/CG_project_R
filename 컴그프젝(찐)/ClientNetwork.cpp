@@ -335,8 +335,13 @@ bool ClientNetwork::PollDisconnected() {
         if (size < Wire::HeaderSize || size > 1024) { Disconnect(); return true; }
         if (receiveBuffer.size() - offset < size) break;
         if (p[2] != 1) { Disconnect(); return true; }
-        const int worldResult = HandleWorldPacket(p, size);
-        const int lobbyResult = worldResult != 0 ? worldResult : HandleLobbyPacket(p, size);
+        const int itemResult = HandleItemPacket(p, size);
+
+        const int worldResult = itemResult != 0
+            ? itemResult : HandleWorldPacket(p, size);
+
+        const int lobbyResult = worldResult != 0
+            ? worldResult  : HandleLobbyPacket(p, size);
         if (lobbyResult < 0) {
             Disconnect();
             return true;
@@ -426,7 +431,20 @@ bool ClientNetwork::TakeMove(float& x, float& z) {
     if (!moveReady) return false;
     x = moveX; z = moveZ; moveReady = false; return true;
 }
-void ClientNetwork::ResetRound() {
+void ClientNetwork::ResetRound()
+{
+    if (!Ready() || resetRequested) {
+        return;
+    }
+    std::array<std::uint8_t, Wire::HeaderSize> packet{};
+    Wire::Header(
+        packet.data(),
+        packet.size(),
+        Wire::Reset,
+        ++sequence,
+        roundId);
+
+    resetRequested = Queue(packet.data(), packet.size());
 }
 
 void ClientNetwork::Disconnect() {

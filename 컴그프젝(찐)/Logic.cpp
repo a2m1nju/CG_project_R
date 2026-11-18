@@ -230,8 +230,11 @@ void spawnParticles(glm::vec3 pos, glm::vec3 color, int count, float speedScale)
 }
 
 static std::map<unsigned int, int> actorLastPacketMs;
+static bool bananaReboundPending = false;
+static glm::vec3 bananaReboundTarget;
 static void clearRoundState()
 {
+	bananaReboundPending = false;
 	playerPos = glm::vec3(0.0f, 0.5f, 0.0f);
 	playerTargetPos = playerPos;
 	playerStartPos = playerPos;
@@ -397,6 +400,130 @@ static void applyWorldEvent(const WorldEvent& event)
 		}
 	}
 }
+static void applyItemEvent(const ItemEvent& event)
+{
+	if (event.kind == ItemEvent::Kind::BananaHit) {
+		localItems.RemoveBananaTrap(event.id);
+
+		if (event.accepted &&
+			activeClientNetwork &&
+			event.playerId == activeClientNetwork->PlayerId())
+		{
+			bananaReboundTarget = glm::vec3(
+				static_cast<float>(event.x),
+				0.5f,
+				static_cast<float>(event.z));
+
+			playerStartPos = playerPos;
+			playerTargetPos = bananaReboundTarget;
+
+			playerTargetPos.z -=
+				GetItemRule(ItemKind::Banana).hitPushbackCells;
+
+			moveTime = 0.0f;
+			isMoving = true;
+			bananaReboundPending = true;
+		}
+
+		return;
+	}
+
+	if (event.kind == ItemEvent::Kind::BananaPlaced) {
+		localItems.ApplyConfirmedBanana({
+			event.id,
+			event.playerId,
+			event.x,
+			event.z
+			});
+		return;
+	}
+
+	if (event.kind == ItemEvent::Kind::Effect) {
+		if (event.itemKind ==
+			static_cast<std::uint8_t>(ItemKind::Shield))
+		{
+			if (localItems.ApplyConfirmedShield(1, event.durationMs)) {
+				showItemFeedback("SHIELD ACTIVE");
+			}
+			return;
+		}
+
+		const auto effect = event.itemKind == 1
+			? EffectKind::ReverseControls
+			: EffectKind::Blackout;
+
+		if (localItems.ApplyConfirmedEffect(
+			1, effect, event.durationMs))
+		{
+			showItemFeedback(
+				effect == EffectKind::ReverseControls
+				? "CONTROLS REVERSED"
+				: "BLACKOUT");
+		}
+		return;
+	}
+
+	if (event.kind == ItemEvent::Kind::Inventory) {
+		localItems.ApplyInventoryState(
+			1,
+			event.slot,
+			static_cast<ItemKind>(event.itemKind),
+			static_cast<ItemKind>(event.secondKind));
+
+		showItemFeedback(
+			event.accepted
+			? "ITEM UPDATED"
+			: "ITEM REQUEST REJECTED");
+		return;
+	}
+
+	if (event.kind == ItemEvent::Kind::Snapshot) {
+		Item item{};
+		item.id = event.id;
+		item.x = static_cast<float>(event.x);
+		item.z = static_cast<float>(event.z);
+
+		item.type = event.itemKind == 4
+			? ITEM_SHIELD
+			: static_cast<ItemType>(
+				ITEM_REVERSE + event.itemKind - 1);
+
+		items.push_back(item);
+		return;
+	}
+
+	const auto found = std::find_if(
+		items.begin(),
+		items.end(),
+		[&event](const Item& item) {
+			return item.id == event.id;
+		});
+
+	if (found == items.end() || found->isCollected) {
+		return;
+	}
+
+	if (activeClientNetwork &&
+		event.playerId == activeClientNetwork->PlayerId())
+	{
+		const ItemKind kind = found->type == ITEM_SHIELD
+			? ItemKind::Shield
+			: static_cast<ItemKind>(
+				found->type - ITEM_REVERSE + 1);
+
+		if (localItems.ApplyConfirmedPickup(
+			1, event.slot, kind))
+		{
+			showItemFeedback("ITEM ACQUIRED");
+			PlaySound(
+				TEXT("item.wav"),
+				NULL,
+				SND_ASYNC | SND_FILENAME);
+		}
+	}
+
+	found->isCollected = true;
+}
 void resetGame()
 {
 	if (activeClientNetwork) {
@@ -425,6 +552,13 @@ void timer(int value)
 		while (activeClientNetwork->TakeWorldEvent(event)) {
 			applyWorldEvent(event);
 		}
+
+		ItemEvent itemEvent;
+
+		while (activeClientNetwork->TakeItemEvent(itemEvent)) {
+			applyItemEvent(itemEvent);
+		}
+
 		activeClientNetwork->RequestLoaded();
 		float x, z;
 		if (activeClientNetwork->TakeStart(x, z)) {
@@ -465,7 +599,7 @@ void timer(int value)
 
     if (activeClientNetwork) {
         float x, z;
-        if (activeClientNetwork->TakeMove(x, z) && !isGameOver && introState == 0) {
+        if (activeClientNetwork->TakeMove(x, z) && !bananaReboundPending && !isGameOver && introState == 0) {
             playerStartPos = playerPos;
             playerTargetPos = glm::vec3(x, 0.5f, z);
             isMoving = true; moveTime = 0;
@@ -592,6 +726,14 @@ void timer(int value)
 	for (auto& item : items) {
 		if (item.isCollected) continue;
 		if (std::abs(item.z - playerPos.z) < 0.5f && std::abs(item.x - playerPos.x) < 0.5f) {
+			if (activeClientNetwork) {
+				if (!isMoving && !isGameOver) {
+					activeClientNetwork->RequestPickup(item.id);
+				}
+
+				continue;
+			}
+
             if (item.type >= ITEM_SHIELD) {
                 const auto picked = localItems.ResolvePickups({{1,
                     (int)std::round(playerPos.x), (int)std::round(playerPos.z), true}});
@@ -624,7 +766,7 @@ void timer(int value)
         showItemFeedback("INVENTORY FULL");
     wasBlockedByFullInventory = blockedByFullInventory;
 
-    if (localItems.ResolveBananaHit(1, (int)std::round(playerPos.x),
+    if (!activeClientNetwork && localItems.ResolveBananaHit(1, (int)std::round(playerPos.x),
         (int)std::round(playerPos.z))) {
         playerPos.z += 1.0f;
         playerTargetPos = playerPos;
@@ -833,7 +975,16 @@ void timer(int value)
 
 			if (t >= 1.0f) {
 				playerPos = playerTargetPos;
-				isMoving = false;
+				if (bananaReboundPending) {
+					bananaReboundPending = false;
+					playerStartPos = playerPos;
+					playerTargetPos = bananaReboundTarget;
+					moveTime = 0.0f;
+					isMoving = true;
+				}
+				else {
+					isMoving = false;
+				}
 
 				int landZ = (int)std::round(playerPos.z);
 				if (mapType.count(landZ) && mapType[landZ] == 2) {

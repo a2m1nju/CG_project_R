@@ -150,11 +150,15 @@ glew32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     <ClCompile Include="ItemSystem.cpp" />
     <ClCompile Include="main1.cpp" />
     <ClCompile Include="Renderer.cpp" />
-    <ClCompile Include="Room.cpp" />
+    <ClCompile Include="Room.cpp">
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
     <ClCompile Include="Protocol.cpp" />
-    <ClCompile Include="ClientNetwork.cpp" />
-    <ClCompile Include="ServerApp.cpp" />
-    <ClCompile Include="ServerNetwork.cpp" />
+    <ClCompile Include="ClientNetwork.cpp"><AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions></ClCompile>
+    <ClCompile Include="ServerApp.cpp">
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="ServerNetwork.cpp"><AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions></ClCompile>
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="Texture.cpp" />
     <ClCompile Include="WorldClient.cpp" />

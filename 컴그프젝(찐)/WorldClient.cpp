@@ -1,9 +1,11 @@
 #include "ClientNetwork.h"
 #include <cmath>
+#include <iostream>
 #include <algorithm>
 
 void ClientNetwork::ClearWorld()
 {
+    ClearItems();
     roundId = 0;
     inputSeq = 0;
     pendingInput = 0;
@@ -43,13 +45,14 @@ bool ClientNetwork::RequestLoaded()
     if (!IsConnected() ||
         lobby.stage != LobbyStage::Loading ||
         !worldReady ||
+        !itemReady ||
+        !worldEvents.empty() ||
+        !itemEvents.empty() ||
         loadedSent)
     {
         return false;
     }
-
     std::array<std::uint8_t, Wire::HeaderSize> packet{};
-
     Wire::Header(
         packet.data(),
         packet.size(),
@@ -98,11 +101,11 @@ int ClientNetwork::HandleWorldPacket(
         size == Wire::WorldBeginSize)
     {
         if (lobby.stage != LobbyStage::Ready &&
-            lobby.stage != LobbyStage::Loading)
+            lobby.stage != LobbyStage::Loading &&
+            !(lobby.stage == LobbyStage::Playing && resetRequested))
         {
             return -1;
         }
-
         const auto round = Wire::ReadRoundId(p);
         const auto generation = Wire::Read32(p + 12);
 
@@ -382,4 +385,328 @@ int ClientNetwork::HandleWorldPacket(
     }
 
     return 1;
+}
+
+void ClientNetwork::ClearItems()
+{
+    itemEvents.clear();
+    initialItems.clear();
+    pendingPickups.clear();
+
+    expectedItems = 0;
+    itemSnapshotOpen = false;
+    itemReady = false;
+    resetRequested = false;
+}
+
+int ClientNetwork::HandleItemPacket(
+    const std::uint8_t* p,
+    std::size_t size)
+{
+    if (p[3] < Wire::ItemBegin || p[3] > Wire::ItemSpawned) {
+        return 0;
+    }
+
+    if (!lobby.joined || lobby.leaving) {
+        return 1;
+    }
+
+    if (p[3] == Wire::ItemIdentity &&
+        size == Wire::ItemIdentitySize)
+    {
+        if (Wire::Read32(p + 12) != myPlayerId) {
+            return -1;
+        }
+    }
+    else if (p[3] == Wire::ItemBegin &&
+        size == Wire::ItemBeginSize)
+    {
+        if (Wire::ReadRoundId(p) == roundId &&
+            !itemReady &&
+            !itemSnapshotOpen)
+        {
+            expectedItems = Wire::Read32(p + 12);
+
+            if (expectedItems > 512) {
+                return -1;
+            }
+
+            initialItems.clear();
+            itemSnapshotOpen = true;
+        }
+    }
+    else if (p[3] == Wire::ItemEntry &&
+        size == Wire::ItemEntrySize)
+    {
+        if (Wire::ReadRoundId(p) == roundId && itemSnapshotOpen) {
+            ItemEvent event{};
+            event.kind = ItemEvent::Kind::Snapshot;
+            event.id = Wire::Read32(p + 12);
+            event.itemKind = p[16];
+            event.x = static_cast<std::int32_t>(
+                Wire::Read32(p + 17));
+            event.z = static_cast<std::int32_t>(
+                Wire::Read32(p + 21));
+
+            const bool duplicate = std::any_of(
+                initialItems.begin(),
+                initialItems.end(),
+                [&event](const ItemEvent& item) {
+                    return item.id == event.id;
+                });
+
+            if (event.id == 0 ||
+                event.itemKind < 1 ||
+                event.itemKind > 4 ||
+                initialItems.size() >= expectedItems ||
+                duplicate)
+            {
+                return -1;
+            }
+
+            initialItems.push_back(event);
+        }
+    }
+    else if (p[3] == Wire::ItemEnd &&
+        size == Wire::ItemEndSize)
+    {
+        if (Wire::ReadRoundId(p) == roundId && itemSnapshotOpen) {
+            if (initialItems.size() != expectedItems) {
+                return -1;
+            }
+
+            for (const auto& item : initialItems) {
+                itemEvents.push_back(item);
+            }
+
+            initialItems.clear();
+            itemSnapshotOpen = false;
+            itemReady = true;
+        }
+    }
+    else if (p[3] == Wire::ItemSpawned &&
+        size == Wire::ItemSpawnedSize)
+    {
+        if (Wire::ReadRoundId(p) == roundId && itemReady) {
+            ItemEvent event{};
+            event.kind = ItemEvent::Kind::Snapshot;
+            event.id = Wire::Read32(p + 12);
+            event.itemKind = p[16];
+            event.x = static_cast<std::int32_t>(
+                Wire::Read32(p + 17));
+            event.z = static_cast<std::int32_t>(
+                Wire::Read32(p + 21));
+
+            if (event.id == 0 ||
+                event.itemKind < 1 ||
+                event.itemKind > 4)
+            {
+                return -1;
+            }
+
+            itemEvents.push_back(event);
+        }
+    }
+    else if (p[3] == Wire::ItemRemoved &&
+        size == Wire::ItemRemovedSize)
+    {
+        if (Wire::ReadRoundId(p) == roundId && itemReady) {
+            ItemEvent event{};
+            event.kind = ItemEvent::Kind::Removed;
+            event.id = Wire::Read32(p + 12);
+            event.playerId = Wire::Read32(p + 16);
+            event.slot = p[20];
+
+            if (event.id == 0 ||
+                event.playerId == 0 ||
+                event.slot >= 2)
+            {
+                return -1;
+            }
+
+            pendingPickups.erase(event.id);
+            itemEvents.push_back(event);
+        }
+    }
+    else if (p[3] == Wire::InventoryState &&
+        size == Wire::InventoryStateSize)
+    {
+        if (Wire::ReadRoundId(p) == roundId && itemReady) {
+            if (p[12] >= 2 ||
+                p[13] > 4 ||
+                p[14] > 4 ||
+                p[15] > 1)
+            {
+                return -1;
+            }
+
+            ItemEvent event{};
+            event.kind = ItemEvent::Kind::Inventory;
+            event.slot = p[12];
+            event.itemKind = p[13];
+            event.secondKind = p[14];
+            event.accepted = p[15] != 0;
+
+            itemEvents.push_back(event);
+        }
+    }
+    else if (p[3] == Wire::ItemEffect &&
+        size == Wire::ItemEffectSize)
+    {
+        if (Wire::ReadRoundId(p) == roundId && itemReady) {
+            const auto duration = Wire::Read32(p + 13);
+
+            if ((p[12] != 1 && p[12] != 2 && p[12] != 4) ||
+                duration == 0 ||
+                duration > 60000)
+            {
+                return -1;
+            }
+
+            ItemEvent event{};
+            event.kind = ItemEvent::Kind::Effect;
+            event.itemKind = p[12];
+            event.durationMs = duration;
+
+            itemEvents.push_back(event);
+        }
+    }
+    else if (p[3] == Wire::BananaPlaced &&
+        size == Wire::BananaPlacedSize)
+    {
+        if (Wire::ReadRoundId(p) == roundId && itemReady) {
+            ItemEvent event{};
+            event.kind = ItemEvent::Kind::BananaPlaced;
+            event.id = Wire::Read32(p + 12);
+            event.playerId = Wire::Read32(p + 16);
+            event.x = static_cast<std::int32_t>(
+                Wire::Read32(p + 20));
+            event.z = static_cast<std::int32_t>(
+                Wire::Read32(p + 24));
+
+            if (event.id == 0 || event.playerId == 0) {
+                return -1;
+            }
+
+            itemEvents.push_back(event);
+        }
+    }
+    else if (p[3] == Wire::BananaHit &&
+        size == Wire::BananaHitSize)
+    {
+        if (Wire::ReadRoundId(p) == roundId && itemReady) {
+            ItemEvent event{};
+            event.kind = ItemEvent::Kind::BananaHit;
+            event.id = Wire::Read32(p + 12);
+            event.playerId = Wire::Read32(p + 16);
+            event.x = static_cast<std::int32_t>(
+                Wire::Read32(p + 20));
+            event.z = static_cast<std::int32_t>(
+                Wire::Read32(p + 24));
+            event.accepted = p[28] == 1;
+
+            if (event.id == 0 ||
+                event.playerId == 0 ||
+                p[28] > 1)
+            {
+                return -1;
+            }
+
+            itemEvents.push_back(event);
+        }
+    }
+    else {
+        return -1;
+    }
+
+    return 1;
+}
+
+bool ClientNetwork::TakeItemEvent(ItemEvent& event)
+{
+    if (itemEvents.empty()) {
+        return false;
+    }
+
+    event = itemEvents.front();
+    itemEvents.pop_front();
+    return true;
+}
+
+bool ClientNetwork::RequestPickup(std::uint32_t itemId)
+{
+    if (!Ready() || itemId == 0) {
+        return false;
+    }
+
+    const auto now = std::chrono::steady_clock::now();
+    const auto pending = pendingPickups.find(itemId);
+
+    if (pending != pendingPickups.end() &&
+        now - pending->second < std::chrono::milliseconds(500))
+    {
+        return false;
+    }
+
+    std::array<std::uint8_t, Wire::PickupRequestSize> packet{};
+
+    Wire::Header(
+        packet.data(), packet.size(),
+        Wire::PickupRequest, ++sequence, roundId);
+
+    Wire::Write32(packet.data() + 12, itemId);
+
+    if (!Queue(packet.data(), packet.size())) {
+        return false;
+    }
+
+    pendingPickups[itemId] = now;
+    return true;
+}
+
+bool ClientNetwork::RequestSwitch(std::uint8_t slot)
+{
+    if (!Ready() || slot >= 2) {
+        return false;
+    }
+
+    std::array<std::uint8_t, Wire::ItemSwitchSize> packet{};
+
+    Wire::Header(
+        packet.data(), packet.size(),
+        Wire::ItemSwitch, ++sequence, roundId);
+
+    packet[12] = slot;
+    return Queue(packet.data(), packet.size());
+}
+
+bool ClientNetwork::RequestUse()
+{
+    if (!Ready()) {
+        return false;
+    }
+
+    std::array<std::uint8_t, Wire::ItemUseSize> packet{};
+
+    Wire::Header(
+        packet.data(), packet.size(),
+        Wire::ItemUse, ++sequence, roundId);
+
+    return Queue(packet.data(), packet.size());
+}
+
+bool ClientNetwork::RequestSpawn(std::uint8_t itemKind)
+{
+    if (!Ready() || itemKind < 1 || itemKind > 4) {
+        return false;
+    }
+
+    std::array<std::uint8_t, Wire::ItemSpawnRequestSize> packet{};
+
+    Wire::Header(
+        packet.data(), packet.size(),
+        Wire::ItemSpawnRequest, ++sequence, roundId);
+
+    packet[12] = itemKind;
+    return Queue(packet.data(), packet.size());
 }

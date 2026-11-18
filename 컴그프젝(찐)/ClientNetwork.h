@@ -1,10 +1,14 @@
-#pragma once
+﻿#pragma once
+
 #include <winsock2.h>
 #include "Protocol.h"
+
 #include <vector>
 #include <chrono>
 #include <deque>
 #include <set>
+#include <map>
+#include <string>
 
 enum class LobbyStage {
     Title,
@@ -37,79 +41,94 @@ struct LobbyView {
 };
 
 struct WorldEvent {
-    enum class Kind {
-        Begin,
-        Lane,
-        Actor,
-        End
-    } kind;
+    enum class Kind { Begin, Lane, Actor, End } kind;
 
-    std::uint32_t roundId = 0;
-    std::uint32_t generation = 0;
-
-    std::int32_t z = 0;
-    std::int32_t minZ = 0;
-    std::int32_t maxZ = 0;
-
+    std::uint32_t roundId = 0, generation = 0;
+    std::int32_t z = 0, minZ = 0, maxZ = 0;
     std::uint8_t terrain = 0;
-    std::uint32_t treeMask = 0;
-    std::uint32_t padMask = 0;
-    std::uint32_t spawnMask = 0;
-
-    std::uint32_t tick = 0;
-    std::uint32_t actorId = 0;
-
+    std::uint32_t treeMask = 0, padMask = 0, spawnMask = 0;
+    std::uint32_t tick = 0, actorId = 0;
     std::uint8_t actorKind = 0;
-    std::uint8_t red = 0;
-    std::uint8_t green = 0;
-    std::uint8_t blue = 0;
-    std::uint8_t design = 0;
-
-    std::uint8_t trainState = 0;
-    std::uint8_t trainLight = 0;
+    std::uint8_t red = 0, green = 0, blue = 0, design = 0;
+    std::uint8_t trainState = 0, trainLight = 0;
     std::uint16_t trainTimer = 0;
-
-    float actorZ = 0;
-    float x = 0;
-    float speed = 0;
-    float width = 0;
+    float actorZ = 0, x = 0, speed = 0, width = 0;
 };
 
 struct RemotePlayerView {
     std::uint32_t id = 0;
     std::uint8_t slot = 0;
-
-    float x = 0;
-    float z = 0;
-    float rotation = 0;
-
+    float x = 0, z = 0, rotation = 0;
     bool alive = true;
+};
+
+struct ItemEvent {
+    enum class Kind {
+        Snapshot,
+        Removed,
+        Inventory,
+        Effect,
+        BananaPlaced,
+        BananaHit
+    } kind;
+
+    std::uint32_t id = 0, playerId = 0;
+    std::uint8_t itemKind = 0, slot = 0;
+    std::uint8_t secondKind = 0;
+    std::uint32_t durationMs = 0;
+    bool accepted = false;
+    std::int32_t x = 0, z = 0;
 };
 
 class ClientNetwork {
 public:
     ClientNetwork() = default;
     ~ClientNetwork() { Disconnect(); }
+
     ClientNetwork(const ClientNetwork&) = delete;
     ClientNetwork& operator=(const ClientNetwork&) = delete;
+
     bool Connect(const char* serverIp, std::uint16_t port);
-    bool PollDisconnected(); // Pumps framed receive and partial send queues.
+    bool PollDisconnected();
     void Disconnect();
-    bool IsConnected() const { return serverSocket != INVALID_SOCKET; }
+
+    bool IsConnected() const
+    {
+        return serverSocket != INVALID_SOCKET;
+    }
+
     bool Ready() const
     {
         return IsConnected() &&
             lobby.stage == LobbyStage::Playing &&
-            roundId != 0 && worldReady;
+            roundId != 0 &&
+            worldReady &&
+            itemReady &&
+            !resetRequested &&
+            itemEvents.empty();
     }
-    std::uint32_t GetMyPlayerId() const {
+
+    std::uint32_t GetMyPlayerId() const
+    {
         return myPlayerId;
     }
+
+    std::uint32_t PlayerId() const
+    {
+        return myPlayerId;
+    }
+
     bool RequestMove(Direction direction, float x, float z);
     bool TakeMove(float& x, float& z);
-    bool MovePending() const { return pendingInput != 0; }
+
+    bool MovePending() const
+    {
+        return pendingInput != 0;
+    }
+
     void SyncWorld(float x, float z, bool alive);
     void ResetRound();
+
     const LobbyView& GetLobby() const
     {
         return lobby;
@@ -126,9 +145,9 @@ public:
                 return member.ready;
             }
         }
-
         return false;
     }
+
     bool TakeWorldEvent(WorldEvent& event);
     bool RequestLoaded();
     bool TakeStart(float& x, float& z);
@@ -137,26 +156,42 @@ public:
     {
         return players;
     }
+
+    bool TakeItemEvent(ItemEvent& event);
+    bool RequestPickup(std::uint32_t itemId);
+    bool RequestSwitch(std::uint8_t slot);
+    bool RequestUse();
+    bool RequestSpawn(std::uint8_t itemKind);
+
 private:
     bool Queue(const std::uint8_t* p, std::size_t size);
     bool Flush();
+
     SOCKET serverSocket = INVALID_SOCKET;
     bool winsockInitialized = false;
+
     std::vector<std::uint8_t> receiveBuffer, sendBuffer;
-    std::uint32_t sequence = 0, inputSeq = 0, pendingInput = 0, roundId = 0;
+
+    std::uint32_t sequence = 0;
+    std::uint32_t inputSeq = 0;
+    std::uint32_t pendingInput = 0;
+    std::uint32_t roundId = 0;
     std::uint32_t myPlayerId = 0;
+
     std::chrono::steady_clock::time_point lastState{}, pendingSince{};
-    bool pollingStarted = false, moveReady = false;
+
+    bool pollingStarted = false;
+    bool moveReady = false;
     float moveX = 0, moveZ = 0;
+
     LobbyView lobby;
 
     int HandleLobbyPacket(
         const std::uint8_t* packet,
         std::size_t size);
-    std::uint32_t worldGeneration = 0;
 
-    std::int32_t initialMinZ = 0;
-    std::int32_t initialMaxZ = -1;
+    std::uint32_t worldGeneration = 0;
+    std::int32_t initialMinZ = 0, initialMaxZ = -1;
 
     std::set<std::int32_t> initialLanes;
     std::deque<WorldEvent> worldEvents;
@@ -165,9 +200,30 @@ private:
     bool worldReady = false;
     bool loadedSent = false;
     bool startReady = false;
+
+    std::deque<ItemEvent> itemEvents;
+    std::vector<ItemEvent> initialItems;
+
+    std::map<
+        std::uint32_t,
+        std::chrono::steady_clock::time_point
+    > pendingPickups;
+
+    std::uint32_t expectedItems = 0;
+    bool itemSnapshotOpen = false;
+    bool itemReady = false;
+    bool resetRequested = false;
+
     void ClearWorld();
-    int HandleWorldPacket(const std::uint8_t* packet, std::size_t size);
+    void ClearItems();
+
+    int HandleWorldPacket(
+        const std::uint8_t* packet,
+        std::size_t size);
+
+    int HandleItemPacket(
+        const std::uint8_t* packet,
+        std::size_t size);
 };
 
-// Set only while main owns the connected client; offline input stays unchanged.
 extern ClientNetwork* activeClientNetwork;

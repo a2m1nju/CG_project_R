@@ -72,11 +72,13 @@ typedef struct RoomState {
     RoundId roundId = 0;
 } RoomState;
 
-typedef struct JoinResult {
+struct JoinResult {
     ErrorCode code; // 0:정상, 1:방상태 오류, 2:중복등록 3:인원초과 
     PlayerId playerId;
     uint16_t queuePosition;
 };
+
+enum class ReadyResult { Accepted, BadPhase, Stale, NotMember };
 
 class MatchCoordinator {
 public:
@@ -85,7 +87,8 @@ public:
 
     JoinResult Enqueue(SessionId id);
     void TryPromote();
-    bool SetReady(SessionId id, LobbyEpoch epoch, bool ready);
+    const RoomState& GetRoomState() const { return room; }
+    ReadyResult SetReady(SessionId id, LobbyEpoch epoch, bool ready);
 
     void DissolveReadyLobby(SessionId leaverId);
     void CancelLoading(SessionId leaverId);
@@ -99,12 +102,14 @@ class RoundController {
 public:
     explicit RoundController(RoomState& room)
         : room(room) {}
-    void BeginRound(bool rematch);
+    bool BeginRound(bool rematch);
+    bool ReloadRound();
     bool MarkLoaded(PlayerId id, RoundId roundId);
     bool ShouldFinish() const;
     ResultData BuildResult(const RankConfig& config);
 
 private:
+    void PrepareRound();
     RoomState& room;
 };
 
