@@ -66,7 +66,8 @@ void specialKeyboard(int key, int x, int y)
 	default: return;
 	}
 
-	if (!isTreeAt(nextX, nextZ)) {
+	if ((!activeClientNetwork || mapType.find(nextZ) != mapType.end()) &&
+        !isTreeAt(nextX, nextZ)) {
         if (activeClientNetwork) {
             Direction direction = key == GLUT_KEY_UP ? Direction::UP :
                 key == GLUT_KEY_DOWN ? Direction::DOWN :
@@ -78,7 +79,6 @@ void specialKeyboard(int key, int x, int y)
 			minZ = nextZ;
 			score++;
 
-			int currentTotalLines = -minZ;
 		}
 
 		playerStartPos = playerPos;
@@ -126,11 +126,19 @@ void keyboard(unsigned char key, int x, int y)
 
     if (key == 'z' || key == 'Z') {
         const auto* inventory = localItems.GetInventory(1);
-        if (inventory) localItems.SwitchSlot(1, 1 - inventory->selectedSlot);
+        if (inventory) {
+            const auto next = static_cast<std::uint8_t>(1 - inventory->selectedSlot);
+            if (activeClientNetwork) activeClientNetwork->RequestSwitch(next);
+            else localItems.SwitchSlot(1, next);
+        }
         glutPostRedisplay();
         return;
     }
     if (key == 'x' || key == 'X') {
+        if (activeClientNetwork) {
+            activeClientNetwork->RequestUse();
+            return;
+        }
         const auto* inventory = localItems.GetInventory(1);
         const bool emptySlot = !inventory ||
             inventory->slots[inventory->selectedSlot] == ItemKind::Empty;
@@ -142,16 +150,23 @@ void keyboard(unsigned char key, int x, int y)
         return;
     }
 
-    if (key == '4' || key == '9') {
+    if (key >= '1' && key <= '4') {
+        const auto kind = static_cast<std::uint8_t>(key - '0');
+        if (activeClientNetwork) activeClientNetwork->RequestSpawn(kind);
+        else spawnItem((int)std::round(playerPos.x),
+                       (int)std::round(playerPos.z) - 2,
+                       kind == 4 ? ITEM_SHIELD
+                                 : static_cast<ItemType>(ITEM_REVERSE + kind - 1));
+        glutPostRedisplay();
+        return;
+    }
+
+    if (!activeClientNetwork && key == '9') {
         const int itemX = (int)std::round(playerPos.x);
         const int itemZ = (int)std::round(playerPos.z) - 2;
-        if (key == '4') {
-            spawnItem(itemX, itemZ, ITEM_SHIELD);
-        } else {
-            static unsigned nextKind = 0;
-            spawnItem(itemX, itemZ, static_cast<ItemType>(ITEM_REVERSE + nextKind));
-            nextKind = (nextKind + 1) % 3;
-        }
+        static unsigned nextKind = 0;
+        spawnItem(itemX, itemZ, static_cast<ItemType>(ITEM_REVERSE + nextKind));
+        nextKind = (nextKind + 1) % 3;
     }
 
 }

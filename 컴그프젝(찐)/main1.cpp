@@ -7,7 +7,6 @@
 #include "Input.h"
 
 #pragma comment(lib, "opengl32.lib")
-#pragma comment(lib, "glew32.lib")
 #pragma comment(lib, "freeglut.lib")
 #pragma comment(lib, "winmm.lib")
 #pragma comment(lib, "glew32.lib")
@@ -86,6 +85,8 @@ int main(int argc, char** argv)
 
     std::cout << "Connected to " << argv[1] << ":9000\n";
 
+    activeClientNetwork = &network;
+
     // GLUT에는 실행 파일명만 전달
     int glutArgc = 1;
     char* glutArgv[] = {argv[0], nullptr};
@@ -103,7 +104,6 @@ int main(int argc, char** argv)
     glutKeyboardFunc(keyboard);
     glutTimerFunc(16, timer, 0);
 
-    activeClientNetwork = &network;
     glutTimerFunc(16, PollServerConnection, 0);
 
     glutMainLoop();

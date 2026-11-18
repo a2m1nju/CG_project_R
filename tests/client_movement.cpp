@@ -9,18 +9,29 @@
     if (!(condition)) throw std::runtime_error(#condition); \
 } while (false)
 
+static std::vector<ClientNetwork*> peers;
+
 template<class Predicate> void Wait(ClientNetwork& client, Predicate predicate) {
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
     while (!predicate()) {
-        CHECK(!client.PollDisconnected());
+        for (auto* peer : peers) {
+            CHECK(!peer->PollDisconnected());
+            WorldEvent world;
+            while (peer->TakeWorldEvent(world)) {}
+            ItemEvent item;
+            while (peer->TakeItemEvent(item)) {}
+            peer->ConfirmWorldApplied();
+        }
         CHECK(std::chrono::steady_clock::now() < deadline);
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
 }
 
 int main() try {
-    ClientNetwork client;
-    CHECK(client.Connect("127.0.0.1", 9000));
+    ClientNetwork client, second, third;
+    peers = {&client, &second, &third};
+    for (auto* peer : peers) CHECK(peer->Connect("127.0.0.1", 9000));
+    for (auto* peer : peers) Wait(client, [&] { return peer->ToggleLobbyReady(); });
     CHECK(!client.Ready());
     Wait(client, [&] { return client.Ready(); });
     CHECK(client.RequestMove(Direction::UP, 0, 0));
@@ -38,7 +49,9 @@ int main() try {
     Wait(client, [&] { return !client.MovePending(); });
     CHECK(client.TakeMove(x, z) && x == 3 && z == -1);
     // Old STATE frames already buffered must not acknowledge a new-round input.
-    client.ResetRound();
+    for (auto* peer : peers) peer->ResetRound();
+    CHECK(!client.Ready());
+    Wait(client, [&] { return client.Ready(); });
     CHECK(client.RequestMove(Direction::LEFT, 0, 0));
     Wait(client, [&] { return !client.MovePending(); });
     CHECK(client.TakeMove(x, z) && x == -1 && z == 0);

@@ -42,7 +42,7 @@ constexpr ItemRule GetItemRule(ItemKind kind) {
     case ItemKind::ReverseControls:
         return {ItemUseMode::TargetOpponent, EffectKind::ReverseControls, 5000, 0, 0};
     case ItemKind::Blackout:
-        return {ItemUseMode::TargetOpponent, EffectKind::Blackout, 1000, 0, 0};
+        return {ItemUseMode::TargetOpponent, EffectKind::Blackout, 10000, 0, 0};
     case ItemKind::Banana:
         // 현재 격자에서 시선 방향과 관계없이 z-3에 설치한다.
         // 설치자를 포함한 생존자 한 명이 밟을 때까지 유지한다.

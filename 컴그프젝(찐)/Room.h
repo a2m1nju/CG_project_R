@@ -102,12 +102,14 @@ class RoundController {
 public:
     explicit RoundController(RoomState& room)
         : room(room) {}
-    void BeginRound(bool rematch);
+    bool BeginRound(bool rematch);
+    bool ReloadRound();
     bool MarkLoaded(PlayerId id, RoundId roundId);
     bool ShouldFinish() const;
     ResultData BuildResult(const RankConfig& config);
 
 private:
+    void PrepareRound();
     RoomState& room;
 };
 

@@ -22,13 +22,14 @@
 
 #include "stb_truetype.h" // 폰트 구조체 필요
 
-// --- Enums ---
+// --- 열거형 ---
 enum GameSeason { SPRING, SUMMER, AUTUMN, WINTER };
 enum TrainState { TRAIN_IDLE, TRAIN_WARNING, TRAIN_PASSING };
 enum ItemType { ITEM_SHIELD, ITEM_REVERSE, ITEM_BLACKOUT, ITEM_BANANA };
 
-// --- Structs ---
+// --- 구조체 ---
 struct Car {
+    unsigned int id = 0;
     float x, z;
     float speed;
     glm::vec3 color;
@@ -55,6 +56,7 @@ struct SeasonColors {
 };
 
 struct Log {
+    unsigned int id = 0;
     float x, z;
     float speed;
     float width;
@@ -73,6 +75,7 @@ struct Particle {
 };
 
 struct Train {
+    unsigned int id = 0;
     float z, x, speed;
     TrainState state;
     int timer;

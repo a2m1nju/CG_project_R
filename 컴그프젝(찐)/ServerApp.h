@@ -9,7 +9,7 @@ public:
         : matchCoordinator(room),
         roundController(room),
           rematchController(room),
-          network(matchCoordinator)
+          network(matchCoordinator, roundController)
     {
     }
     ServerApp(const ServerApp&) = delete;

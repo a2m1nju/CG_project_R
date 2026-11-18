@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <array>
 #include <cstdint>
@@ -28,20 +28,46 @@ namespace Wire {
 constexpr std::size_t HeaderSize = 12;
 constexpr std::uint8_t QueueState = 3, ReadyLobbyState = 4;
 constexpr std::uint8_t Ready = 5, LobbyUpdated = 1;
+// 맵·아이템 본문은 minju 규약을 사용하고, 완료와 시작은 공통 헤더만 보낸다.
+constexpr std::uint8_t Loaded = 7, Start = 8;
 constexpr std::size_t ReadySize = HeaderSize + 5;
 constexpr std::uint16_t ReadyBadPhase = 2, ReadyNotMember = 5, ReadyStale = 10;
 constexpr std::uint8_t MatchingPhase = 0, LobbyEntered = 0;
 constexpr std::size_t QueueStateSize = HeaderSize + 5;
 constexpr std::size_t LobbyPrefixSize = HeaderSize + 6;
 constexpr std::size_t LobbyMemberPrefixSize = 7;
-constexpr std::uint8_t Join = 1, Welcome = 2, Error = 21; //참가 요청·승인·거절
+constexpr std::uint8_t Join = 1, Welcome = 2, Error = 44; //WORLD_ACTOR(21)와 충돌하지 않도록 오류 응답 분리
 constexpr std::size_t MaxNicknameBytes = 32;
 constexpr std::size_t WelcomeSize = HeaderSize + 8, ErrorSize = HeaderSize + 7;
 constexpr std::uint16_t JoinBusy = 1, JoinBadPayload = 4, JoinDuplicate = 11;
-// 아래 번호는 현재 구현 기준이다. Reset은 클라이언트 재시작 시 해당 세션의 라운드 상태를 초기화한다.
+// 아래 번호는 현재 구현 기준이다. Reset은 전원 요청이 모이면 공유 라운드를 새로 로딩한다.
 // 연결 ID는 서버가 연결에 부여하는 번호다. 별도 ID 메시지를 쓸 경우 서버가 클라이언트에 전달하며, SOCKET 핸들과 구분한다.
 // 공유 월드의 WorldLane은 z 위치 하나의 지형·배치를 나타낸다. 여러 줄의 메시지를 한 번에 송신할 수 있다.
 constexpr std::uint8_t State = 10, WorldPosition = 11, Reset = 12;
+// 공유 월드 메시지의 모든 정수 필드는 네트워크 바이트 순서를 사용한다.
+constexpr std::uint8_t WorldLane = 20, WorldActor = 21, WorldBegin = 22, WorldEnd = 23;
+constexpr std::uint8_t ItemBegin = 30, ItemEntry = 31, ItemEnd = 32,
+    PickupRequest = 33, ItemRemoved = 34, ItemIdentity = 35;
+constexpr std::uint8_t ItemSwitch = 36, ItemUse = 37, InventoryState = 38;
+constexpr std::size_t ItemSwitchSize = 13, ItemUseSize = 12, InventoryStateSize = 17;
+constexpr std::uint8_t ItemEffect = 39;
+constexpr std::size_t ItemEffectSize = 17;
+constexpr std::uint8_t BananaPlaced = 40;
+constexpr std::size_t BananaPlacedSize = 28;
+constexpr std::uint8_t BananaHit = 41;
+constexpr std::size_t BananaHitSize = 29;
+constexpr std::uint8_t ItemSpawnRequest = 42, ItemSpawned = 43;
+constexpr std::size_t ItemSpawnRequestSize = 13, ItemSpawnedSize = 25;
+constexpr std::size_t ItemBeginSize = 16, ItemEntrySize = 25, ItemEndSize = 12,
+    PickupRequestSize = 16, ItemRemovedSize = 21, ItemIdentitySize = 16;
+constexpr std::size_t WorldLaneSize = 33, WorldBeginSize = 24, WorldEndSize = 16;
+constexpr std::size_t WorldActorSize = 49;
+// WorldLane: 헤더, 라운드 ID, 월드 세대, 부호 있는 z, 지형, 나무·연잎·생성 위치 마스크.
+// 마스크의 0번 비트는 x=-15, 30번 비트는 x=15를 뜻한다.
+// WorldBegin: 헤더, 라운드 ID, 월드 세대, 초기 최소·최대 z.
+// WorldEnd: 헤더, 라운드 ID, 월드 세대.
+// WorldActor: 헤더, 라운드 ID, 월드 세대, 틱, 객체 ID, 종류, z/x/속도/너비,
+// RGB 색상, 디자인, 기차 상태·타이머·경고등. 접속 시와 이후 주기적으로 전송한다.
 constexpr std::size_t StateSize = 29, PositionSize = 21;
 constexpr std::uint32_t TickRate = 30, MoveCooldownTicks = 3;
 enum class MoveStatus : std::uint8_t { Idle, Accepted, Cooldown, Invalid, Stale };
@@ -65,7 +91,7 @@ inline void Header(std::uint8_t* p, std::size_t size, std::uint8_t type,
     p[2] = 1; p[3] = type; Write32(p + 4, seq); // 2: 현재 버전, 3: 종류, 4~7: 이 송신 방향의 패킷 순번
     Write32(p + 8, roundId); // 8~11: 경기 회차. 수신 측이 이전 라운드의 요청을 구별할 때 사용
 }
-// IEEE-754 bits are also written in network byte order (no packed structs).
+// IEEE-754 비트도 구조체 패딩 없이 네트워크 바이트 순서로 기록한다.
 float ReadFloat(const std::uint8_t* p);
 void WriteFloat(std::uint8_t* p, float v);
 }
