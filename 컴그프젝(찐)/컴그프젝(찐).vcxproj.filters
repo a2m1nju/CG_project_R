@@ -5,13 +5,13 @@
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
-    <Filter Include="헤더 파일">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
-    </Filter>
     <Filter Include="소스 파일\리소스 파일">
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="소스 파일\헤더 파일">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -54,55 +54,67 @@
     <ClCompile Include="ItemSystem.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="WorldClient.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="WorldState.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stb_truetype.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>소스 파일\헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="stb_image.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>소스 파일\헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Common.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>소스 파일\헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Global.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>소스 파일\헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Texture.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>소스 파일\헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Shader.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>소스 파일\헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Renderer.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>소스 파일\헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Logic.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>소스 파일\헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Input.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>소스 파일\헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Room.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>소스 파일\헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Protocol.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>소스 파일\헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="ClientNetwork.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>소스 파일\헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="ServerApp.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>소스 파일\헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="ServerNetwork.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>소스 파일\헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="GameItemTypes.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>소스 파일\헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="ItemSystem.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>소스 파일\헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="WorldMotion.h">
+      <Filter>소스 파일\헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="WorldState.h">
+      <Filter>소스 파일\헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

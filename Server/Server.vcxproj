@@ -39,6 +39,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\컴그프젝(찐)\WorldState.cpp" />
     <ClCompile Include="ServerMain.cpp" />
     <ClCompile Include="..\컴그프젝(찐)\Protocol.cpp" />
     <ClCompile Include="..\컴그프젝(찐)\ServerApp.cpp" />

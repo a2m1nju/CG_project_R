@@ -69,6 +69,7 @@ namespace {
         case LobbyStage::Matching:
             nextScreen = ClientScreen::Matching;
             break;
+        case LobbyStage::Loading:
         case LobbyStage::Ready:
             nextScreen = ClientScreen::Lobby;
             break;
@@ -107,7 +108,7 @@ int main(int argc, char** argv)
         if (!network.Connect(argv[1], 9000)) {
             return EXIT_FAILURE;
         }
-
+        activeClientNetwork = &network;
         std::cout << "Connected to " << argv[1] << ":9000\n";
     }
 

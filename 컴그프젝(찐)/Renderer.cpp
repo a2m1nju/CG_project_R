@@ -343,7 +343,12 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 	float groundWidth = 300.0f;
 
 		for (int z = currentZ - drawRangeFront; z <= currentZ + drawRangeBack; ++z) {
-			generateLane(z);
+			if (!activeClientNetwork) {
+				generateLane(z);
+			}
+			else if (mapType.find(z) == mapType.end()) {
+				continue;
+			}
 			const SeasonColors& colors = seasonThemes[getSeasonByZ(z)];
 
 			glm::mat4 model = glm::mat4(1.0f);
@@ -498,6 +503,32 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 		pModel = glm::scale(pModel, glm::vec3(scale));
 
 		drawChicken(shader, pModel);
+	}
+	if (activeClientNetwork) {
+		for (const auto& player :
+			activeClientNetwork->GetPlayers())
+		{
+			if (player.id ==
+				activeClientNetwork->GetMyPlayerId() ||
+				!player.alive)
+			{
+				continue;
+			}
+			glm::mat4 model = glm::translate(
+				glm::mat4(1.0f),
+				glm::vec3(player.x, 0.5f, player.z));
+
+			model = glm::rotate(
+				model,
+				glm::radians(player.rotation),
+				glm::vec3(0.0f, 1.0f, 0.0f));
+
+			model = glm::scale(
+				model,
+				glm::vec3(0.7f));
+
+			drawChicken(shader, model);
+		}
 	}
 }
 
@@ -942,6 +973,9 @@ static void drawMenuScreen()
 			720.0f,
 			member.ready ? "READY" : "NOT READY",
 			0.45f);
+	}
+	if (lobby->stage == LobbyStage::Loading) {
+		return;
 	}
 	const char* readyLabel = activeClientNetwork->IsMyLobbyReady() ? "CANCEL READY" : "READY";
 

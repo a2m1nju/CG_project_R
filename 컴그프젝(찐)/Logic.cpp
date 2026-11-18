@@ -3,6 +3,7 @@
 #include "Global.h"
 #include "Renderer.h" 
 #include "Texture.h" 
+#include "WorldMotion.h"
 
 GameSeason getSeasonByZ(int z) {
     int linesPassed = -z;
@@ -228,19 +229,22 @@ void spawnParticles(glm::vec3 pos, glm::vec3 color, int count, float speedScale)
 	}
 }
 
-void resetGame() {
-    if (activeClientNetwork) activeClientNetwork->ResetRound();
+static std::map<unsigned int, int> actorLastPacketMs;
+static void clearRoundState()
+{
 	playerPos = glm::vec3(0.0f, 0.5f, 0.0f);
 	playerTargetPos = playerPos;
 	playerStartPos = playerPos;
+
 	isMoving = false;
 
 	items.clear();
-    localItems.ResetRound();
-    localItems.AddPlayer(1);
-    nextItemId = 1;
-    itemFeedbackMessage.clear();
-    itemFeedbackUntilMs = 0;
+	localItems.ResetRound();
+	localItems.AddPlayer(1);
+
+	nextItemId = 1;
+	itemFeedbackMessage.clear();
+	itemFeedbackUntilMs = 0;
 
 	score = 0;
 	minZ = 0;
@@ -251,17 +255,192 @@ void resetGame() {
 	treeMap.clear();
 	mapType.clear();
 	trains.clear();
+
+	actorLastPacketMs.clear();
 	particles.clear();
 	weatherParticles.clear();
-
-	for (int z = -10; z < 10; ++z) generateLane(z);
-    spawnItem(0, -1, static_cast<ItemType>(ITEM_REVERSE + rand() % 3));
 
 	isGameOver = false;
 }
 
+static void applyWorldEvent(const WorldEvent& event)
+{
+	if (event.kind == WorldEvent::Kind::Begin) {
+		clearRoundState();
+		return;
+	}
+
+	if (event.kind == WorldEvent::Kind::Actor) {
+		if (event.actorKind == 1) {
+			auto it = std::find_if(
+				cars.begin(),
+				cars.end(),
+				[&event](const Car& car) {
+					return car.id == event.actorId;
+				});
+
+			if (it == cars.end()) {
+				cars.emplace_back();
+				it = cars.end() - 1;
+				it->id = event.actorId;
+				it->x = event.x;
+			}
+			else {
+				it->x = WorldMotion::Reconcile(
+					it->x, event.x, 6.0f);
+			}
+
+			it->z = event.actorZ;
+			it->speed = event.speed;
+
+			it->color = glm::vec3(
+				event.red / 255.0f,
+				event.green / 255.0f,
+				event.blue / 255.0f);
+
+			it->designID = event.design;
+		}
+		else if (event.actorKind == 2) {
+			auto it = std::find_if(
+				logs.begin(),
+				logs.end(),
+				[&event](const Log& log) {
+					return log.id == event.actorId;
+				});
+
+			if (it == logs.end()) {
+				logs.emplace_back();
+				it = logs.end() - 1;
+				it->id = event.actorId;
+				it->x = event.x;
+			}
+			else {
+				it->x = WorldMotion::Reconcile(
+					it->x, event.x, 6.0f);
+			}
+
+			it->z = event.actorZ;
+			it->speed = event.speed;
+			it->width = event.width;
+		}
+		else if (event.actorKind == 3) {
+			auto it = std::find_if(
+				trains.begin(),
+				trains.end(),
+				[&event](const Train& train) {
+					return train.id == event.actorId;
+				});
+
+			if (it == trains.end()) {
+				trains.emplace_back();
+				it = trains.end() - 1;
+				it->id = event.actorId;
+				it->x = event.x;
+			}
+			else if (
+				it->state !=
+				static_cast<TrainState>(event.trainState))
+			{
+				it->x = event.x;
+			}
+			else {
+				it->x = WorldMotion::Reconcile(
+					it->x, event.x, 20.0f);
+			}
+
+			it->z = event.actorZ;
+			it->speed = event.speed;
+
+			it->state =
+				static_cast<TrainState>(event.trainState);
+
+			it->timer = event.trainTimer;
+			it->isLightOn = event.trainLight != 0;
+		}
+
+		actorLastPacketMs[event.actorId] =
+			glutGet(GLUT_ELAPSED_TIME);
+
+		return;
+	}
+
+	if (event.kind != WorldEvent::Kind::Lane) {
+		return;
+	}
+
+	mapType[event.z] = event.terrain;
+
+	auto& laneTrees = treeMap[event.z];
+	laneTrees.clear();
+
+	lilyPads.erase(
+		std::remove_if(
+			lilyPads.begin(),
+			lilyPads.end(),
+			[&event](const LilyPad& pad) {
+				return static_cast<int>(pad.z) == event.z;
+			}),
+		lilyPads.end());
+
+	for (int x = -15; x <= 15; ++x) {
+		const std::uint32_t bit = 1u << (x + 15);
+
+		if (event.treeMask & bit) {
+			laneTrees.push_back(x);
+		}
+
+		if (event.padMask & bit) {
+			lilyPads.push_back({
+				static_cast<float>(x),
+				static_cast<float>(event.z)
+				});
+		}
+	}
+}
+void resetGame()
+{
+	if (activeClientNetwork) {
+		activeClientNetwork->ResetRound();
+		return;
+	}
+
+	clearRoundState();
+
+	for (int z = -10; z < 10; ++z) {
+		generateLane(z);
+	}
+
+	spawnItem(
+		0,
+		-1,
+		static_cast<ItemType>(
+			ITEM_REVERSE + rand() % 3));
+}
+
 void timer(int value)
 {
+	if (activeClientNetwork) {
+		WorldEvent event;
+
+		while (activeClientNetwork->TakeWorldEvent(event)) {
+			applyWorldEvent(event);
+		}
+		activeClientNetwork->RequestLoaded();
+		float x, z;
+		if (activeClientNetwork->TakeStart(x, z)) {
+			playerPos = glm::vec3(x, 0.5f, z);
+			playerStartPos = playerPos;
+			playerTargetPos = playerPos;
+
+			playerRotation = 0;
+			isMoving = false;
+			isGameOver = false;
+			moveTime = 0;
+
+			introState = 0;
+			clientScreen = ClientScreen::Playing;
+		}
+	}
 	if (glutGetWindow() == 0) {
 		return;
 	}
@@ -304,6 +483,49 @@ void timer(int value)
     const std::uint32_t elapsedMs = nowMs > previousTickMs
         ? static_cast<std::uint32_t>(nowMs - previousTickMs) : 0;
     previousTickMs = nowMs;
+	if (activeClientNetwork) {
+		const auto actorSeconds =
+			[nowMs, elapsedMs](unsigned int id)
+			{
+				const auto it = actorLastPacketMs.find(id);
+
+				if (it == actorLastPacketMs.end() ||
+					nowMs < it->second ||
+					nowMs - it->second > 250)
+				{
+					return 0.0f;
+				}
+
+				return (std::min)({
+					elapsedMs,
+					std::uint32_t(nowMs - it->second),
+					std::uint32_t{50}
+					}) / 1000.0f;
+			};
+
+		for (auto& car : cars) {
+			car.x = WorldMotion::Advance(
+				car.x,
+				car.speed,
+				actorSeconds(car.id),
+				18.0f);
+		}
+		for (auto& log : logs) {
+			log.x = WorldMotion::Advance(
+				log.x,
+				log.speed,
+				actorSeconds(log.id),
+				20.0f);
+		}
+		for (auto& train : trains) {
+			if (train.state == TRAIN_PASSING) {
+				train.x = WorldMotion::Advance(
+					train.x,
+					train.speed,
+					actorSeconds(train.id));
+			}
+		}
+	}
 	// [인트로 애니메이션 로직]
 	if (introState != 0) { 
 
@@ -412,10 +634,16 @@ void timer(int value)
 
 		for (auto& logObj : logs) {
 			// 슬로우 효과 적용
-			logObj.x += logObj.speed;
-			if (logObj.speed > 0 && logObj.x > 20.0f) logObj.x = -20.0f;
-			else if (logObj.speed < 0 && logObj.x < -20.0f) logObj.x = 20.0f;
+			if (!activeClientNetwork) {
+				logObj.x += logObj.speed;
 
+				if (logObj.speed > 0 && logObj.x > 20.0f) {
+					logObj.x = -20.0f;
+				}
+				else if (logObj.speed < 0 && logObj.x < -20.0f) {
+					logObj.x = 20.0f;
+				}
+			}
 			bool onLog = (std::abs(playerPos.z - logObj.z) < 0.1f) &&
 				(playerPos.x >= logObj.x - logObj.width / 2.0f - 0.3f) &&
 				(playerPos.x <= logObj.x + logObj.width / 2.0f + 0.3f);
@@ -436,10 +664,15 @@ void timer(int value)
 
 		// 자동차 충돌
 		for (auto& car : cars) {
-			//  슬로우 효과 적용
-			car.x += car.speed;
-			if (car.x > 18.0f && car.speed > 0) car.x = -18.0f;
-			if (car.x < -18.0f && car.speed < 0) car.x = 18.0f;
+			if (!activeClientNetwork) {
+				car.x += car.speed;
+				if (car.x > 18.0f && car.speed > 0) {
+					car.x = -18.0f; 
+				}
+				if (car.x < -18.0f && car.speed < 0) {
+					car.x = 18.0f; 
+				}
+			}
 
 			// 충돌 체크
 			bool hit = (abs(car.z - playerPos.z) < 0.2f && abs(car.x - playerPos.x) < 0.8f) ||
@@ -447,7 +680,9 @@ void timer(int value)
 
             if (hit && !isGodMode) {
                 if (shieldActive) {
-                    car.x = (car.speed > 0) ? 20.0f : -20.0f;
+					if (!activeClientNetwork) {
+						car.x = (car.speed > 0) ? 20.0f : -20.0f;
+					}
                 } else {
                     isDead = true;
                 }
@@ -494,6 +729,28 @@ void timer(int value)
 
 		// 기차 충돌 검사
 		for (auto& t : trains) {
+			if (activeClientNetwork) {
+				if (t.state == TRAIN_PASSING) {
+					if (t.x > -20.0f &&
+						t.x < 25.0f &&
+						std::abs(t.z - playerPos.z) < 10.0f)
+					{
+						shakeTimer = 0.1f;
+						shakeMagnitude = 0.2f;
+					}
+
+					if (static_cast<int>(std::round(playerPos.z)) ==
+						static_cast<int>(std::round(t.z)) &&
+						playerPos.x > t.x - 9.0f &&
+						playerPos.x < t.x + 9.0f &&
+						!isInvincible)
+					{
+						isDead = true;
+					}
+				}
+
+				continue;
+			}
 			switch (t.state) {
 			case TRAIN_IDLE:
 				t.timer--;
@@ -796,8 +1053,12 @@ void initGame()
 	carDesigns.push_back(taxi);
 	glGenFramebuffers(1, &depthFBO);
 
-	for (int z = -10; z < 10; ++z) generateLane(z);
-    spawnItem(0, -1, static_cast<ItemType>(ITEM_REVERSE + rand() % 3));
+	if (!activeClientNetwork) {
+		for (int z = -10; z < 10; ++z) {
+			generateLane(z);
+		}
+		spawnItem(0, -1, static_cast<ItemType>(ITEM_REVERSE + rand() % 3));
+	}
 
 	glGenTextures(1, &depthMap);
 	glBindTexture(GL_TEXTURE_2D, depthMap);

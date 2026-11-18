@@ -277,7 +277,7 @@ int ClientNetwork::HandleLobbyPacket(
         if (size != 13) {
             return -1;
         }
-
+        ClearWorld();
         lobby = LobbyView{};
         lobby.message = "ROOM CLOSED. JOIN AGAIN TO PARTICIPATE.";
 
@@ -335,9 +335,8 @@ bool ClientNetwork::PollDisconnected() {
         if (size < Wire::HeaderSize || size > 1024) { Disconnect(); return true; }
         if (receiveBuffer.size() - offset < size) break;
         if (p[2] != 1) { Disconnect(); return true; }
-        const int lobbyResult =
-            HandleLobbyPacket(p, size);
-
+        const int worldResult = HandleWorldPacket(p, size);
+        const int lobbyResult = worldResult != 0 ? worldResult : HandleLobbyPacket(p, size);
         if (lobbyResult < 0) {
             Disconnect();
             return true;
@@ -349,8 +348,7 @@ bool ClientNetwork::PollDisconnected() {
         if (lobbyResult == 0 && p[3] == Wire::AssignedId) {
             // ID 메시지는 정확히 12바이트여야 함
             if (size != Wire::AssignedIdSize) {
-                std::cerr << "Invalid assigned ID packet size."
-                    << std::endl;
+                std::cerr << "Invalid assigned ID packet size." << std::endl;
                 Disconnect();
                 return true;
             }
@@ -358,9 +356,7 @@ bool ClientNetwork::PollDisconnected() {
             const std::uint32_t receivedId = Wire::Read32(p + Wire::HeaderSize);
             if (receivedId == 0 ||
                 (myPlayerId != 0 && myPlayerId != receivedId)) {
-
-                std::cerr << "Invalid assigned player ID."
-                    << std::endl;
+                std::cerr << "Invalid assigned player ID."  << std::endl;
                 Disconnect();
                 return true;
             }
@@ -375,11 +371,6 @@ bool ClientNetwork::PollDisconnected() {
 
             lastState = now;
             const auto round = Wire::ReadRoundId(p);
-
-            if (roundId == 0) {
-                roundId = round;
-            }
-
             // 현재 라운드에서 내가 기다리던 이동 응답인지 확인
             if (round == roundId &&
                 pendingInput &&
@@ -436,14 +427,10 @@ bool ClientNetwork::TakeMove(float& x, float& z) {
     x = moveX; z = moveZ; moveReady = false; return true;
 }
 void ClientNetwork::ResetRound() {
-    if (!Ready()) return;
-    std::array<std::uint8_t, 12> p{};
-    Wire::Header(p.data(), p.size(), Wire::Reset, ++sequence, ++roundId);
-    inputSeq = pendingInput = 0; moveReady = false;
-    Queue(p.data(), p.size());
 }
 
 void ClientNetwork::Disconnect() {
+    ClearWorld();
     lobby = LobbyView{};
     lobby.message = "SERVER DISCONNECTED";
     myPlayerId = 0;

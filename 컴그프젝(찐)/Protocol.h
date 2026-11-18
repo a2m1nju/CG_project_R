@@ -27,6 +27,19 @@ constexpr std::size_t HeaderSize = 12;
 constexpr std::uint8_t State = 10, WorldPosition = 11, Reset = 12;
 constexpr std::size_t StateSize = 29, PositionSize = 21;
 
+constexpr std::uint8_t WorldLane = 30;
+constexpr std::uint8_t WorldActor = 31;
+constexpr std::uint8_t WorldBegin = 32;
+constexpr std::uint8_t WorldEnd = 33;
+constexpr std::uint8_t Loaded = 34;
+constexpr std::uint8_t Start = 35;
+constexpr std::uint8_t PlayerStates = 36;
+
+constexpr std::size_t WorldLaneSize = 33;
+constexpr std::size_t WorldActorSize = 49;
+constexpr std::size_t WorldBeginSize = 24;
+constexpr std::size_t WorldEndSize = 16;
+
 // 서버가 클라이언트에게 자기 접속 ID를 알려주는 메시지
 constexpr std::uint8_t AssignedId = 13;
 

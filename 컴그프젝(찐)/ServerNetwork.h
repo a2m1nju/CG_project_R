@@ -6,6 +6,7 @@
 #include <vector>
 #include "Room.h"
 #include <string>
+#include "WorldState.h"
 
 class ServerNetwork {
 public:
@@ -29,6 +30,17 @@ private:
         std::uint32_t sequence = 0, inputSeq = 0, roundId = 1, sendSeq = 0;
         std::uint64_t nextMoveTick = 0;
         float x = 0, z = 0;
+        float rotation = 0;
+        bool snapshotting = false;
+        bool snapshotBeginPending = false;
+
+        std::int32_t snapshotMinZ = 0;
+        std::int32_t snapshotMaxZ = 0;
+        std::int32_t snapshotNextZ = 0;
+
+        std::int32_t announcedMinZ = 0;
+        std::int32_t announcedMaxZ = 0;
+
         bool alive = true;
         Wire::MoveStatus status = Wire::MoveStatus::Idle;
         std::string nickname;
@@ -59,4 +71,37 @@ private:
     void CloseLobby(SessionId leaverId);
 
     int HandleLobbyPacket(TransportSession& session, const std::uint8_t* packet, std::size_t size);
+    bool IsRoundMember(SessionId id) const;
+
+    void SendGame(
+        TransportSession& session,
+        std::vector<std::uint8_t> packet);
+
+    void BeginLoading();
+    void SendStart(std::uint32_t tick);
+    void PublishPlayers(std::uint32_t tick);
+
+    bool QueueWorldBegin(TransportSession& session);
+
+    bool QueueWorldLane(
+        TransportSession& session,
+        const WorldLaneData& lane);
+
+    bool QueueWorldActor(
+        TransportSession& session,
+        const WorldActorData& actor,
+        std::uint32_t tick);
+
+    bool QueueWorldEnd(TransportSession& session);
+
+    void StartWorldSnapshot(TransportSession& session);
+
+    void PumpWorldPackets(
+        TransportSession& session,
+        std::uint32_t tick);
+
+    WorldState world;
+
+    std::uint64_t currentTick = 0;
+    std::uint64_t loadingStartTick = 0;
 };
