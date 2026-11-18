@@ -81,7 +81,7 @@ void MatchCoordinator::DissolveReadyLobby(SessionId leaverId) {
 	room.phase = ServicePhase::MATCHING; //상태변경
 
 	// 7. 통신 구현 시 남은 참가자에게 순서대로 전송
-	// READY_LOBBY_STATE(DISSOLVED) → QUEUE_STATE
+	// 준비 방이 해체되면 대기열 상태로 전환
 }
 
 void MatchCoordinator::CancelLoading(SessionId leaverId) {
@@ -105,7 +105,7 @@ void MatchCoordinator::CancelLoading(SessionId leaverId) {
 
 	room.phase = ServicePhase::MATCHING; //상태변경
 	// 7. 통신 구현 시 남은 참가자에게 순서대로 전송
-	// ROOM_CLOSE(CANCEL_LOADING) → QUEUE_STATE
+	// 입장이 취소되어 방이 닫히면 대기열 상태로 전환
 }
 
 void MatchCoordinator::OnDisconnect(SessionId id) {

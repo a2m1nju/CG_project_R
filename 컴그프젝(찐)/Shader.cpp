@@ -14,7 +14,6 @@ char* filetobuf(const char* file) {
         fprintf(stderr, "--------------------------------------------------------\n");
         system("pause");
         exit(EXIT_FAILURE);
-        return NULL;
     }
 
     fseek(fptr, 0, SEEK_END);
@@ -33,6 +32,7 @@ void make_vertexShaders() {
     vertexSource = filetobuf("vertex.glsl");
     vertexShader = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vertexShader, 1, &vertexSource, NULL);
+    free(vertexSource);
     glCompileShader(vertexShader);
 
     GLint result;
@@ -49,6 +49,7 @@ void make_fragmentShaders() {
     fragmentSource = filetobuf("fragment.glsl");
     fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderSource(fragmentShader, 1, &fragmentSource, NULL);
+    free(fragmentSource);
     glCompileShader(fragmentShader);
 
     GLint result;
@@ -62,7 +63,7 @@ void make_fragmentShaders() {
 
 GLuint make_shaderProgram() {
     GLint result;
-    GLchar* errorLog = NULL;
+    GLchar errorLog[512];
     GLuint shaderID;
     shaderID = glCreateProgram();
 
@@ -89,12 +90,14 @@ void loadDepthShader() {
     GLuint depthVertexShader = glCreateShader(GL_VERTEX_SHADER);
     GLchar* dvSource = filetobuf("depthvertex.glsl");
     glShaderSource(depthVertexShader, 1, &dvSource, NULL);
+    free(dvSource);
     glCompileShader(depthVertexShader);
     glAttachShader(depthShader, depthVertexShader);
 
     GLuint depthFragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
     GLchar* dfSource = filetobuf("depthfragment.glsl");
     glShaderSource(depthFragmentShader, 1, &dfSource, NULL);
+    free(dfSource);
     glCompileShader(depthFragmentShader);
     glAttachShader(depthShader, depthFragmentShader);
 
