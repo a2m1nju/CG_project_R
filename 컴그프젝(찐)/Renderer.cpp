@@ -336,6 +336,20 @@ void drawParticles(GLuint shader) {
 	}
 }
 
+static glm::vec3 RemotePlayerPosition(const RemotePlayerView& player) {
+    const float moveSeconds = std::chrono::duration<float>(
+        std::chrono::steady_clock::now() - player.moveStarted).count();
+    const float visibleMoveDuration = MOVE_DURATION * 0.5f;
+    if (moveSeconds >= 0.0f && moveSeconds < visibleMoveDuration) {
+        const float t = glm::clamp(moveSeconds / visibleMoveDuration, 0.0f, 1.0f);
+        return glm::vec3(
+            glm::mix(player.moveStartX, player.x, t),
+            0.5f + JUMP_HEIGHT * 4.0f * t * (1.0f - t),
+            glm::mix(player.moveStartZ, player.z, t));
+    }
+    return glm::vec3(player.x, 0.5f, player.z);
+}
+
 void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 {
 	glBindVertexArray(vao);
@@ -522,20 +536,9 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 				continue;
 			}
 			glm::mat4 model = glm::translate(
-				glm::mat4(1.0f),
-				glm::vec3(player.x, 0.5f, player.z));
-            const float moveSeconds = std::chrono::duration<float>(
-                std::chrono::steady_clock::now() - player.moveStarted).count();
-            const float visibleMoveDuration = MOVE_DURATION * 0.5f;
-            if (moveSeconds >= 0.0f && moveSeconds < visibleMoveDuration) {
-                const float t = glm::clamp(moveSeconds / visibleMoveDuration, 0.0f, 1.0f);
-                model = glm::translate(glm::mat4(1.0f), glm::vec3(
-                    glm::mix(player.moveStartX, player.x, t),
-                    0.5f + JUMP_HEIGHT * 4.0f * t * (1.0f - t),
-                    glm::mix(player.moveStartZ, player.z, t)));
-            }
+                glm::mat4(1.0f), RemotePlayerPosition(player));
 
-			model = glm::rotate(
+            model = glm::rotate(
 				model,
 				glm::radians(player.rotation),
 				glm::vec3(0.0f, 1.0f, 0.0f));
@@ -549,9 +552,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 	}
 }
 
-static void drawShieldAura(const glm::mat4& projection, const glm::mat4& view) {
-    const auto* effects = localItems.GetPlayerEffects(1);
-    if (isGameOver || !effects || effects->shieldRemainingMs == 0) return;
+static void drawShieldAuraAt(const glm::mat4& projection, const glm::mat4& view, const glm::vec3& position) {
 
     GLint previousMatrixMode = GL_MODELVIEW;
     glGetIntegerv(GL_MATRIX_MODE, &previousMatrixMode);
@@ -571,7 +572,7 @@ static void drawShieldAura(const glm::mat4& projection, const glm::mat4& view) {
     glMatrixMode(GL_MODELVIEW);
     glPushMatrix();
     glLoadMatrixf(glm::value_ptr(view));
-    glTranslatef(playerPos.x, playerPos.y + 0.05f, playerPos.z);
+    glTranslatef(position.x, position.y + 0.05f, position.z);
     const float spinDegrees = std::fmod(
         static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) * 0.045f, 360.0f);
     glRotatef(20.0f, 1.0f, 0.0f, 0.0f);
@@ -1095,7 +1096,18 @@ GLvoid drawScene()
 	glUniform1i(glGetUniformLocation(shaderProgramID, "shadowMap"), 0);
 
 	renderObjects(shaderProgramID, proj * view);
-    drawShieldAura(proj, view);
+    const auto* localShield = localItems.GetPlayerEffects(1);
+    if (!isGameOver && localShield && localShield->shieldRemainingMs > 0) {
+        drawShieldAuraAt(proj, view, playerPos);
+    }
+    if (activeClientNetwork) {
+        for (const auto& player : activeClientNetwork->GetPlayers()) {
+            if (player.id != activeClientNetwork->GetMyPlayerId() &&
+                player.alive && player.shieldRemainingMs > 0) {
+                drawShieldAuraAt(proj, view, RemotePlayerPosition(player));
+            }
+        }
+    }
 	// Draw nearby ground items.
 	int currentZ = (int)std::round(playerPos.z);
 	int drawRangeFront = 30;

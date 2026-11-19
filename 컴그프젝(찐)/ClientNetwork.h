@@ -60,6 +60,7 @@ struct RemotePlayerView {
     std::uint8_t slot = 0;
     float x = 0, z = 0, rotation = 0;
     bool alive = true;
+    std::uint32_t shieldRemainingMs = 0;
     float moveStartX = 0, moveStartZ = 0;
     std::chrono::steady_clock::time_point moveStarted{};
 };

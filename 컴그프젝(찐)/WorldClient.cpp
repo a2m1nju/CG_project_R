@@ -332,7 +332,7 @@ int ClientNetwork::HandleWorldPacket(
     {
         if (size < 17 ||
             p[16] > 3 ||
-            size != 17 + 17 * p[16])
+            size != 17 + 21 * p[16])
         {
             return -1;
         }
@@ -348,7 +348,7 @@ int ClientNetwork::HandleWorldPacket(
 
         for (std::size_t offset = 17;
             offset < size;
-            offset += 17)
+            offset += 21)
         {
             RemotePlayerView player;
 
@@ -358,6 +358,7 @@ int ClientNetwork::HandleWorldPacket(
             player.rotation =
                 Wire::ReadFloat(p + offset + 12);
             player.alive = p[offset + 16] != 0;
+            player.shieldRemainingMs = Wire::Read32(p + offset + 17);
 
             const auto previous = std::find_if(
                 players.begin(),

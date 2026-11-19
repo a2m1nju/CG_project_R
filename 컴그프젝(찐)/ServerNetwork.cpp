@@ -1349,7 +1349,7 @@ void ServerNetwork::PublishPlayers(std::uint32_t tick)
             session->alive;
 
         const auto offset = packet.size();
-        packet.resize(offset + 17);
+        packet.resize(offset + 21);
 
         auto* record = packet.data() + offset;
 
@@ -1359,6 +1359,9 @@ void ServerNetwork::PublishPlayers(std::uint32_t tick)
         Wire::WriteFloat(record + 12, session->rotation);
 
         record[16] = session->alive ? 1 : 0;
+        const auto* effects = items.GetPlayerEffects(session->id);
+        Wire::Write32(record + 17,
+            effects ? effects->shieldRemainingMs : 0);
         ++count;
     }
 
