@@ -353,6 +353,10 @@ ASALocalRun/
 # BeatPulse healthcheck temp database
 healthchecksdb
 
+# Keep local tests and Markdown documents out of commits.
+/tests/
+*.md
+
 # Backup folder for Package Reference Convert tool in Visual Studio 2017
 MigrationBackup/
 

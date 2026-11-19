@@ -734,15 +734,29 @@ bool ServerNetwork::ProcessPackets(
 
                     const int gridX = static_cast<int>(x);
 
+                    bool occupied = false;
+                    for (std::size_t i = 0; i < sessionCount; ++i) {
+                        const auto& other = sessions[i];
+                        if (other.id != s.id && IsRoundMember(other.id) &&
+                            other.alive &&
+                            std::abs(other.x - x) < 0.5f &&
+                            std::abs(other.z - z) < 0.5f) {
+                            occupied = true;
+                            break;
+                        }
+                    }
+
                     const bool blocked =
                         gridX < -15 ||
                         gridX > 15 ||
                         !lane ||
+                        occupied ||
                         (lane->treeMask &
                             (std::uint32_t{ 1 } <<
                                 (gridX + 15))) != 0;
 
                     if (blocked) {
+                        s.rotation = rotation;
                         s.status =
                             Wire::MoveStatus::Invalid;
                     }
