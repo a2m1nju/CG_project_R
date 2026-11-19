@@ -524,6 +524,16 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 			glm::mat4 model = glm::translate(
 				glm::mat4(1.0f),
 				glm::vec3(player.x, 0.5f, player.z));
+            const float moveSeconds = std::chrono::duration<float>(
+                std::chrono::steady_clock::now() - player.moveStarted).count();
+            const float visibleMoveDuration = MOVE_DURATION * 0.5f;
+            if (moveSeconds >= 0.0f && moveSeconds < visibleMoveDuration) {
+                const float t = glm::clamp(moveSeconds / visibleMoveDuration, 0.0f, 1.0f);
+                model = glm::translate(glm::mat4(1.0f), glm::vec3(
+                    glm::mix(player.moveStartX, player.x, t),
+                    0.5f + JUMP_HEIGHT * 4.0f * t * (1.0f - t),
+                    glm::mix(player.moveStartZ, player.z, t)));
+            }
 
 			model = glm::rotate(
 				model,

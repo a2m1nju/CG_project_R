@@ -60,6 +60,8 @@ struct RemotePlayerView {
     std::uint8_t slot = 0;
     float x = 0, z = 0, rotation = 0;
     bool alive = true;
+    float moveStartX = 0, moveStartZ = 0;
+    std::chrono::steady_clock::time_point moveStarted{};
 };
 
 struct ItemEvent {

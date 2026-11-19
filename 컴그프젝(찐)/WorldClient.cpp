@@ -302,6 +302,8 @@ int ClientNetwork::HandleWorldPacket(
             player.slot = p[offset + 4];
             player.x = Wire::ReadFloat(p + offset + 5);
             player.z = Wire::ReadFloat(p + offset + 9);
+            player.moveStartX = player.x;
+            player.moveStartZ = player.z;
 
             if (player.id == 0 ||
                 player.slot > 2 ||
@@ -375,6 +377,15 @@ int ClientNetwork::HandleWorldPacket(
             }
 
             player.slot = previous->slot;
+            player.moveStartX = previous->moveStartX;
+            player.moveStartZ = previous->moveStartZ;
+            player.moveStarted = previous->moveStarted;
+            if (std::abs(player.x - previous->x) > 0.001f ||
+                std::abs(player.z - previous->z) > 0.001f) {
+                player.moveStartX = previous->x;
+                player.moveStartZ = previous->z;
+                player.moveStarted = std::chrono::steady_clock::now();
+            }
             next.push_back(player);
         }
 
