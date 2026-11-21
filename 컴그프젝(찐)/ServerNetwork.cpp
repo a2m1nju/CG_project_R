@@ -2277,8 +2277,6 @@ bool ServerNetwork::HandleItemRequest(
                 if (IsRoundMember(sessions[i].id)) {
                     players.push_back({
                         sessions[i].id,
-                        static_cast<std::int32_t>(
-                            std::round(sessions[i].z * 1000)),
                         sessions[i].alive
                         });
                 }
@@ -2291,12 +2289,13 @@ bool ServerNetwork::HandleItemRequest(
                 ? inventory->slots[inventory->selectedSlot]
                 : ItemKind::Empty;
 
-            const auto target =
-                items.SelectAttackTarget(s.id, players);
-
             const bool needsTarget =
                 kind == ItemKind::ReverseControls ||
                 kind == ItemKind::Blackout;
+
+            const auto target = needsTarget
+                ? items.SelectAttackTarget(s.id, players, attackTargetRng)
+                : 0;
 
             TransportSession* targetSession = nullptr;
 

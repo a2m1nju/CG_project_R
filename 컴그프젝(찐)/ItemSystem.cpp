@@ -49,8 +49,8 @@ bool ItemSystem::UseSelectedItem(PlayerId playerId, std::int32_t x, std::int32_t
     } else if (rule.useMode == ItemUseMode::ActivateShield) {
         playerEffects_[playerId].shieldRemainingMs = rule.effectDurationMs;
     } else if (rule.useMode == ItemUseMode::TargetOpponent) {
-        if (targetId != 0 && !GetInventory(targetId)) return false;
-        auto& effects = playerEffects_[targetId != 0 ? targetId : playerId];
+        if (targetId == 0 || targetId == playerId || !GetInventory(targetId)) return false;
+        auto& effects = playerEffects_[targetId];
         if (rule.effect == EffectKind::ReverseControls)
             effects.reverseControlsRemainingMs = rule.effectDurationMs;
         else if (rule.effect == EffectKind::Blackout)
@@ -188,32 +188,22 @@ bool ItemSystem::ApplyConfirmedShield(PlayerId playerId,
 }
 
 PlayerId ItemSystem::SelectAttackTarget(PlayerId userId,
-    const std::vector<TargetPlayer>& players) const {
+    const std::vector<TargetPlayer>& players, std::mt19937& rng) const {
     if (inventories_.find(userId) == inventories_.end()) return 0;
 
     const auto user = std::find_if(players.begin(), players.end(),
         [userId](const TargetPlayer& player) { return player.id == userId; });
     if (user == players.end() || !user->alive) return 0;
 
-    PlayerId bestId = 0;
-    int bestGroup = 3;
-    std::int64_t bestDistance = 0;
+    std::vector<PlayerId> candidates;
     for (const auto& player : players) {
         if (player.id == 0 || player.id == userId || !player.alive ||
             inventories_.find(player.id) == inventories_.end()) continue;
-
-        const auto delta = static_cast<std::int64_t>(player.zMilli) - user->zMilli;
-        const int group = delta < 0 ? 0 : (delta == 0 ? 1 : 2);
-        const auto distance = delta < 0 ? -delta : delta;
-        if (bestId == 0 || group < bestGroup ||
-            (group == bestGroup && (distance < bestDistance ||
-                (distance == bestDistance && player.id < bestId)))) {
-            bestId = player.id;
-            bestGroup = group;
-            bestDistance = distance;
-        }
+        candidates.push_back(player.id);
     }
-    return bestId;
+    if (candidates.empty()) return 0;
+    std::uniform_int_distribution<std::size_t> pick(0, candidates.size() - 1);
+    return candidates[pick(rng)];
 }
 
 const PlayerInventory* ItemSystem::GetInventory(PlayerId playerId) const {

@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <map>
+#include <random>
 #include <vector>
 
 struct PickupPlayer {
@@ -25,10 +26,8 @@ struct BananaHitResult {
     bool pushed = false;
 };
 
-// 서버가 확정한 현재 Z 좌표를 밀리 단위 정수로 전달한다.
 struct TargetPlayer {
     PlayerId id;
-    std::int32_t zMilli;
     bool alive;
 };
 
@@ -54,7 +53,7 @@ public:
     bool ApplyConfirmedShield(PlayerId playerId, std::uint32_t durationMs);
     bool ApplyConfirmedBanana(const BananaTrap& trap);
     PlayerId SelectAttackTarget(PlayerId userId,
-        const std::vector<TargetPlayer>& players) const;
+        const std::vector<TargetPlayer>& players, std::mt19937& rng) const;
     const PlayerInventory* GetInventory(PlayerId playerId) const;
     const PlayerEffectState* GetPlayerEffects(PlayerId playerId) const;
     const std::map<ObjectId, GroundItem>& GetGroundItems() const;

@@ -8,6 +8,7 @@
 
 #include <array>
 #include <atomic>
+#include <random>
 #include <vector>
 #include <string>
 
@@ -77,6 +78,7 @@ private:
 
     WorldState world;
     ItemSystem items;
+    std::mt19937 attackTargetRng{ std::random_device{}() };
     ObjectId nextSpawnItemId = 1;
 
     std::uint64_t currentTick = 0;
