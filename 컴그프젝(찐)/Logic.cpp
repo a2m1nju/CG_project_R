@@ -232,8 +232,157 @@ void spawnParticles(glm::vec3 pos, glm::vec3 color, int count, float speedScale)
 static std::map<unsigned int, int> actorLastPacketMs;
 static bool bananaReboundPending = false;
 static glm::vec3 bananaReboundTarget;
+static std::uint32_t spectatorTargetId = 0;
+
+bool isOnlineSpectating()
+{
+	return activeClientNetwork &&
+		activeClientNetwork->IsConnected() &&
+		clientScreen == ClientScreen::Playing &&
+		activeClientNetwork->GetLobby().stage == LobbyStage::Playing &&
+		isGameOver;
+}
+
+static std::vector<RemotePlayerView> getSpectatorCandidates()
+{
+	std::vector<RemotePlayerView> candidates;
+
+	if (!isOnlineSpectating()) {
+		return candidates;
+	}
+	for (const auto& player : activeClientNetwork->GetPlayers()) {
+		// 자신을 제외한 생존자만 후보에 포함
+		if (player.id != activeClientNetwork->GetMyPlayerId() &&
+			player.alive)
+		{
+			candidates.push_back(player);
+		}
+	}
+	// 1P → 2P → 3P 순서
+	std::sort(
+		candidates.begin(),
+		candidates.end(),
+		[](const RemotePlayerView& a, const RemotePlayerView& b) {
+			return a.slot < b.slot;
+		});
+	return candidates;
+}
+
+void updateSpectator()
+{
+	// 서버에서 자신의 사망 상태가 전달된 경우에도 반영
+	if (activeClientNetwork &&
+		activeClientNetwork->GetLobby().stage == LobbyStage::Playing &&
+		clientScreen == ClientScreen::Playing)
+	{
+		for (const auto& player : activeClientNetwork->GetPlayers()) {
+			if (player.id == activeClientNetwork->GetMyPlayerId() &&
+				!player.alive)
+			{
+				isGameOver = true;
+				isMoving = false;
+				bananaReboundPending = false;
+				break;
+			}
+		}
+	}
+
+	if (!isOnlineSpectating()) {
+		spectatorTargetId = 0;
+		return;
+	}
+	// 사망 직전의 화면 흔들림이 관전 화면에 남지 않도록 정리
+	shakeTimer = 0.0f;
+	const auto candidates = getSpectatorCandidates();
+	const auto current = std::find_if(
+		candidates.begin(),
+		candidates.end(),
+		[](const RemotePlayerView& player) {
+			return player.id == spectatorTargetId;
+		});
+
+	// 최초 진입 또는 현재 대상의 사망·이탈
+	if (current == candidates.end()) {
+		spectatorTargetId = candidates.empty()
+			? 0
+			: candidates.front().id;
+	}
+}
+
+void cycleSpectatorTarget()
+{
+	updateSpectator();
+	const auto candidates = getSpectatorCandidates();
+	if (candidates.empty()) {
+		return;
+	}
+	for (std::size_t i = 0; i < candidates.size(); ++i) {
+		if (candidates[i].id == spectatorTargetId) {
+			spectatorTargetId =
+				candidates[(i + 1) % candidates.size()].id;
+
+			return;
+		}
+	}
+}
+
+bool hasSpectatorTarget()
+{
+	updateSpectator();
+	return spectatorTargetId != 0;
+}
+glm::vec3 getViewFocus()
+{
+	updateSpectator();
+
+	if (isOnlineSpectating()) {
+		for (const auto& player : activeClientNetwork->GetPlayers()) {
+			if (player.id == spectatorTargetId && player.alive) {
+				return glm::vec3(player.x, 0.5f, player.z);
+			}
+		}
+	}
+
+	return playerPos;
+}
+
+std::string getSpectatorStatusText()
+{
+	updateSpectator();
+	const auto candidates = getSpectatorCandidates();
+	if (candidates.empty()) {
+		return "NO SURVIVORS";
+	}
+	std::string text = "WATCHING: ";
+	for (const auto& player : candidates) {
+		if (player.id == spectatorTargetId) {
+			text +=
+				std::to_string(static_cast<int>(player.slot) + 1) +
+				"P";
+
+			break;
+		}
+	}
+
+	text += " | ALIVE: ";
+	for (std::size_t i = 0; i < candidates.size(); ++i) {
+		if (i != 0) {
+			text += ", ";
+		}
+
+		text +=
+			std::to_string(static_cast<int>(candidates[i].slot) + 1) +
+			"P";
+	}
+	if (candidates.size() > 1) {
+		text += " | TAB: NEXT";
+	}
+
+	return text;
+}
 static void clearRoundState()
 {
+	spectatorTargetId = 0;
 	bananaReboundPending = false;
 	playerPos = glm::vec3(0.0f, 0.5f, 0.0f);
 	playerTargetPos = playerPos;
@@ -569,6 +718,7 @@ void timer(int value)
 			playerRotation = 0;
 			isMoving = false;
 			isGameOver = false;
+			spectatorTargetId = 0;
 			moveTime = 0;
 
 			introState = 0;
@@ -598,6 +748,7 @@ void timer(int value)
 	}
 
     if (activeClientNetwork) {
+		updateSpectator();
         float x, z;
         if (activeClientNetwork->TakeMove(x, z) && !bananaReboundPending && !isGameOver && introState == 0) {
             playerStartPos = playerPos;
@@ -688,6 +839,7 @@ void timer(int value)
 	}
 
 	if (isGameOver) {
+		localItems.AdvanceEffects(elapsedMs);
 		for (auto it = particles.begin(); it != particles.end(); ) {
 			it->position += it->velocity;
 			it->life -= 0.05f;

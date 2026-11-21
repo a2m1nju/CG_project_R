@@ -344,7 +344,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 	GLint texLoc = glGetUniformLocation(shader, "targetTexture");
 	GLint uvScaleLoc = glGetUniformLocation(shader, "uvScale"); 
 
-	int currentZ = (int)std::round(playerPos.z);
+	int currentZ = (int)std::round(getViewFocus().z);
 	int drawRangeFront = 30;
 	int drawRangeBack = 10;
 	float groundWidth = 300.0f;
@@ -1023,7 +1023,7 @@ GLvoid drawScene()
 		shakeOffset = glm::vec3(rx, ry, rz);
 	}
 
-	glm::vec3 cameraTarget = playerPos;
+	glm::vec3 cameraTarget = getViewFocus();
 	cameraTarget.y = 0.5f;
 
 	glm::mat4 proj = glm::perspective(glm::radians(45.0f), 1280.f / 960.f, 0.1f, 100.f);
@@ -1066,8 +1066,8 @@ GLvoid drawScene()
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glUseProgram(shaderProgramID);
 	const auto* effects = localItems.GetPlayerEffects(1);
-    const bool localReverse = effects && effects->reverseControlsRemainingMs > 0;
-    const bool localBlackout = effects && effects->blackoutRemainingMs > 0;
+    const bool localReverse = !isGameOver &&effects && effects->reverseControlsRemainingMs > 0;
+    const bool localBlackout = !isGameOver && effects && effects->blackoutRemainingMs > 0;
     glUniform1i(glGetUniformLocation(shaderProgramID, "isGlitch"), localReverse ? 1 : 0);
 
 	glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "projection"), 1, GL_FALSE, glm::value_ptr(proj));
@@ -1087,7 +1087,7 @@ GLvoid drawScene()
 	renderObjects(shaderProgramID, proj * view);
     drawShieldAura(proj, view);
 	// Draw nearby ground items.
-	int currentZ = (int)std::round(playerPos.z);
+	int currentZ = (int)std::round(getViewFocus().z);
 	int drawRangeFront = 30;
 	int drawRangeBack = 10;
 	for (auto& item : items) {
@@ -1159,15 +1159,26 @@ GLvoid drawScene()
 		renderTextWithOutline(20, 60, scoreStr.c_str());
 	}
 	if (isGameOver) {
-		float centerX = 1280.0f / 2.0f;
-		float centerY = 960.0f / 2.0f;
+		if (isOnlineSpectating()) {
+			const std::string status = getSpectatorStatusText();
 
-		renderTextWithOutline(centerX - 150.0f, centerY - 50.0f, "GAME OVER");
+			renderTextWithOutline(20.0f, 95.0f, status.c_str());
 
-		static float blink = 0.0f;
-		blink += 0.05f;
-		if (sin(blink) > 0) {
-			renderTextWithOutline(centerX - 350.0f, centerY + 50.0f, "PRESS ANY KEY TO RESTART");
+			if (!hasSpectatorTarget()) {
+				renderTextWithOutline(410.0f, 450.0f, "ALL PLAYERS DOWN");
+
+				if (activeClientNetwork->GetPlayers().size() == 3) {
+					renderTextWithOutline(230.0f, 510.0f, "ENTER: REQUEST RESTART (ALL 3 REQUIRED)");
+				}
+				else {
+					renderTextWithOutline(260.0f, 510.0f, "RESTART NEEDS 3 CONNECTED PLAYERS");
+				}
+			}
+		}
+		else {
+			renderTextWithOutline(490.0f, 430.0f, "GAME OVER");
+
+			renderTextWithOutline(290.0f, 530.0f, "PRESS ANY KEY TO RESTART");
 		}
 	}
 

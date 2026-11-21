@@ -10,3 +10,11 @@ void resetGame();
 void spawnParticles(glm::vec3 pos, glm::vec3 color, int count, float speedScale);
 void timer(int value);
 void initGame();
+
+//관전
+bool isOnlineSpectating();
+void updateSpectator();
+void cycleSpectatorTarget();
+bool hasSpectatorTarget();
+glm::vec3 getViewFocus();
+std::string getSpectatorStatusText();

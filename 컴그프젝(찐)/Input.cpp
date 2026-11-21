@@ -150,17 +150,36 @@ void keyboard(unsigned char key, int x, int y)
 		return;
 	}
 
-	// 게임 오버 시 아무 키나 누르면 재시작
-	if (isGameOver) {
-		resetGame();
-		return;
-	}
-
+	
 	if (key == 'q' || key == 'Q') {
 		glutLeaveMainLoop();
 		return;
 	}
+	updateSpectator();
+	if (isOnlineSpectating()) {
+		if (key == '\t') {
+			cycleSpectatorTarget();
+		}
+		else if (key == '\r' &&	!hasSpectatorTarget() && activeClientNetwork->GetPlayers().size() == 3)
+		{
+			resetGame();
+		}
 
+		glutPostRedisplay();
+		return;
+	}
+
+	if (isGameOver) {
+		// 기존 오프라인 게임의 재시작 동작
+		if (!activeClientNetwork) {
+			resetGame();
+		}
+		return;
+	}
+	// 생존 중에는 Tab으로 게임 조작을 하지 않음
+	if (key == '\t') {
+		return;
+	}
 	if (key == '0') {
 		isGodMode = !isGodMode;
 		printf("God Mode: %s\n", isGodMode ? "ON" : "OFF");

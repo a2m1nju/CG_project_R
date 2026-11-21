@@ -851,8 +851,28 @@ void ServerNetwork::Tick(std::uint64_t tick)
                 for (const auto& entry : world.Actors()) {
                     const auto& actor = entry.second;
 
-                    if (actor.z >= s.z - 30 &&
-                        actor.z <= s.z + 10 &&
+                    // 생존 중이면 기존처럼 자신의 주변 정보 수신
+                    bool visible =
+                        actor.z >= s.z - 30 &&
+                        actor.z <= s.z + 10;
+
+                    // 사망한 참가자는 모든 생존자의 주변 정보 수신
+                    if (!s.alive) {
+                        visible = false;
+
+                        for (std::size_t j = 0; j < sessionCount; ++j) {
+                            const auto& target = sessions[j];
+                            if (target.alive &&
+                                IsRoundMember(target.id) &&
+                                actor.z >= target.z - 30 &&
+                                actor.z <= target.z + 10)
+                            {
+                                visible = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (visible &&
                         !QueueWorldActor(
                             s,
                             actor,
