@@ -800,6 +800,15 @@ void timer(int value)
 
 		// [충돌 검사 시작]
 		bool isDead = false;
+		bool serverReportedDead = false;
+		if (activeClientNetwork) {
+			for (const auto& player : activeClientNetwork->GetPlayers()) {
+				if (player.id == activeClientNetwork->GetMyPlayerId()) {
+					serverReportedDead = !player.alive;
+					break;
+				}
+			}
+		}
         const auto* itemEffects = localItems.GetPlayerEffects(1);
         const bool shieldActive = itemEffects && itemEffects->shieldRemainingMs > 0;
         const bool isInvincible = isGodMode || shieldActive;
@@ -943,7 +952,7 @@ void timer(int value)
 			}
 		}
 
-		if (isDead && !shieldActive) {
+		if (serverReportedDead || (isDead && !shieldActive)) {
 
 			if (isGameOver) {
 				glutPostRedisplay();

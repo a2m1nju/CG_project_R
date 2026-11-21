@@ -826,6 +826,15 @@ void ServerNetwork::Tick(std::uint64_t tick)
     if (lobbyRoom &&
         lobbyRoom->phase == ServicePhase::PLAYING)
     {
+        const auto elapsedTicks = tick - roundStartTick;
+        for (std::size_t i = 0; i < sessionCount; ++i) {
+            auto& session = sessions[i];
+            if (IsRoundMember(session.id) && session.alive &&
+                ScreenChase::Overtaken(session.z, elapsedTicks)) {
+                session.alive = false;
+            }
+        }
+
         auto minZ = world.MinZ();
         auto maxZ = world.MaxZ();
 
@@ -1219,6 +1228,7 @@ void ServerNetwork::StartRoundSnapshots()
 {
     ResetWorld(lobbyRoom->roundId);
     loadingStartTick = currentTick;
+    roundStartTick = 0;
 
     for (std::size_t slot = 0;
         slot < lobbyRoom->members.size();
@@ -1281,6 +1291,8 @@ void ServerNetwork::SendStart(std::uint32_t tick)
     {
         return;
     }
+
+    roundStartTick = currentTick;
 
     std::vector<std::uint8_t> packet(19 + 13 * 3, 0);
 

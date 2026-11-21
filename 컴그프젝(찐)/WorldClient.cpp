@@ -7,6 +7,8 @@ void ClientNetwork::ClearWorld()
 {
     ClearItems();
     roundId = 0;
+    roundStartTick = 0;
+    lastPlayersTick = 0;
     inputSeq = 0;
     pendingInput = 0;
     worldGeneration = 0;
@@ -324,6 +326,7 @@ int ClientNetwork::HandleWorldPacket(
 
         players = std::move(next);
         startReady = true;
+        roundStartTick = Wire::Read32(p + 12);
 
         lobby.stage = LobbyStage::Playing;
         lobby.message = "PLAYING";
@@ -391,6 +394,7 @@ int ClientNetwork::HandleWorldPacket(
         }
 
         players = std::move(next);
+        lastPlayersTick = Wire::Read32(p + 12);
     }
     else {
         return -1;

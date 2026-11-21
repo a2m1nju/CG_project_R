@@ -174,6 +174,7 @@ glew32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="Room.h" />
     <ClInclude Include="Protocol.h" />
+    <ClInclude Include="ScreenChase.h" />
     <ClInclude Include="ClientNetwork.h" />
     <ClInclude Include="ServerApp.h" />
     <ClInclude Include="ServerNetwork.h" />

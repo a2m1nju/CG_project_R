@@ -48,6 +48,7 @@
     <ClCompile Include="..\컴그프젝(찐)\ItemSystem.cpp" />
     <ClInclude Include="..\컴그프젝(찐)\ServerApp.h" />
     <ClInclude Include="..\컴그프젝(찐)\ServerNetwork.h" />
+    <ClInclude Include="..\컴그프젝(찐)\ScreenChase.h" />
     <ClInclude Include="..\컴그프젝(찐)\Room.h" />
     <ClInclude Include="..\컴그프젝(찐)\WorldState.h" />
     <ClInclude Include="..\컴그프젝(찐)\ItemSystem.h" />

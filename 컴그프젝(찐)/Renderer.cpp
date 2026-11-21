@@ -1035,6 +1035,9 @@ GLvoid drawScene()
 	}
 
 	glm::vec3 cameraTarget = playerPos;
+	if (activeClientNetwork && activeClientNetwork->ChaseActive()) {
+		cameraTarget.z = (std::min)(cameraTarget.z, activeClientNetwork->ChaseFrontZ());
+	}
 	cameraTarget.y = 0.5f;
 
 	glm::mat4 proj = glm::perspective(glm::radians(45.0f), 1280.f / 960.f, 0.1f, 100.f);

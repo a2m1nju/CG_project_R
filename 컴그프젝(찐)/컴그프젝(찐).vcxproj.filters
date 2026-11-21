@@ -95,6 +95,9 @@
     <ClInclude Include="Protocol.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="ScreenChase.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
     <ClInclude Include="ClientNetwork.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>

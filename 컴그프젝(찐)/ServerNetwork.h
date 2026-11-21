@@ -5,6 +5,7 @@
 #include "Room.h"
 #include "WorldState.h"
 #include "ItemSystem.h"
+#include "ScreenChase.h"
 
 #include <array>
 #include <atomic>
@@ -83,6 +84,7 @@ private:
 
     std::uint64_t currentTick = 0;
     std::uint64_t loadingStartTick = 0;
+    std::uint64_t roundStartTick = 0;
 
     void RemoveSession(std::size_t index);
     bool ProcessPackets(TransportSession& session, std::uint64_t tick);

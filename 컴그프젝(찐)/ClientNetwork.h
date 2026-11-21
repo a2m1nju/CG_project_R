@@ -2,6 +2,7 @@
 
 #include <winsock2.h>
 #include "Protocol.h"
+#include "ScreenChase.h"
 
 #include <vector>
 #include <chrono>
@@ -160,6 +161,18 @@ public:
         return players;
     }
 
+    bool ChaseActive() const
+    {
+        return roundStartTick != 0 && lastPlayersTick != 0 &&
+            ScreenChase::Active(std::uint32_t(lastPlayersTick - roundStartTick));
+    }
+
+    float ChaseFrontZ() const
+    {
+        return ScreenChase::FrontZ(
+            std::uint32_t(lastPlayersTick - roundStartTick));
+    }
+
     bool TakeItemEvent(ItemEvent& event);
     bool RequestPickup(std::uint32_t itemId);
     bool RequestSwitch(std::uint8_t slot);
@@ -179,6 +192,8 @@ private:
     std::uint32_t inputSeq = 0;
     std::uint32_t pendingInput = 0;
     std::uint32_t roundId = 0;
+    std::uint32_t roundStartTick = 0;
+    std::uint32_t lastPlayersTick = 0;
     std::uint32_t myPlayerId = 0;
 
     std::chrono::steady_clock::time_point lastState{}, pendingSince{};
