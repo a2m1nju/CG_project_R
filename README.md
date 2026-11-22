@@ -61,3 +61,12 @@ set "PATH=%CD%;%PATH%"
 - 최초 준비와 전원 로딩 확인은 기존 `MatchCoordinator`·`RoundController`에 연결했습니다. minju 구현과의 차이는 접속 직후가 아니라 **전원 준비 후** 전송한다는 점입니다.
 
 통신 검사: 서버를 따로 실행하지 않은 상태에서 `node tests/world_sync_integration.cjs x64/Release/Server.exe`를 실행하면 준비·취소, 전원 준비/로딩 조건, 동일 맵·아이템 수신, 아이템 생성·획득·보호막, 전원 재시작을 확인합니다.
+
+## 서버 플레이어 생존 상태 관리
+
+- 생존·이탈 상태의 원본은 서버의 `WorldState::Players()`입니다. `RoomState::players`와 `TransportSession::alive`는 제거했습니다.
+- 참가자를 찾을 때는 `world.FindPlayer(playerId)`, 생존 여부만 확인할 때는 `world.IsAlive(playerId)`를 사용합니다. 없는 참가자와 이탈자는 생존자로 취급하지 않습니다.
+- `MatchCoordinator`, `RoundController`, `RematchController`는 생성 시 `(room, world)`를 받으며, `ServerNetwork`는 `(world)`를 받습니다. 같은 서버 월드를 참조해야 합니다.
+- 새 라운드의 참가자 초기화는 `RoundController::PrepareRound()`에서 처리합니다. `WorldState::Reset()`은 지형·장애물을 초기화하며 참가자 상태는 유지합니다.
+- 이동·아이템 처리, 플레이어 상태 전송, `ShouldFinish()`는 같은 월드의 생존 상태를 참조합니다. 사망 후 같은 라운드의 위치·생존 통보로 부활하지 않습니다.
+- 패킷 형식은 이번 변경으로 바뀌지 않았습니다. 사망 판정은 현재 클라이언트의 통보를 사용합니다. 서버 충돌 판정과 전원 사망 후 RESULT 전환은 별도 연결이 필요합니다.

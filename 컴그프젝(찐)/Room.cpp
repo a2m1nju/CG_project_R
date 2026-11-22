@@ -101,6 +101,7 @@ void MatchCoordinator::CancelLoading(SessionId leaverId) {
 	room.members.fill(0); //기존상태로 초기화
 	room.ready.fill(false);
 	room.loaded.fill(false);
+	world.Players().fill(PlayerState{}); //취소한 경기의 참가자 상태 폐기
 	// 5. 월드 구현 시 초기 월드와 관련 입력·예약 작업 폐기
 
 	room.phase = ServicePhase::MATCHING; //상태변경
@@ -130,12 +131,12 @@ void MatchCoordinator::OnDisconnect(SessionId id) {
 		return;
 	}
 	const auto index = static_cast<std::size_t>(it - room.members.begin());
-	if (room.players[index].departed) { //중복 이탈 처리 방지
+	if (world.Players()[index].departed) { //중복 이탈 처리 방지
 		return;
 	}
 	if (room.phase == ServicePhase::PLAYING) { //경기 중 이탈 기록
-		room.players[index].alive = false;
-		room.players[index].departed = true;
+		world.Players()[index].alive = false;
+		world.Players()[index].departed = true;
 		room.records[index].departed = true;
 
 		// 기록 구현 시 alive 변경 전 생존 여부를 확인해 기록 동결
@@ -146,7 +147,7 @@ void MatchCoordinator::OnDisconnect(SessionId id) {
 		return;
 	}
 	if (room.phase == ServicePhase::RESULT) { //결과 중 이탈하면 재경기 취소
-		room.players[index].departed = true;
+		world.Players()[index].departed = true;
 		room.records[index].departed = true;
 
 		// 호출부에서 Evaluate() → CLOSE 확인 후 방 종료 처리
@@ -190,13 +191,13 @@ void RoundController::PrepareRound() {
 
 	// 5. 참가자와 라운드 기록 초기화
 	// 공유 월드·아이템 생성은 ServerNetwork의 StartRoundSnapshots에서 처리
-	for (std::size_t i = 0; i < room.players.size(); ++i) {
-		room.players[i] = PlayerState{};
-		room.players[i].playerId = room.members[i];
-		room.players[i].alive = true;
+	for (std::size_t i = 0; i < world.Players().size(); ++i) {
+		world.Players()[i] = PlayerState{};
+		world.Players()[i].playerId = room.members[i];
+		world.Players()[i].alive = true;
 
 		room.records[i] = RoundRecord{};
-		room.records[i].playerId = room.players[i].playerId;
+		room.records[i].playerId = world.Players()[i].playerId;
 	}
 
 	// 6. 로딩 단계로 전환
@@ -241,9 +242,9 @@ bool RoundController::ShouldFinish() const { //세명 다 죽었는지 확인
 		return false;
 	}
 	return std::none_of( // 살아 있는 참가자가 한 명도 없으면 종료
-		room.players.begin(), room.players.end(),
+		world.Players().begin(), world.Players().end(),
 		[](const PlayerState& player) {
-			return player.alive;
+			return player.alive && !player.departed;
 		});
 }
 
@@ -279,7 +280,7 @@ void RematchController::SetVote(PlayerId p, bool agree)
 		return;
 	}
 	const bool hasDeparted = std::any_of( //참가자 중 이탈자가 있으면 재경기 불가
-		room.players.begin(), room.players.end(),
+		world.Players().begin(), world.Players().end(),
 		[](const PlayerState& player) {
 			return player.departed;
 		});
@@ -291,15 +292,15 @@ void RematchController::SetVote(PlayerId p, bool agree)
 	// 세션 관리 구현 시 현재 연결 참가자 3명인지 추가 검사
 
 	const auto it = std::find_if( // 옳은 참가자인지 확인
-		room.players.begin(), room.players.end(),
+		world.Players().begin(), world.Players().end(),
 		[p](const PlayerState& player) {
 			return player.playerId == p;
 		});
-	if (it == room.players.end()) {
+	if (it == world.Players().end()) {
 		return;
 	}
 
-	const auto index = static_cast<std::size_t>(it - room.players.begin());
+	const auto index = static_cast<std::size_t>(it - world.Players().begin());
 
 	room.rematchVotes[index] = agree ? RematchVote::AGREE : RematchVote::DISAGREE;
 
@@ -313,7 +314,7 @@ RematchDecision RematchController::Evaluate() const {
 		return RematchDecision::WAIT;
 	}
 	const bool hasDeparted = std::any_of( //이탈자가 있으면 종료
-		room.players.begin(), room.players.end(),
+		world.Players().begin(), world.Players().end(),
 		[](const PlayerState& player) {
 			return player.departed;
 		});

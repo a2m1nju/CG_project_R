@@ -3,7 +3,15 @@
 #include <cstdint>
 #include <cstddef>
 #include <map>
+#include <array>
 #include <vector>
+
+// 서버 월드가 소유하는 참가자의 생존·이탈 상태.
+struct PlayerState {
+    std::uint32_t playerId = 0;
+    bool alive = false;
+    bool departed = false;
+};
 
 struct WorldLaneData {
     std::int32_t z = 0;
@@ -31,6 +39,11 @@ struct WorldActorData {
 class WorldState {
 public:
     void Reset(std::uint32_t roundId);
+    std::array<PlayerState, 3>& Players() { return players_; }
+    const std::array<PlayerState, 3>& Players() const { return players_; }
+    PlayerState* FindPlayer(std::uint32_t id);
+    const PlayerState* FindPlayer(std::uint32_t id) const;
+    bool IsAlive(std::uint32_t id) const;
     std::vector<WorldLaneData> EnsureRange(std::int32_t minZ, std::int32_t maxZ,
                                            std::size_t maxNewLanes);
     const WorldLaneData* FindLane(std::int32_t z) const;
@@ -44,6 +57,7 @@ public:
     std::int32_t MaxZ() const { return lanes_.rbegin()->first; }
 
 private:
+    std::array<PlayerState, 3> players_{};
     WorldLaneData MakeLane(std::int32_t z);
     std::map<std::int32_t, WorldLaneData> lanes_;
     std::map<std::uint32_t, WorldActorData> actors_;

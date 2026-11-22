@@ -292,14 +292,13 @@ void ServerNetwork::CloseLobby(SessionId leaverId)
                 static_cast<std::size_t>(
                     it - room.members.begin());
 
-            room.players[index].alive = false;
-            room.players[index].departed = true;
+            world.Players()[index].alive = false;
+            world.Players()[index].departed = true;
             room.records[index].departed = true;
             room.members[index] = 0;
         }
 
         if (auto* leaver = FindSession(leaverId)) {
-            leaver->alive = false;
             leaver->snapshotting = false;
             leaver->itemSnapshotPending = false;
             leaver->resetVote = false;
@@ -339,6 +338,7 @@ void ServerNetwork::CloseLobby(SessionId leaverId)
     const auto nextEpoch = room.lobbyEpoch + 1;
     const auto previousRound = room.roundId;
 
+    world.Players().fill(PlayerState{});
     room = RoomState{};
     room.lobbyEpoch = nextEpoch;
     room.roundId = previousRound;
@@ -349,7 +349,6 @@ void ServerNetwork::CloseLobby(SessionId leaverId)
             session->itemSnapshotPending = false;
             session->resetVote = false;
             session->roundId = 0;
-            session->alive = false;
 
             items.RemovePlayer(session->id);
 
@@ -415,7 +414,7 @@ int ServerNetwork::HandleLobbyPacket(
             return 1;
         }
 
-        MatchCoordinator coordinator(room);
+        MatchCoordinator coordinator(room, world);
         const auto result = coordinator.Enqueue(session.id);
 
         if (result.code != 0) {
@@ -475,7 +474,7 @@ int ServerNetwork::HandleLobbyPacket(
             return 1;
         }
 
-        MatchCoordinator coordinator(room);
+        MatchCoordinator coordinator(room, world);
 
         const auto readyResult = coordinator.SetReady(
             session.id,
@@ -573,7 +572,7 @@ bool ServerNetwork::ProcessPackets(
                 !s.snapshotting &&
                 !s.itemSnapshotPending)
             {
-                RoundController controller(*lobbyRoom);
+                RoundController controller(*lobbyRoom, world);
                 controller.MarkLoaded(s.id, round);
 
                 if (lobbyRoom->phase == ServicePhase::PLAYING) {
@@ -639,7 +638,7 @@ bool ServerNetwork::ProcessPackets(
             const float x = Wire::ReadFloat(p + 12);
             const float z = Wire::ReadFloat(p + 16);
 
-            if (std::isfinite(x) &&
+            if (world.IsAlive(s.id) && std::isfinite(x) &&
                 std::isfinite(z) &&
                 std::abs(x) < 100.0f &&
                 std::abs(z) < 1000000.0f)
@@ -658,7 +657,16 @@ bool ServerNetwork::ProcessPackets(
                     s.awaitingBananaPosition = false;
                 }
 
-                s.alive = s.alive && p[20] != 0;
+                // 생존 상태는 서버 월드에만 보관한다. 사망 후 같은 경기에서 복구하지 않는다.
+                if (p[20] == 0) {
+                    if (auto* player = world.FindPlayer(s.id)) {
+                        if (player->alive) {
+                            player->alive = false;
+                            std::cout << "[DEAD] player=" << s.id
+                                << " round=" << s.roundId << '\n';
+                        }
+                    }
+                }
             }
         }
         else {
@@ -671,7 +679,7 @@ bool ServerNetwork::ProcessPackets(
             if (Wire::Newer(input, s.inputSeq)) {
                 s.inputSeq = input;
 
-                if (!s.alive || p[16] > 3) {
+                if (!world.IsAlive(s.id) || p[16] > 3) {
                     s.status = Wire::MoveStatus::Invalid;
                 }
                 else if (tick < s.nextMoveTick) {
@@ -868,7 +876,7 @@ void ServerNetwork::Tick(std::uint64_t tick)
             lobbyRoom->phase == ServicePhase::PLAYING &&
             IsRoundMember(s.id) &&
             s.checkBanana &&
-            s.alive)
+            world.IsAlive(s.id))
         {
             bool ready = true;
 
@@ -969,7 +977,7 @@ void ServerNetwork::Tick(std::uint64_t tick)
                 << " round=" << s.roundId
                 << " x=" << s.x
                 << " z=" << s.z
-                << " alive=" << s.alive
+                << " alive=" << world.IsAlive(s.id)
                 << '\n';
         }
     }
@@ -1169,6 +1177,7 @@ void ServerNetwork::StopAccepting()
 
 void ServerNetwork::Shutdown()
 {
+    world.Players().fill(PlayerState{});
     for (std::size_t i = 0; i < sessionCount; ++i) {
         closesocket(sessions[i].socket);
         sessions[i] = TransportSession{};
@@ -1194,7 +1203,7 @@ void ServerNetwork::BeginLoading()
         return;
     }
 
-    RoundController controller(*lobbyRoom);
+    RoundController controller(*lobbyRoom, world);
 
     if (controller.BeginRound(false)) {
         StartRoundSnapshots();
@@ -1225,7 +1234,6 @@ void ServerNetwork::StartRoundSnapshots()
 
         session->z = 0;
         session->rotation = 0;
-        session->alive = true;
 
         session->inputSeq = 0;
         session->nextMoveTick = 0;
@@ -1331,9 +1339,6 @@ void ServerNetwork::PublishPlayers(std::uint32_t tick)
             continue;
         }
 
-        lobbyRoom->players[slot].alive =
-            session->alive;
-
         const auto offset = packet.size();
         packet.resize(offset + 17);
 
@@ -1344,7 +1349,7 @@ void ServerNetwork::PublishPlayers(std::uint32_t tick)
         Wire::WriteFloat(record + 8, session->z);
         Wire::WriteFloat(record + 12, session->rotation);
 
-        record[16] = session->alive ? 1 : 0;
+        record[16] = world.IsAlive(session->id) ? 1 : 0;
         ++count;
     }
 
@@ -1696,7 +1701,7 @@ void ServerNetwork::TryBeginNextRound()
         }
     }
 
-    RoundController controller(*lobbyRoom);
+    RoundController controller(*lobbyRoom, world);
 
     if (controller.ReloadRound()) {
         StartRoundSnapshots();
@@ -2150,7 +2155,7 @@ bool ServerNetwork::HandleItemRequest(
                         std::round(s.x)),
                     static_cast<std::int32_t>(
                         std::round(s.z)),
-                    s.alive
+                    world.IsAlive(s.id)
                 };
 
                 if (items.TryPickup(
@@ -2176,7 +2181,7 @@ bool ServerNetwork::HandleItemRequest(
         size == Wire::ItemSpawnRequestSize)
     {
         if (Wire::ReadRoundId(p) == s.roundId &&
-            s.alive &&
+            world.IsAlive(s.id) &&
             p[12] >= 1 &&
             p[12] <= 4 &&
             nextSpawnItemId != 0 &&
@@ -2239,7 +2244,7 @@ bool ServerNetwork::HandleItemRequest(
     {
         if (Wire::ReadRoundId(p) == s.roundId) {
             const bool accepted =
-                s.alive &&
+                world.IsAlive(s.id) &&
                 items.SwitchSlot(s.id, p[12]);
 
             if (!QueueInventoryState(s, accepted)) {
@@ -2262,7 +2267,7 @@ bool ServerNetwork::HandleItemRequest(
                         sessions[i].id,
                         static_cast<std::int32_t>(
                             std::round(sessions[i].z * 1000)),
-                        sessions[i].alive
+                        world.IsAlive(sessions[i].id)
                         });
                 }
             }
@@ -2321,7 +2326,7 @@ bool ServerNetwork::HandleItemRequest(
             }
 
             const bool accepted =
-                s.alive &&
+                world.IsAlive(s.id) &&
                 targetReady &&
                 shieldReady &&
                 items.UseSelectedItem(

@@ -13,7 +13,7 @@
 
 class ServerNetwork {
 public:
-    ServerNetwork() = default;
+    explicit ServerNetwork(WorldState& world) : world(world) {}
     ~ServerNetwork() { Shutdown(); }
 
     ServerNetwork(const ServerNetwork&) = delete;
@@ -58,7 +58,6 @@ private:
         std::int32_t announcedMinZ = 0;
         std::int32_t announcedMaxZ = 0;
 
-        bool alive = true;
         Wire::MoveStatus status = Wire::MoveStatus::Idle;
 
         std::string nickname;
@@ -75,7 +74,7 @@ private:
 
     RoomState* lobbyRoom = nullptr;
 
-    WorldState world;
+    WorldState& world;
     ItemSystem items;
     ObjectId nextSpawnItemId = 1;
 

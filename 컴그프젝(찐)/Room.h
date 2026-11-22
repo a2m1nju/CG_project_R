@@ -1,5 +1,6 @@
 #pragma once
 
+#include "WorldState.h"
 #include <vector>
 #include <array>
 #include <cstdint>
@@ -30,11 +31,6 @@ enum class RematchDecision {
     RESTART,   // 재경기
     CLOSE      // 방 종료
 };
-struct PlayerState {
-    PlayerId playerId = 0;
-    bool alive = false;
-    bool departed = false;
-};
 struct RoundRecord {
     PlayerId playerId = 0;
     std::uint32_t maxForwardLanes = 0;
@@ -61,7 +57,6 @@ typedef struct RoomState {
 
     std::vector<SessionId> queue;
     std::array<SessionId, 3> members{};
-    std::array<PlayerState, 3> players{};
 
     std::array<bool, 3> ready{};
     std::array<bool, 3> loaded{};
@@ -82,8 +77,8 @@ enum class ReadyResult { Accepted, BadPhase, Stale, NotMember };
 
 class MatchCoordinator {
 public:
-    explicit MatchCoordinator(RoomState& room)
-        : room(room) {};
+    explicit MatchCoordinator(RoomState& room, WorldState& world)
+        : room(room), world(world) {};
 
     JoinResult Enqueue(SessionId id);
     void TryPromote();
@@ -96,12 +91,13 @@ public:
 
 private:
     RoomState& room;
+    WorldState& world;
 };
 
 class RoundController {
 public:
-    explicit RoundController(RoomState& room)
-        : room(room) {}
+    explicit RoundController(RoomState& room, WorldState& world)
+        : room(room), world(world) {}
     bool BeginRound(bool rematch);
     bool ReloadRound();
     bool MarkLoaded(PlayerId id, RoundId roundId);
@@ -111,12 +107,13 @@ public:
 private:
     void PrepareRound();
     RoomState& room;
+    WorldState& world;
 };
 
 class RematchController {
 public:
-    explicit RematchController(RoomState& room)
-        : room(room) {
+    explicit RematchController(RoomState& room, WorldState& world)
+        : room(room), world(world) {
     }
 
     void SetVote(PlayerId p, bool agree);
@@ -124,4 +121,5 @@ public:
 
 private:
     RoomState& room;
+    WorldState& world;
 };
