@@ -176,14 +176,6 @@ bool RoundController::BeginRound(bool rematch) { // 첫경기인지 재경기인
 	return true;
 }
 
-bool RoundController::ReloadRound() { //전원 재시작 요청 후 공유 월드를 다시 로딩
-	if (room.phase != ServicePhase::PLAYING) {
-		return false;
-	}
-	PrepareRound();
-	return true;
-}
-
 void RoundController::PrepareRound() {
 	++room.roundId; // 새로운 라운드 번호 발급
 	room.ready.fill(false); // 이전 준비·로딩 상태 초기화

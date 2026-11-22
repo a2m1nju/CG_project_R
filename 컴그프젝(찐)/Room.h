@@ -99,7 +99,6 @@ public:
     explicit RoundController(RoomState& room, WorldState& world)
         : room(room), world(world) {}
     bool BeginRound(bool rematch);
-    bool ReloadRound();
     bool MarkLoaded(PlayerId id, RoundId roundId);
     bool ShouldFinish() const;
     ResultData BuildResult(const RankConfig& config);

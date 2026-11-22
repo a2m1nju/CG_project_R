@@ -1,4 +1,4 @@
-﻿#include "ServerNetwork.h"
+#include "ServerNetwork.h"
 
 #include <algorithm>
 #include <chrono>
@@ -301,7 +301,6 @@ void ServerNetwork::CloseLobby(SessionId leaverId)
         if (auto* leaver = FindSession(leaverId)) {
             leaver->snapshotting = false;
             leaver->itemSnapshotPending = false;
-            leaver->resetVote = false;
             leaver->roundId = 0;
 
             auto packet = LobbyWire::MakePacket(
@@ -347,7 +346,6 @@ void ServerNetwork::CloseLobby(SessionId leaverId)
         if (auto* session = FindSession(id)) {
             session->snapshotting = false;
             session->itemSnapshotPending = false;
-            session->resetVote = false;
             session->roundId = 0;
 
             items.RemovePlayer(session->id);
@@ -617,7 +615,7 @@ bool ServerNetwork::ProcessPackets(
                 return false;
             }
 
-            s.resetVote = true;
+            SendLobbyError(s, LobbyWire::BadPhase, p[3], seq); //경기 중 재시작은 허용하지 않음
         }
         else if (p[3] == Wire::PickupRequest ||
             p[3] == Wire::ItemSpawnRequest ||
@@ -803,7 +801,7 @@ void ServerNetwork::Tick(std::uint64_t tick)
         }
     }
 
-    TryBeginNextRound();
+
 
     if (lobbyRoom &&
         lobbyRoom->phase == ServicePhase::LOADING &&
@@ -987,6 +985,8 @@ void ServerNetwork::Tick(std::uint64_t tick)
     {
         PublishPlayers(
             static_cast<std::uint32_t>(tick));
+
+        TryFinishRound(); //최종 생존 상태 등록 후 결과 단계 확인
     }
 
     for (std::size_t i = sessionCount; i > 0; --i) {
@@ -1239,7 +1239,6 @@ void ServerNetwork::StartRoundSnapshots()
         session->nextMoveTick = 0;
         session->status = Wire::MoveStatus::Idle;
 
-        session->resetVote = false;
         session->checkBanana = false;
         session->awaitingBananaPosition = false;
 
@@ -1685,29 +1684,27 @@ void ServerNetwork::PumpWorldPackets(
     }
 }
 
-void ServerNetwork::TryBeginNextRound()
+void ServerNetwork::TryFinishRound()
 {
-    if (!lobbyRoom ||
-        lobbyRoom->phase != ServicePhase::PLAYING)
-    {
+    if (!lobbyRoom) { //연결된 방이 없으면 처리하지 않음
         return;
-    }
-
-    for (const auto id : lobbyRoom->members) {
-        const auto* session = FindSession(id);
-
-        if (!session || !session->resetVote) {
-            return;
-        }
     }
 
     RoundController controller(*lobbyRoom, world);
 
-    if (controller.ReloadRound()) {
-        StartRoundSnapshots();
+    if (!controller.ShouldFinish()) { //경기 중이고 생존자가 없을 때만 종료
+        return;
     }
-}
 
+    lobbyRoom->rematchVotes.fill(RematchVote::UNSET); //이전 재경기 응답 초기화
+    lobbyRoom->phase = ServicePhase::RESULT; //결과 단계로 전환
+
+    std::cout
+        << "[RESULT] round=" << lobbyRoom->roundId
+        << " all players dead.\n";
+
+    // 기록 확정·결과 패킷 구현 후 연결된 참가자에게 RESULT 전송
+}
 void ServerNetwork::ResetWorld(std::uint32_t roundId)
 {
     world.Reset(roundId);

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <winsock2.h>
 #include "Protocol.h"
@@ -44,7 +44,6 @@ private:
         std::uint64_t nextMoveTick = 0;
         float x = 0, z = 0, rotation = 0;
 
-        bool resetVote = false;
         bool itemSnapshotPending = false;
         bool checkBanana = false;
         bool awaitingBananaPosition = false;
@@ -110,7 +109,7 @@ private:
 
     void BeginLoading();
     void StartRoundSnapshots();
-    void TryBeginNextRound();
+    void TryFinishRound();
     void SendStart(std::uint32_t tick);
     void PublishPlayers(std::uint32_t tick);
 
