@@ -284,7 +284,7 @@ int ClientNetwork::HandleLobbyPacket(
         return 1;
     }
 
-    // ERROR
+    // 오류 응답
     if (size != 19) {
         return -1;
     }

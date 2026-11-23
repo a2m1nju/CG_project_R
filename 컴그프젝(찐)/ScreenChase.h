@@ -7,10 +7,10 @@
 namespace ScreenChase {
     constexpr std::uint32_t StartDelayTicks = 15 * Wire::TickRate;
     constexpr float LanesPerSecond = 1.0f;
-    // The camera looks down from behind the player; its ground-level rear edge
-    // is about six lanes behind the point it follows.
+    // 카메라가 플레이어 뒤에서 내려다볼 때 화면의 뒤쪽 끝은
+    // 카메라가 따라가는 지점에서 약 여섯 칸 뒤에 있다.
     constexpr float RearEdgeDistance = 6.0f;
-    // Start the catch animation while the player is still visible.
+    // 플레이어가 화면에 보일 때 붙잡히는 연출을 시작한다.
     constexpr float CatchDistance = RearEdgeDistance - 1.5f;
 
     inline bool Active(std::uint64_t elapsedTicks) {

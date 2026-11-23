@@ -1,6 +1,6 @@
 #version 330 core
 
-// Vertex Shader에서 받아오는 입력 변수들
+// 정점 셰이더에서 받아오는 입력 변수들
 in vec3 FragPos;
 in vec3 Color;
 in vec4 FragPosLightSpace;

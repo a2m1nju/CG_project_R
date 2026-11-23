@@ -3,6 +3,7 @@
 #include "Logic.h" 
 #include "ClientNetwork.h"
 #include "GameViewport.h"
+#include "BananaMesh.h"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
@@ -57,7 +58,7 @@ void drawChicken(GLuint shader, glm::mat4 baseModel) {
 }
 
 
-// The original bird model, with animated wings, is used only for chase deaths.
+// 기존 매 모델에 날갯짓을 더해 화면 추격 사망 연출에만 사용한다.
 static void drawBird(GLuint shader, const glm::mat4& baseModel, float seconds) {
     const glm::vec3 brown(0.4f, 0.2f, 0.0f);
     const glm::vec3 white(0.9f, 0.9f, 0.9f);
@@ -90,7 +91,7 @@ static void drawBirdCarry(GLuint shader, const BirdCarryAnimation& animation) {
     const float approach = glm::clamp(seconds / 0.55f, 0.0f, 1.0f);
     const float pickup = glm::clamp((seconds - 0.55f) / 0.30f, 0.0f, 1.0f);
     const float lift = birdFlightProgress(animation);
-    // Forward movement in this game is toward negative Z.
+    // 이 게임의 진행 방향은 Z축 음의 방향이다.
     const glm::vec3 birdPosition = animation.origin + glm::vec3(
         0.0f, 4.8f - 3.8f * approach + 5.5f * lift,
         3.0f * (1.0f - approach) - 12.0f * lift);
@@ -360,10 +361,7 @@ void drawItem(const Item& item, GLuint shader) {
         drawPart(shader, model, glm::vec3(0.0f, 0.0f, 0.4f), glm::vec3(0.45f, 0.45f, 0.08f), glm::vec3(0.05f, 0.02f, 0.1f));
     }
     else if (item.type == ITEM_BANANA) {
-        const glm::vec3 yellow(1.0f, 0.85f, 0.05f);
-        drawPart(shader, model, glm::vec3(-0.25f, 0.0f, 0.0f), glm::vec3(0.2f, 0.25f, 0.3f), yellow);
-        drawPart(shader, model, glm::vec3(0.0f, -0.1f, 0.0f), glm::vec3(0.35f, 0.2f, 0.3f), yellow);
-        drawPart(shader, model, glm::vec3(0.3f, 0.0f, 0.0f), glm::vec3(0.2f, 0.25f, 0.3f), yellow);
+        BananaMesh::Draw(shader, model);
     }
     else if (item.type == ITEM_SHIELD) {
         model = glm::scale(model, glm::vec3(1.2f));
@@ -432,7 +430,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 
 			if (shader == shaderProgramID) {
 
-				// CASE 1: 강 
+				// 경우 1: 강
 				if (mapType[z] == 2) {
 					glActiveTexture(GL_TEXTURE1);
 					glBindTexture(GL_TEXTURE_2D, riverTexture); 
@@ -443,7 +441,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 
 					glVertexAttrib3f(1, 1.0f, 1.0f, 1.0f);
 				}
-				// CASE 2: 잔디 
+				// 경우 2: 잔디
 				else if (mapType[z] == 0) {
 					glActiveTexture(GL_TEXTURE1);
 					glBindTexture(GL_TEXTURE_2D, grassTexture); 
@@ -454,7 +452,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 
 					glVertexAttrib3f(1, colors.grass.r, colors.grass.g, colors.grass.b);
 				}
-				// CASE 3: 도로 또는 철길
+				// 경우 3: 도로 또는 철길
 				else {
 					glUniform1i(useTexLoc, 0);
 					glUniform2f(uvScaleLoc, 1.0f, 1.0f);
@@ -626,7 +624,7 @@ static void drawShieldAuraAt(const glm::mat4& projection, const glm::mat4& view,
     constexpr float kPi = 3.14159265f;
     constexpr float kTau = 2.0f * kPi;
 
-    // Draw a transparent shell without hiding the character inside it.
+    // 안쪽 캐릭터가 보이도록 투명한 보호막을 그린다.
     for (int band = 0; band < kLatitudeBands; ++band) {
         const float lower = -0.5f * kPi + kPi * band / kLatitudeBands;
         const float upper = -0.5f * kPi + kPi * (band + 1) / kLatitudeBands;
@@ -686,7 +684,7 @@ static void drawInventorySlots() {
     constexpr int kSlotTop = 105;
     constexpr int kBorder = 6;
 
-    // Draw the two HUD boxes in screen coordinates.
+    // 화면 좌표를 기준으로 두 개의 아이템 칸을 그린다.
     glUseProgram(0);
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -751,7 +749,7 @@ static void drawInventorySlots() {
     glMatrixMode(GL_MODELVIEW);
     glPopMatrix();
 
-    // Render the same 3D models used by world items into each occupied box.
+    // 차 있는 칸에는 월드 아이템과 같은 3D 모델을 그린다.
     glUseProgram(shaderProgramID);
     glBindVertexArray(vao);
     glEnable(GL_DEPTH_TEST);
@@ -1175,7 +1173,7 @@ GLvoid drawScene()
             }
         }
     }
-	// Draw nearby ground items.
+	// 주변 바닥 아이템을 그린다.
 	int currentZ = (int)std::round(playerPos.z);
 	int drawRangeFront = 30;
 	int drawRangeBack = 10;
@@ -1217,7 +1215,7 @@ GLvoid drawScene()
 	std::string scoreStr = "SCORE: " + std::to_string(score);
 	renderTextWithOutline(20, 60, scoreStr.c_str());
 
-	// Item effect status.
+	// 아이템 효과 상태를 표시한다.
 	float uiY = 120.0f;
 
     if (effects && effects->shieldRemainingMs > 0) {

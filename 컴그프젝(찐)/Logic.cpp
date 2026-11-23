@@ -201,7 +201,7 @@ void generateLane(int z)
 			}
 		}
 
-		// Spawn inventory items on grass.
+		// 잔디 위에 인벤토리 아이템을 생성한다.
 		if (rand() % 100 < 80) {
 			int spawnX = (rand() % 13) - 6;
 			if (!isTreeAt(spawnX, z) && rand() % 100 < 35) {
