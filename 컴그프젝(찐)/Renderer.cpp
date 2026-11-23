@@ -3,6 +3,7 @@
 #include "Global.h"
 #include "Logic.h" 
 #include "ClientNetwork.h"
+#include "GameViewport.h"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
@@ -623,6 +624,9 @@ static void drawInventorySlots() {
     const PlayerInventory* inventory = localItems.GetInventory(1);
     if (!inventory) return;
 
+    const GameViewport viewport = FitGameViewport(
+        glutGet(GLUT_WINDOW_WIDTH), glutGet(GLUT_WINDOW_HEIGHT));
+    if (viewport.width == 0 || viewport.height == 0) return;
     constexpr int kWindowWidth = 1280;
     constexpr int kWindowHeight = 960;
     constexpr int kSlotSize = 88;
@@ -718,8 +722,11 @@ static void drawInventorySlots() {
         const int left = kSlotLeft + slot * (kSlotSize + kSlotGap) + kBorder;
         const int bottom = kWindowHeight - kSlotTop - kSlotSize + kBorder;
         const int iconSize = kSlotSize - 2 * kBorder;
-        glViewport(left, bottom, iconSize, iconSize);
-        glScissor(left, bottom, iconSize, iconSize);
+        const int iconX = viewport.pixelX(static_cast<float>(left));
+        const int iconY = viewport.pixelY(static_cast<float>(bottom));
+        const int iconPixels = (std::max)(1, viewport.pixels(static_cast<float>(iconSize)));
+        glViewport(iconX, iconY, iconPixels, iconPixels);
+        glScissor(iconX, iconY, iconPixels, iconPixels);
         glClear(GL_DEPTH_BUFFER_BIT);
         Item icon{};
         icon.type = inventory->slots[slot] == ItemKind::Shield ? ITEM_SHIELD
@@ -728,7 +735,7 @@ static void drawInventorySlots() {
     }
 
     glDisable(GL_SCISSOR_TEST);
-    glViewport(0, 0, kWindowWidth, kWindowHeight);
+    glViewport(viewport.x, viewport.y, viewport.width, viewport.height);
 
     for (int slot = 0; slot < 2; ++slot) {
         const float labelX = static_cast<float>(
@@ -819,10 +826,11 @@ static void drawMenuScreen()
 	if (windowWidth <= 0 || windowHeight <= 0) {
 		return;
 	}
+	const GameViewport viewport = FitGameViewport(windowWidth, windowHeight);
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glDisable(GL_SCISSOR_TEST);
-	glViewport(0, 0, windowWidth, windowHeight);
+	glViewport(viewport.x, viewport.y, viewport.width, viewport.height);
 
 	glDepthMask(GL_TRUE);
 	glClearColor(0.08f, 0.12f, 0.18f, 1.0f);
@@ -945,16 +953,16 @@ static void drawMenuScreen()
 		const int centerX = 320 + i * 320;
 
 		glViewport(
-			(centerX - 130) * windowWidth / 1280,
-			360 * windowHeight / 960,
-			260 * windowWidth / 1280,
-			300 * windowHeight / 960);
+			viewport.pixelX(static_cast<float>(centerX - 130)),
+			viewport.pixelY(360.0f),
+			(std::max)(1, viewport.pixels(260.0f)),
+			(std::max)(1, viewport.pixels(300.0f)));
 
 		drawChicken(shaderProgramID, glm::mat4(1.0f));
 	}
 
 	// 글자는 창 전체를 기준으로 표시
-	glViewport(0, 0, windowWidth, windowHeight);
+	glViewport(viewport.x, viewport.y, viewport.width, viewport.height);
 
 	drawMenuText(640.0f, 180.0f, "LOBBY");
 
@@ -1014,6 +1022,9 @@ GLvoid drawScene()
         glutSwapBuffers();
         return;
     }
+	const GameViewport viewport = FitGameViewport(
+		glutGet(GLUT_WINDOW_WIDTH), glutGet(GLUT_WINDOW_HEIGHT));
+	if (viewport.width == 0 || viewport.height == 0) return;
 	// 타이틀과 대기방에서는 게임 월드를 그리지 않음
 	if (clientScreen != ClientScreen::Playing) {
 		drawMenuScreen();
@@ -1067,7 +1078,7 @@ GLvoid drawScene()
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-	glViewport(0, 0, 1280, 960);
+	glViewport(viewport.x, viewport.y, viewport.width, viewport.height);
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glUseProgram(shaderProgramID);

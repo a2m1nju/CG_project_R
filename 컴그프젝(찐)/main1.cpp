@@ -6,6 +6,7 @@
 #include "Renderer.h"
 #include "Logic.h"
 #include "Input.h"
+#include "GameViewport.h"
 
 #pragma comment(lib, "opengl32.lib")
 #pragma comment(lib, "glew32.lib")
@@ -16,7 +17,9 @@
 
 void Reshape(int w, int h)
 {
-    glViewport(0, 0, w, h);
+    const GameViewport viewport = FitGameViewport(w, h);
+    glViewport(viewport.x, viewport.y, viewport.width, viewport.height);
+    glutPostRedisplay();
 }
 
 bool InitializeClient(int& argc, char** argv)

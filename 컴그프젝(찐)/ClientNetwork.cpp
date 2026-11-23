@@ -608,15 +608,18 @@ bool ClientNetwork::PollDisconnected() {
     if (!IsConnected()) return false;
     const auto now = std::chrono::steady_clock::now();
     if (!pollingStarted) { lastState = now; pollingStarted = true; }
-    if (now - lastState > std::chrono::seconds(5) ||
-        (pendingInput && now - pendingSince > std::chrono::seconds(5))) {
-        std::cerr << "Server movement response timed out.\n";
-        Disconnect(); return true;
-    }
+    const auto timedOut = [&]() {
+        if (now - lastState <= std::chrono::seconds(5) &&
+            (!pendingInput || now - pendingSince <= std::chrono::seconds(5)))
+            return false;
+        std::cerr << "Server response timed out.\n";
+        Disconnect();
+        return true;
+    };
     if (!Flush()) return true;
     std::uint8_t buffer[4096];
     const int n = recv(serverSocket, reinterpret_cast<char*>(buffer), sizeof(buffer), 0);
-    if (n == SOCKET_ERROR && WSAGetLastError() == WSAEWOULDBLOCK) return false;
+    if (n == SOCKET_ERROR && WSAGetLastError() == WSAEWOULDBLOCK) return timedOut();
     if (n <= 0 || receiveBuffer.size() + n > 16384) { Disconnect(); return true; }
     receiveBuffer.insert(receiveBuffer.end(), buffer, buffer + n);
     std::size_t offset = 0;
@@ -709,7 +712,7 @@ bool ClientNetwork::PollDisconnected() {
         offset += size;
     }
     receiveBuffer.erase(receiveBuffer.begin(), receiveBuffer.begin() + offset);
-    return false;
+    return timedOut();
 }
 void ClientNetwork::SyncWorld(float x, float z, bool alive) {
     if (!Ready() || pendingInput || moveReady) return;
