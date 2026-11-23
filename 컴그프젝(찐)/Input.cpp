@@ -3,6 +3,7 @@
 #include "Global.h"
 #include "Logic.h"
 #include "Protocol.h"
+#include "GameViewport.h"
 #include <iostream>
 
 void specialKeyboard(int key, int x, int y)
@@ -260,8 +261,14 @@ void mouse(int button, int state, int x, int y)
 	if (width <= 0 || height <= 0) {
 		return;
 	}
-	const float uiX = x * 1280.0f / width;
-	const float uiY = y * 960.0f / height;
+	const GameViewport viewport = FitGameViewport(width, height);
+	const int top = height - viewport.y - viewport.height;
+	if (x < viewport.x || x >= viewport.x + viewport.width ||
+		y < top || y >= top + viewport.height) {
+		return;
+	}
+	const float uiX = (x - viewport.x) * 1280.0f / viewport.width;
+	const float uiY = (y - top) * 960.0f / viewport.height;
 
 	const auto inside = [&](float left, float top,
 		float w, float h)
