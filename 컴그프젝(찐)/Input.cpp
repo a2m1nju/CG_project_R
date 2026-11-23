@@ -143,6 +143,17 @@ void specialKeyboard(int key, int x, int y)
 
 void keyboard(unsigned char key, int x, int y)
 {
+	if (clientScreen == ClientScreen::Lobby &&
+		(key == 'r' || key == 'R'))
+	{
+		// 준비 버튼과 같은 요청으로 준비 / 준비 취소 전환
+		if (activeClientNetwork) {
+			activeClientNetwork->RequestReady(
+				!activeClientNetwork->IsMyLobbyReady());
+		}
+
+		return;
+	}
 	if (clientScreen != ClientScreen::Playing) {
 		if (key == 'q' || key == 'Q') {
 			glutLeaveMainLoop();
