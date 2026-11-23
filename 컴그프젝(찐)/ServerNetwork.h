@@ -61,6 +61,7 @@ private:
         std::int32_t announcedMaxZ = 0;
 
         bool alive = true;
+        Wire::DeathReason deathReason = Wire::DeathReason::None;
         Wire::MoveStatus status = Wire::MoveStatus::Idle;
 
         std::string nickname;

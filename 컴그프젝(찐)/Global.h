@@ -57,6 +57,15 @@ extern float logoX, logoTargetX, logoStartX, logoY;
 extern float shakeTimer;
 extern float shakeMagnitude;
 
+struct BirdCarryAnimation {
+    bool active = false;
+    float elapsedSeconds = 0.0f;
+    glm::vec3 origin{0.0f};
+};
+
+constexpr float BirdCarryDurationSeconds = 2.4f;
+extern BirdCarryAnimation localBirdCarry;
+
 extern bool isGameOver;
 
 extern stbtt_bakedchar cdata[96];

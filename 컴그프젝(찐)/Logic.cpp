@@ -235,6 +235,7 @@ static glm::vec3 bananaReboundTarget;
 static void clearRoundState()
 {
 	bananaReboundPending = false;
+	localBirdCarry = BirdCarryAnimation{};
 	playerPos = glm::vec3(0.0f, 0.5f, 0.0f);
 	playerTargetPos = playerPos;
 	playerStartPos = playerPos;
@@ -569,6 +570,7 @@ void timer(int value)
 			playerRotation = 0;
 			isMoving = false;
 			isGameOver = false;
+			localBirdCarry = BirdCarryAnimation{};
 			moveTime = 0;
 
 			introState = 0;
@@ -599,14 +601,14 @@ void timer(int value)
 
     if (activeClientNetwork) {
         float x, z;
-        if (activeClientNetwork->TakeMove(x, z) && !bananaReboundPending && !isGameOver && introState == 0) {
+        if (activeClientNetwork->TakeMove(x, z) && !bananaReboundPending && !isGameOver && !localBirdCarry.active && introState == 0) {
             playerStartPos = playerPos;
             playerTargetPos = glm::vec3(x, 0.5f, z);
             isMoving = true; moveTime = 0;
             if (z < minZ) { minZ = (int)z; ++score; }
             PlaySound(TEXT("footstep.wav"), NULL, SND_ASYNC | SND_FILENAME);
         }
-        if (!isMoving || isGameOver) activeClientNetwork->SyncWorld(playerPos.x, playerPos.z, !isGameOver);
+        if (!localBirdCarry.active && (!isMoving || isGameOver)) activeClientNetwork->SyncWorld(playerPos.x, playerPos.z, !isGameOver);
     }
 	if (glutGetWindow() == 0) {
 		return;
@@ -617,6 +619,17 @@ void timer(int value)
     const std::uint32_t elapsedMs = nowMs > previousTickMs
         ? static_cast<std::uint32_t>(nowMs - previousTickMs) : 0;
     previousTickMs = nowMs;
+    const float elapsedSeconds = elapsedMs / 1000.0f;
+    if (localBirdCarry.active) {
+        localBirdCarry.elapsedSeconds += elapsedSeconds;
+        if (localBirdCarry.elapsedSeconds >= BirdCarryDurationSeconds) {
+            localBirdCarry.active = false;
+            isGameOver = true;
+        }
+        glutPostRedisplay();
+        glutTimerFunc(16, timer, 0);
+        return;
+    }
 	if (activeClientNetwork) {
 		const auto actorSeconds =
 			[nowMs, elapsedMs](unsigned int id)
@@ -801,10 +814,12 @@ void timer(int value)
 		// [충돌 검사 시작]
 		bool isDead = false;
 		bool serverReportedDead = false;
+		Wire::DeathReason serverDeathReason = Wire::DeathReason::None;
 		if (activeClientNetwork) {
 			for (const auto& player : activeClientNetwork->GetPlayers()) {
 				if (player.id == activeClientNetwork->GetMyPlayerId()) {
 					serverReportedDead = !player.alive;
+					serverDeathReason = player.deathReason;
 					break;
 				}
 			}
@@ -953,6 +968,18 @@ void timer(int value)
 		}
 
 		if (serverReportedDead || (isDead && !shieldActive)) {
+			if (serverReportedDead && serverDeathReason == Wire::DeathReason::Chase) {
+				localBirdCarry = BirdCarryAnimation{};
+				localBirdCarry.active = true;
+				localBirdCarry.origin = playerPos;
+				isMoving = false;
+				bananaReboundPending = false;
+				playerTargetPos = playerPos;
+				playerStartPos = playerPos;
+				glutPostRedisplay();
+				glutTimerFunc(16, timer, 0);
+				return;
+			}
 
 			if (isGameOver) {
 				glutPostRedisplay();

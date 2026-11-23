@@ -60,6 +60,8 @@ float logoY = 600.0f;
 float shakeTimer = 0.0f;
 float shakeMagnitude = 0.0f;
 
+BirdCarryAnimation localBirdCarry;
+
 bool isGameOver = false;
 
 stbtt_bakedchar cdata[96];

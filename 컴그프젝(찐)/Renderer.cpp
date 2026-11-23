@@ -56,6 +56,57 @@ void drawChicken(GLuint shader, glm::mat4 baseModel) {
 	drawPart(shader, baseModel, glm::vec3(0.0f, -0.1f, 0.35f), glm::vec3(0.3f, 0.3f, 0.1f), white);
 }
 
+
+// The original bird model, with animated wings, is used only for chase deaths.
+static void drawBird(GLuint shader, const glm::mat4& baseModel, float seconds) {
+    const glm::vec3 brown(0.4f, 0.2f, 0.0f);
+    const glm::vec3 white(0.9f, 0.9f, 0.9f);
+    const glm::vec3 yellow(1.0f, 0.8f, 0.0f);
+    drawPart(shader, baseModel, glm::vec3(0.0f), glm::vec3(1.0f, 0.5f, 0.6f), brown);
+    drawPart(shader, baseModel, glm::vec3(0.5f, 0.15f, 0.0f), glm::vec3(0.4f), white);
+    drawPart(shader, baseModel, glm::vec3(0.7f, 0.15f, 0.0f), glm::vec3(0.2f, 0.1f, 0.1f), yellow);
+    drawPart(shader, baseModel, glm::vec3(-0.55f, 0.0f, 0.0f), glm::vec3(0.3f, 0.2f, 0.6f), brown);
+
+    const float flap = std::sin(seconds * 19.0f) * 28.0f;
+    for (int side : { -1, 1 }) {
+        glm::mat4 wing = glm::translate(baseModel, glm::vec3(0.0f, 0.12f, side * 0.35f));
+        wing = glm::rotate(wing, glm::radians(side * flap), glm::vec3(1.0f, 0.0f, 0.0f));
+        drawPart(shader, wing, glm::vec3(0.0f, 0.0f, side * 0.62f),
+                 glm::vec3(0.15f, 0.1f, 1.2f), brown);
+        drawPart(shader, baseModel, glm::vec3(0.15f, -0.32f, side * 0.28f),
+                 glm::vec3(0.08f, 0.36f, 0.08f), yellow);
+    }
+}
+
+static float birdFlightProgress(const BirdCarryAnimation& animation) {
+    return glm::clamp((animation.elapsedSeconds - 0.85f) /
+                      (BirdCarryDurationSeconds - 0.85f), 0.0f, 1.0f);
+}
+
+static void drawBirdCarry(GLuint shader, const BirdCarryAnimation& animation) {
+    if (!animation.active) return;
+    const float seconds = glm::clamp(animation.elapsedSeconds, 0.0f,
+                                     BirdCarryDurationSeconds);
+    const float approach = glm::clamp(seconds / 0.55f, 0.0f, 1.0f);
+    const float pickup = glm::clamp((seconds - 0.55f) / 0.30f, 0.0f, 1.0f);
+    const float lift = birdFlightProgress(animation);
+    // Forward movement in this game is toward negative Z.
+    const glm::vec3 birdPosition = animation.origin + glm::vec3(
+        0.0f, 4.8f - 3.8f * approach + 5.5f * lift,
+        3.0f * (1.0f - approach) - 12.0f * lift);
+    const glm::vec3 chickenPosition = animation.origin + glm::vec3(
+        0.0f, 0.6f * pickup + 5.5f * lift, -12.0f * lift);
+
+    glm::mat4 birdModel = glm::translate(glm::mat4(1.0f), birdPosition);
+    birdModel = glm::rotate(birdModel, glm::radians(90.0f),
+                            glm::vec3(0.0f, 1.0f, 0.0f));
+    birdModel = glm::scale(birdModel, glm::vec3(1.35f));
+    drawBird(shader, birdModel, seconds);
+    glm::mat4 chickenModel = glm::translate(glm::mat4(1.0f), chickenPosition);
+    chickenModel = glm::scale(chickenModel, glm::vec3(0.7f));
+    drawChicken(shader, chickenModel);
+}
+
 void drawShieldModel(GLuint shader, glm::mat4 baseModel) {
 	// 1. 방패 테두리/판 (은색/회색)
 	drawPart(shader, baseModel, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.6f, 0.7f, 0.1f), glm::vec3(0.7f, 0.7f, 0.8f));
@@ -517,40 +568,30 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 				}
 			}
 
-	if (!isGameOver) {
-		// 플레이어 (닭)
-		glm::mat4 pModel = glm::translate(glm::mat4(1.0f), playerPos);
-		pModel = glm::rotate(pModel, glm::radians(playerRotation), glm::vec3(0.0f, 1.0f, 0.0f));
-		float scale = 0.7f;
-		pModel = glm::scale(pModel, glm::vec3(scale));
+    if (shader == shaderProgramID) glUniform1i(useTexLoc, 0);
 
-		drawChicken(shader, pModel);
-	}
-	if (activeClientNetwork) {
-		for (const auto& player :
-			activeClientNetwork->GetPlayers())
-		{
-			if (player.id ==
-				activeClientNetwork->GetMyPlayerId() ||
-				!player.alive)
-			{
-				continue;
-			}
-			glm::mat4 model = glm::translate(
-                glm::mat4(1.0f), RemotePlayerPosition(player));
+    if (localBirdCarry.active) {
+        drawBirdCarry(shader, localBirdCarry);
+    } else if (!isGameOver) {
+        glm::mat4 model = glm::translate(glm::mat4(1.0f), playerPos);
+        model = glm::rotate(model, glm::radians(playerRotation),
+                            glm::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::scale(model, glm::vec3(0.7f));
+        drawChicken(shader, model);
+    }
 
-            model = glm::rotate(
-				model,
-				glm::radians(player.rotation),
-				glm::vec3(0.0f, 1.0f, 0.0f));
-
-			model = glm::scale(
-				model,
-				glm::vec3(0.7f));
-
-			drawChicken(shader, model);
-		}
-	}
+    if (activeClientNetwork) {
+        for (const auto& player : activeClientNetwork->GetPlayers()) {
+            if (player.id == activeClientNetwork->GetMyPlayerId() || !player.alive)
+                continue;
+            glm::mat4 model = glm::translate(glm::mat4(1.0f),
+                                             RemotePlayerPosition(player));
+            model = glm::rotate(model, glm::radians(player.rotation),
+                                glm::vec3(0.0f, 1.0f, 0.0f));
+            model = glm::scale(model, glm::vec3(0.7f));
+            drawChicken(shader, model);
+        }
+    }
 }
 
 static void drawShieldAuraAt(const glm::mat4& projection, const glm::mat4& view, const glm::vec3& position) {
@@ -1025,6 +1066,7 @@ static void drawMenuScreen()
 
 
 
+
 GLvoid drawScene()
 {
 	const GameViewport viewport = FitGameViewport(
@@ -1046,10 +1088,21 @@ GLvoid drawScene()
 	}
 
 	glm::vec3 cameraTarget = playerPos;
-	if (activeClientNetwork && activeClientNetwork->ChaseActive()) {
+	if (localBirdCarry.active) {
+		const float flight = birdFlightProgress(localBirdCarry);
+		cameraTarget = localBirdCarry.origin +
+			glm::vec3(0.0f, 2.0f * flight, -7.0f * flight);
+		if (activeClientNetwork && activeClientNetwork->ChaseActive()) {
+			const float blend = glm::smoothstep(
+				0.0f, 0.45f, localBirdCarry.elapsedSeconds);
+			cameraTarget.z = glm::mix(
+				activeClientNetwork->ChaseFrontZ(), cameraTarget.z, blend);
+		}
+	}
+	if (!localBirdCarry.active && activeClientNetwork && activeClientNetwork->ChaseActive()) {
 		cameraTarget.z = (std::min)(cameraTarget.z, activeClientNetwork->ChaseFrontZ());
 	}
-	cameraTarget.y = 0.5f;
+	if (!localBirdCarry.active) cameraTarget.y = 0.5f;
 
 	glm::mat4 proj = glm::perspective(glm::radians(45.0f), 1280.f / 960.f, 0.1f, 100.f);
 

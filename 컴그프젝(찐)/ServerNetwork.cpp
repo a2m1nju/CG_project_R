@@ -299,7 +299,10 @@ void ServerNetwork::CloseLobby(SessionId leaverId)
         }
 
         if (auto* leaver = FindSession(leaverId)) {
-            leaver->alive = false;
+            if (leaver->alive) {
+                leaver->alive = false;
+                leaver->deathReason = Wire::DeathReason::Other;
+            }
             leaver->snapshotting = false;
             leaver->itemSnapshotPending = false;
             leaver->resetVote = false;
@@ -349,7 +352,10 @@ void ServerNetwork::CloseLobby(SessionId leaverId)
             session->itemSnapshotPending = false;
             session->resetVote = false;
             session->roundId = 0;
-            session->alive = false;
+            if (session->alive) {
+                session->alive = false;
+                session->deathReason = Wire::DeathReason::Other;
+            }
 
             items.RemovePlayer(session->id);
 
@@ -658,7 +664,10 @@ bool ServerNetwork::ProcessPackets(
                     s.awaitingBananaPosition = false;
                 }
 
-                s.alive = s.alive && p[20] != 0;
+                if (s.alive && p[20] == 0) {
+                    s.alive = false;
+                    s.deathReason = Wire::DeathReason::Other;
+                }
             }
         }
         else {
@@ -832,6 +841,7 @@ void ServerNetwork::Tick(std::uint64_t tick)
             if (IsRoundMember(session.id) && session.alive &&
                 ScreenChase::Overtaken(session.z, elapsedTicks)) {
                 session.alive = false;
+                session.deathReason = Wire::DeathReason::Chase;
             }
         }
 
@@ -1250,6 +1260,7 @@ void ServerNetwork::StartRoundSnapshots()
         session->z = 0;
         session->rotation = 0;
         session->alive = true;
+        session->deathReason = Wire::DeathReason::None;
 
         session->inputSeq = 0;
         session->nextMoveTick = 0;
@@ -1361,7 +1372,7 @@ void ServerNetwork::PublishPlayers(std::uint32_t tick)
             session->alive;
 
         const auto offset = packet.size();
-        packet.resize(offset + 21);
+        packet.resize(offset + Wire::PlayerStateRecordSize);
 
         auto* record = packet.data() + offset;
 
@@ -1374,6 +1385,7 @@ void ServerNetwork::PublishPlayers(std::uint32_t tick)
         const auto* effects = items.GetPlayerEffects(session->id);
         Wire::Write32(record + 17,
             effects ? effects->shieldRemainingMs : 0);
+        record[21] = static_cast<std::uint8_t>(session->deathReason);
         ++count;
     }
 

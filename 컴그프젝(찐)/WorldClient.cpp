@@ -1,4 +1,5 @@
 #include "ClientNetwork.h"
+#include "Global.h"
 #include <cmath>
 #include <iostream>
 #include <algorithm>
@@ -24,6 +25,7 @@ void ClientNetwork::ClearWorld()
     initialLanes.clear();
     worldEvents.clear();
     players.clear();
+    localBirdCarry = BirdCarryAnimation{};
 }
 
 bool ClientNetwork::TakeWorldEvent(WorldEvent& event)
@@ -335,7 +337,7 @@ int ClientNetwork::HandleWorldPacket(
     {
         if (size < 17 ||
             p[16] > 3 ||
-            size != 17 + 21 * p[16])
+            size != 17 + Wire::PlayerStateRecordSize * p[16])
         {
             return -1;
         }
@@ -351,7 +353,7 @@ int ClientNetwork::HandleWorldPacket(
 
         for (std::size_t offset = 17;
             offset < size;
-            offset += 21)
+            offset += Wire::PlayerStateRecordSize)
         {
             RemotePlayerView player;
 
@@ -362,6 +364,7 @@ int ClientNetwork::HandleWorldPacket(
                 Wire::ReadFloat(p + offset + 12);
             player.alive = p[offset + 16] != 0;
             player.shieldRemainingMs = Wire::Read32(p + offset + 17);
+            player.deathReason = static_cast<Wire::DeathReason>(p[offset + 21]);
 
             const auto previous = std::find_if(
                 players.begin(),
@@ -375,7 +378,9 @@ int ClientNetwork::HandleWorldPacket(
                 !std::isfinite(player.x) ||
                 !std::isfinite(player.z) ||
                 !std::isfinite(player.rotation) ||
-                p[offset + 16] > 1)
+                p[offset + 16] > 1 ||
+                p[offset + 21] > static_cast<std::uint8_t>(Wire::DeathReason::Other) ||
+                (player.alive && player.deathReason != Wire::DeathReason::None))
             {
                 return -1;
             }

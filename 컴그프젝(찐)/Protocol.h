@@ -20,6 +20,13 @@ std::array<std::uint8_t, 17> EncodeMovePacket(
 
 namespace Wire {
     constexpr std::size_t HeaderSize = 12;
+    constexpr std::size_t PlayerStateRecordSize = 22;
+
+    enum class DeathReason : std::uint8_t {
+        None = 0,
+        Chase = 1,
+        Other = 2
+    };
 
     // 기존 이동 메시지
     constexpr std::uint8_t State = 10;

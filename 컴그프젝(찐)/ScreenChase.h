@@ -10,6 +10,8 @@ namespace ScreenChase {
     // The camera looks down from behind the player; its ground-level rear edge
     // is about six lanes behind the point it follows.
     constexpr float RearEdgeDistance = 6.0f;
+    // Start the catch animation while the player is still visible.
+    constexpr float CatchDistance = RearEdgeDistance - 1.5f;
 
     inline bool Active(std::uint64_t elapsedTicks) {
         return elapsedTicks >= StartDelayTicks;
@@ -23,6 +25,6 @@ namespace ScreenChase {
 
     inline bool Overtaken(float playerZ, std::uint64_t elapsedTicks) {
         return Active(elapsedTicks) &&
-            playerZ > FrontZ(elapsedTicks) + RearEdgeDistance;
+            playerZ > FrontZ(elapsedTicks) + CatchDistance;
     }
 }

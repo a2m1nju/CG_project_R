@@ -36,7 +36,7 @@ void specialKeyboard(int key, int x, int y)
 	//	<< static_cast<int>(physicalDirection) << '\n';
 #endif
 
-	if (isMoving || isGameOver) return;
+	if (isMoving || isGameOver || localBirdCarry.active) return;
 	if (activeClientNetwork && (!activeClientNetwork->Ready() || activeClientNetwork->MovePending())) return;
 
 	// 글리치 모드일 때 키 입력 뒤집기
@@ -152,6 +152,7 @@ void keyboard(unsigned char key, int x, int y)
 	}
 
 	// 게임 오버 시 아무 키나 누르면 재시작
+	if (localBirdCarry.active) return;
 	if (isGameOver) {
 		resetGame();
 		return;
