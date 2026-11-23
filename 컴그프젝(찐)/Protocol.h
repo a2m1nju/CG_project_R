@@ -40,6 +40,14 @@ namespace Wire {
     constexpr std::uint8_t Start = 35;
     constexpr std::uint8_t PlayerStates = 36;
 
+    // 화면 표시용 좌표: 서버의 이동 판정 좌표와 별도로 관리
+    constexpr std::uint8_t VisualPose = 64;
+    constexpr std::size_t VisualPoseSize = 24;
+
+    // ID·판정 좌표·회전·생존 여부 + 표시용 XYZ
+    constexpr std::size_t PlayerStateRecordSize = 29;
+
+
     constexpr std::size_t WorldLaneSize = 33;
     constexpr std::size_t WorldActorSize = 49;
     constexpr std::size_t WorldBeginSize = 24;

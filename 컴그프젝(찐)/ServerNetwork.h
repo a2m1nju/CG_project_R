@@ -43,6 +43,13 @@ private:
 
         std::uint64_t nextMoveTick = 0;
         float x = 0, z = 0, rotation = 0;
+        // 다른 클라이언트에 전달할 화면 표시용 좌표
+        float visualX = 0;
+        float visualY = 0.5f;
+        float visualZ = 0;
+
+        bool visualValid = false;
+        std::uint64_t visualTick = 0;
 
         bool resetVote = false;
         bool itemSnapshotPending = false;

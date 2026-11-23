@@ -588,6 +588,7 @@ bool ServerNetwork::ProcessPackets(
 
         if (p[3] != Wire::Reset &&
             p[3] != Wire::WorldPosition &&
+            p[3] != Wire::VisualPose &&
             p[3] != Wire::PickupRequest &&
             p[3] != Wire::ItemSpawnRequest &&
             p[3] != Wire::ItemSwitch &&
@@ -627,6 +628,32 @@ bool ServerNetwork::ProcessPackets(
         {
             if (!HandleItemRequest(s, p, size)) {
                 return false;
+            }
+        }
+        else if (p[3] == Wire::VisualPose) {
+            if (size != Wire::VisualPoseSize) {
+                return false;
+            }
+
+            const float x = Wire::ReadFloat(p + 12);
+            const float y = Wire::ReadFloat(p + 16);
+            const float z = Wire::ReadFloat(p + 20);
+
+            if (s.alive &&
+                std::isfinite(x) &&
+                std::isfinite(y) &&
+                std::isfinite(z) &&
+                std::abs(x - s.x) <= 4.0f &&
+                std::abs(z - s.z) <= 4.0f &&
+                y >= 0.0f &&
+                y <= 4.0f)
+            {
+                s.visualX = x;
+                s.visualY = y;
+                s.visualZ = z;
+
+                s.visualValid = true;
+                s.visualTick = tick;
             }
         }
         else if (p[3] == Wire::WorldPosition) {
@@ -1247,6 +1274,9 @@ void ServerNetwork::StartRoundSnapshots()
         session->rotation = 0;
         session->alive = true;
 
+        session->visualValid = false;
+        session->visualTick = 0;
+
         session->inputSeq = 0;
         session->nextMoveTick = 0;
         session->status = Wire::MoveStatus::Idle;
@@ -1345,17 +1375,14 @@ void ServerNetwork::PublishPlayers(std::uint32_t tick)
         auto* session =
             FindSession(lobbyRoom->members[slot]);
 
-        if (!session ||
-            !IsRoundMember(session->id))
-        {
+        if (!session || !IsRoundMember(session->id)) {
             continue;
         }
 
-        lobbyRoom->players[slot].alive =
-            session->alive;
+        lobbyRoom->players[slot].alive = session->alive;
 
         const auto offset = packet.size();
-        packet.resize(offset + 17);
+        packet.resize(offset + Wire::PlayerStateRecordSize);
 
         auto* record = packet.data() + offset;
 
@@ -1365,6 +1392,24 @@ void ServerNetwork::PublishPlayers(std::uint32_t tick)
         Wire::WriteFloat(record + 12, session->rotation);
 
         record[16] = session->alive ? 1 : 0;
+
+        const bool freshVisual =
+            session->visualValid &&
+            currentTick >= session->visualTick &&
+            currentTick - session->visualTick <= Wire::TickRate;
+
+        Wire::WriteFloat(
+            record + 17,
+            freshVisual ? session->visualX : session->x);
+
+        Wire::WriteFloat(
+            record + 21,
+            freshVisual ? session->visualY : 0.5f);
+
+        Wire::WriteFloat(
+            record + 25,
+            freshVisual ? session->visualZ : session->z);
+
         ++count;
     }
 

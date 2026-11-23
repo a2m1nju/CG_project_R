@@ -413,6 +413,30 @@ bool ClientNetwork::PollDisconnected() {
     receiveBuffer.erase(receiveBuffer.begin(), receiveBuffer.begin() + offset);
     return false;
 }
+void ClientNetwork::SyncVisual(float x, float y, float z)
+{
+    if (!Ready()) {
+        return;
+    }
+    const auto now = std::chrono::steady_clock::now();
+
+    if (lastVisualSent !=
+        std::chrono::steady_clock::time_point{} &&
+        now - lastVisualSent < std::chrono::milliseconds(30))
+    {
+        return;
+    }
+    std::array<std::uint8_t, Wire::VisualPoseSize> packet{};
+
+    Wire::Header(packet.data(), packet.size(), Wire::VisualPose, ++sequence, roundId);
+    Wire::WriteFloat(packet.data() + 12, x);
+    Wire::WriteFloat(packet.data() + 16, y);
+    Wire::WriteFloat(packet.data() + 20, z);
+
+    if (Queue(packet.data(), packet.size())) {
+        lastVisualSent = now;
+    }
+}
 void ClientNetwork::SyncWorld(float x, float z, bool alive) {
     if (!Ready() || pendingInput || moveReady) return;
     std::array<std::uint8_t, Wire::PositionSize> p{};

@@ -338,7 +338,11 @@ glm::vec3 getViewFocus()
 	if (isOnlineSpectating()) {
 		for (const auto& player : activeClientNetwork->GetPlayers()) {
 			if (player.id == spectatorTargetId && player.alive) {
-				return glm::vec3(player.x, 0.5f, player.z);
+				const auto position = player.GetRenderPosition();
+				return glm::vec3(
+					position[0],
+					0.5f,
+					position[2]);
 			}
 		}
 	}
@@ -758,7 +762,13 @@ void timer(int value)
             PlaySound(TEXT("footstep.wav"), NULL, SND_ASYNC | SND_FILENAME);
         }
         if (!isMoving || isGameOver) activeClientNetwork->SyncWorld(playerPos.x, playerPos.z, !isGameOver);
-    }
+		if (!isGameOver && introState == 0) {
+			activeClientNetwork->SyncVisual(
+				playerPos.x,
+				playerPos.y,
+				playerPos.z);
+		}
+	}
 	if (glutGetWindow() == 0) {
 		return;
 	}

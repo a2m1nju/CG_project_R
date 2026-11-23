@@ -521,18 +521,18 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 			{
 				continue;
 			}
-			glm::mat4 model = glm::translate(
-				glm::mat4(1.0f),
-				glm::vec3(player.x, 0.5f, player.z));
+			const auto position = player.GetRenderPosition();
 
-			model = glm::rotate(
-				model,
+			glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(
+					position[0],
+					position[1],
+					position[2]));
+
+			model = glm::rotate(model,
 				glm::radians(player.rotation),
 				glm::vec3(0.0f, 1.0f, 0.0f));
 
-			model = glm::scale(
-				model,
-				glm::vec3(0.7f));
+			model = glm::scale(model, glm::vec3(0.7f));
 
 			drawChicken(shader, model);
 		}
@@ -1004,7 +1004,83 @@ static void drawMenuScreen()
 		"BACK");
 }
 
+static glm::vec4 measureTextBounds(const char* text)
+{
+	float penX = 0.0f;
+	float penY = 0.0f;
 
+	glm::vec4 bounds(0.0f);
+	bool first = true;
+
+	while (*text) {
+		const unsigned char ch =
+			static_cast<unsigned char>(*text++);
+
+		if (ch < 32 || ch >= 128) {
+			continue;
+		}
+
+		stbtt_aligned_quad q;
+
+		stbtt_GetBakedQuad(cdata, 512, 512, ch - 32, &penX, &penY, &q, 1);
+
+		if (q.x1 <= q.x0 || q.y1 <= q.y0) {
+			continue;
+		}
+
+		if (first) {
+			bounds = glm::vec4(q.x0, q.y0, q.x1, q.y1);
+			first = false;
+		}
+		else {
+			bounds.x = (std::min)(bounds.x, q.x0);
+			bounds.y = (std::min)(bounds.y, q.y0);
+			bounds.z = (std::max)(bounds.z, q.x1);
+			bounds.w = (std::max)(bounds.w, q.y1);
+		}
+	}
+
+	return bounds;
+}
+
+static void renderCenteredMessage(float centerY, const char* text)
+{
+	const auto bounds = measureTextBounds(text);
+	const float width = bounds.z - bounds.x;
+	if (width <= 0.0f) {
+		return;
+	}
+
+	// 긴 문구는 좌우 여백 안에 들어오도록 축소
+	const float scale =(std::min)(1.0f, 1160.0f / width);
+
+	const float x =640.0f - (bounds.x + bounds.z) * 0.5f * scale;
+
+	const float y = centerY - (bounds.y + bounds.w) * 0.5f * scale;
+
+	const float outline =(std::max)(1.0f, 5.0f * scale);
+
+	for (int dy = -1; dy <= 1; ++dy) {
+		for (int dx = -1; dx <= 1; ++dx) {
+			if (dx == 0 && dy == 0) {
+				continue;
+			}
+
+			renderTextTTF(
+				x + dx * outline,
+				y + dy * outline,
+				text,
+				0.0f, 0.0f, 0.0f,
+				scale);
+		}
+	}
+	renderTextTTF(
+		x,
+		y,
+		text,
+		1.0f, 1.0f, 1.0f,
+		scale);
+}
 
 GLvoid drawScene()
 {
@@ -1154,24 +1230,20 @@ GLvoid drawScene()
 		}
 	}
 
-	if (introState == 0) {
-		std::string scoreStr = "SCORE: " + std::to_string(score);
-		renderTextWithOutline(20, 60, scoreStr.c_str());
-	}
 	if (isGameOver) {
 		if (isOnlineSpectating()) {
 			const std::string status = getSpectatorStatusText();
 
-			renderTextWithOutline(20.0f, 95.0f, status.c_str());
+			renderTextWithOutline(20.0f, 150.0f, status.c_str());
 
 			if (!hasSpectatorTarget()) {
-				renderTextWithOutline(410.0f, 450.0f, "ALL PLAYERS DOWN");
+				renderCenteredMessage(450.0f, "ALL PLAYERS DOWN");
 
 				if (activeClientNetwork->GetPlayers().size() == 3) {
-					renderTextWithOutline(230.0f, 510.0f, "ENTER: REQUEST RESTART (ALL 3 REQUIRED)");
+					renderCenteredMessage(530.0f, "ENTER: REQUEST RESTART (ALL 3 REQUIRED)");
 				}
 				else {
-					renderTextWithOutline(260.0f, 510.0f, "RESTART NEEDS 3 CONNECTED PLAYERS");
+					renderCenteredMessage(530.0f, "RESTART NEEDS 3 CONNECTED PLAYERS");
 				}
 			}
 		}

@@ -58,10 +58,46 @@ struct WorldEvent {
 struct RemotePlayerView {
     std::uint32_t id = 0;
     std::uint8_t slot = 0;
+
     float x = 0, z = 0, rotation = 0;
     bool alive = true;
-};
 
+    float visualX = 0;
+    float visualY = 0.5f;
+    float visualZ = 0;
+
+    float previousVisualX = 0;
+    float previousVisualY = 0.5f;
+    float previousVisualZ = 0;
+
+    std::chrono::steady_clock::time_point visualReceivedAt{};
+
+    std::array<float, 3> GetRenderPosition() const
+    {
+        if (visualReceivedAt ==
+            std::chrono::steady_clock::time_point{})
+        {
+            return { visualX, visualY, visualZ };
+        }
+
+        float t = std::chrono::duration<float>(
+            std::chrono::steady_clock::now() -
+            visualReceivedAt).count() * Wire::TickRate;
+
+        t = t < 0.0f ? 0.0f : t > 1.0f ? 1.0f : t;
+
+        return {
+            previousVisualX +
+                (visualX - previousVisualX) * t,
+
+            previousVisualY +
+                (visualY - previousVisualY) * t,
+
+            previousVisualZ +
+                (visualZ - previousVisualZ) * t
+        };
+    }
+};
 struct ItemEvent {
     enum class Kind {
         Snapshot,
@@ -127,6 +163,7 @@ public:
     }
 
     void SyncWorld(float x, float z, bool alive);
+    void SyncVisual(float x, float y, float z);
     void ResetRound();
 
     const LobbyView& GetLobby() const
@@ -179,6 +216,7 @@ private:
     std::uint32_t myPlayerId = 0;
 
     std::chrono::steady_clock::time_point lastState{}, pendingSince{};
+    std::chrono::steady_clock::time_point lastVisualSent{};
 
     bool pollingStarted = false;
     bool moveReady = false;

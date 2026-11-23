@@ -22,6 +22,7 @@ void ClientNetwork::ClearWorld()
     initialLanes.clear();
     worldEvents.clear();
     players.clear();
+    lastVisualSent = {};
 }
 
 bool ClientNetwork::TakeWorldEvent(WorldEvent& event)
@@ -302,6 +303,8 @@ int ClientNetwork::HandleWorldPacket(
             player.slot = p[offset + 4];
             player.x = Wire::ReadFloat(p + offset + 5);
             player.z = Wire::ReadFloat(p + offset + 9);
+            player.visualX = player.previousVisualX = player.x;
+            player.visualZ = player.previousVisualZ = player.z;
 
             if (player.id == 0 ||
                 player.slot > 2 ||
@@ -330,7 +333,7 @@ int ClientNetwork::HandleWorldPacket(
     {
         if (size < 17 ||
             p[16] > 3 ||
-            size != 17 + 17 * p[16])
+            size != 17 + Wire::PlayerStateRecordSize * p[16])
         {
             return -1;
         }
@@ -344,18 +347,22 @@ int ClientNetwork::HandleWorldPacket(
         std::vector<RemotePlayerView> next;
         std::set<std::uint32_t> ids;
 
+        const auto receivedAt = std::chrono::steady_clock::now();
+
         for (std::size_t offset = 17;
             offset < size;
-            offset += 17)
+            offset += Wire::PlayerStateRecordSize)
         {
             RemotePlayerView player;
-
             player.id = Wire::Read32(p + offset);
             player.x = Wire::ReadFloat(p + offset + 4);
             player.z = Wire::ReadFloat(p + offset + 8);
-            player.rotation =
-                Wire::ReadFloat(p + offset + 12);
+            player.rotation = Wire::ReadFloat(p + offset + 12);
             player.alive = p[offset + 16] != 0;
+
+            player.visualX = Wire::ReadFloat(p + offset + 17);
+            player.visualY = Wire::ReadFloat(p + offset + 21);
+            player.visualZ = Wire::ReadFloat(p + offset + 25);
 
             const auto previous = std::find_if(
                 players.begin(),
@@ -369,17 +376,27 @@ int ClientNetwork::HandleWorldPacket(
                 !std::isfinite(player.x) ||
                 !std::isfinite(player.z) ||
                 !std::isfinite(player.rotation) ||
+                !std::isfinite(player.visualX) ||
+                !std::isfinite(player.visualY) ||
+                !std::isfinite(player.visualZ) ||
+                player.visualY < 0.0f ||
+                player.visualY > 4.0f ||
                 p[offset + 16] > 1)
             {
                 return -1;
             }
-
+            const auto displayed = previous->GetRenderPosition();
             player.slot = previous->slot;
+            player.previousVisualX = displayed[0];
+            player.previousVisualY = displayed[1];
+            player.previousVisualZ = displayed[2];
+
+            player.visualReceivedAt = receivedAt;
+
             next.push_back(player);
         }
-
         players = std::move(next);
-    }
+        }
     else {
         return -1;
     }
