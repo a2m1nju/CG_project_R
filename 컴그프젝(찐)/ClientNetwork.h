@@ -2,6 +2,7 @@
 
 #include <winsock2.h>
 #include "Protocol.h"
+#include "Room.h" //기존 ResultData 재사용
 
 #include <vector>
 #include <chrono>
@@ -16,7 +17,8 @@ enum class LobbyStage {
     Matching,
     Ready,
     Loading,
-    Playing
+    Playing,
+    Result
 };
 
 struct LobbyMemberView {
@@ -134,6 +136,11 @@ public:
         return lobby;
     }
 
+    const ResultData& GetResult() const
+    {
+        return result;
+    }
+
     bool RequestJoin(const std::string& nickname);
     bool RequestReady(bool ready);
     bool RequestLeave();
@@ -185,6 +192,11 @@ private:
     float moveX = 0, moveZ = 0;
 
     LobbyView lobby;
+    ResultData result{};
+
+    int HandleResultPacket(
+        const std::uint8_t* packet,
+        std::size_t size);
 
     int HandleLobbyPacket(
         const std::uint8_t* packet,

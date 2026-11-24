@@ -1,4 +1,4 @@
-#include "ClientNetwork.h"
+﻿#include "ClientNetwork.h"
 #include <cmath>
 #include <iostream>
 #include <algorithm>
@@ -140,6 +140,8 @@ int ClientNetwork::HandleWorldPacket(
             generation != worldGeneration)
         {
             ClearWorld();
+
+            result = ResultData{}; //새 경기의 이전 결과 폐기
 
             lobby.stage = LobbyStage::Loading;
             lobby.message = "LOADING SHARED WORLD...";

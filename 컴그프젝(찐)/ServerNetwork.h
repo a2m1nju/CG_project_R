@@ -112,6 +112,7 @@ private:
     void TryFinishRound();
     void SendStart(std::uint32_t tick);
     void PublishPlayers(std::uint32_t tick);
+    void PublishResult();
 
     bool QueueWorldBegin(TransportSession& session);
     bool QueueWorldLane(TransportSession& session, const WorldLaneData& lane);

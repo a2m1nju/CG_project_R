@@ -76,6 +76,10 @@ namespace {
         case LobbyStage::Playing:
             nextScreen = ClientScreen::Playing;
             break;
+        case LobbyStage::Result:
+            // 결과 화면 담당 코드 연결 전까지 현재 화면 유지
+            nextScreen = clientScreen;
+            break;
         default:
             nextScreen = ClientScreen::Title;
             break;

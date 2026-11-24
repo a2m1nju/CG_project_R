@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "WorldState.h"
 #include <vector>
@@ -51,7 +51,10 @@ struct ResultData {
     bool rematchAllowed = false;
     bool roomClosing = false;
 };
-struct RankConfig; // 구체적인 순위 설정은 추후 정의
+struct RankConfig {
+    // 순위 정책 합의 후 설정 항목 추가
+    // 현재는 순위 미산정 상태로 rank=0 유지
+};
 typedef struct RoomState {
     ServicePhase phase = ServicePhase::MATCHING;
 

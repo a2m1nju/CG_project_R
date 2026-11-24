@@ -1684,6 +1684,73 @@ void ServerNetwork::PumpWorldPackets(
     }
 }
 
+void ServerNetwork::PublishResult()
+{
+    if (!lobbyRoom ||
+        lobbyRoom->phase != ServicePhase::RESULT)
+    {
+        return;
+    }
+
+    std::size_t connectedCount = 0;
+
+    for (const auto id : lobbyRoom->members) {
+        const auto* session = FindSession(id);
+
+        if (session && !session->drop &&
+            session->roundId == lobbyRoom->roundId)
+        {
+            ++connectedCount; //사망 후 연결을 유지하는 관전자도 포함
+        }
+    }
+
+    if (connectedCount == 0) { //전송할 참가자가 없으면 생략
+        return;
+    }
+
+    // 기존 결과 구성 함수와 자료형 재사용
+    RoundController controller(*lobbyRoom, world);
+    const RankConfig config{};
+    ResultData result = controller.BuildResult(config);
+
+    const bool hasDeparted = std::any_of(
+        result.entries.begin(), result.entries.end(),
+        [](const ResultEntry& entry) {
+            return entry.departed;
+        });
+
+    result.rematchAllowed =
+        connectedCount == result.entries.size() && !hasDeparted;
+    result.roomClosing = !result.rematchAllowed;
+
+    std::vector<std::uint8_t> packet(Wire::ResultSize, 0);
+    packet[3] = Wire::Result;
+    packet[12] = result.rematchAllowed ? 1 : 0;
+    packet[13] = static_cast<std::uint8_t>(result.entries.size());
+
+    // FIX 본문: 재경기 가능 여부 + 기록 수 + 이탈자를 포함한 참가자별 결과
+    for (std::size_t i = 0; i < result.entries.size(); ++i) {
+        const auto& entry = result.entries[i];
+        auto* data = packet.data() + 14 + i * Wire::ResultEntrySize;
+
+        Wire::Write32(data, entry.playerId);
+        Wire::Write32(data + 4, entry.distanceLanes);
+        Wire::Write32(data + 8, entry.survivalTicks);
+        data[12] = entry.rank;
+        data[13] = entry.departed ? 1 : 0;
+    }
+
+    for (const auto id : lobbyRoom->members) {
+        auto* session = FindSession(id);
+
+        if (session && !session->drop &&
+            session->roundId == result.roundId)
+        {
+            SendGame(*session, packet); //기존 헤더 설정·송신 큐 사용
+        }
+    }
+}
+
 void ServerNetwork::TryFinishRound()
 {
     if (!lobbyRoom) { //연결된 방이 없으면 처리하지 않음
@@ -1699,11 +1766,13 @@ void ServerNetwork::TryFinishRound()
     lobbyRoom->rematchVotes.fill(RematchVote::UNSET); //이전 재경기 응답 초기화
     lobbyRoom->phase = ServicePhase::RESULT; //결과 단계로 전환
 
+    PublishResult(); //최종 플레이어 상태 다음에 결과 등록
+
     std::cout
         << "[RESULT] round=" << lobbyRoom->roundId
         << " all players dead.\n";
 
-    // 기록 확정·결과 패킷 구현 후 연결된 참가자에게 RESULT 전송
+    // 거리·생존 시간·순위 계산은 기록 담당 코드 연결 후 적용
 }
 void ServerNetwork::ResetWorld(std::uint32_t roundId)
 {
