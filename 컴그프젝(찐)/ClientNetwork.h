@@ -6,6 +6,7 @@
 #include "ScreenChase.h"
 
 #include <vector>
+#include <array>
 #include <chrono>
 #include <deque>
 #include <set>
@@ -25,6 +26,7 @@ struct LobbyMemberView {
     std::uint32_t id = 0;
     bool ready = false;
     CharacterId characterId = CharacterId::Chicken;
+    AccessoryLoadout accessories;
     std::string nickname;
 };
 
@@ -62,6 +64,7 @@ struct RemotePlayerView {
     std::uint32_t id = 0;
     std::uint8_t slot = 0;
     CharacterId characterId = CharacterId::Chicken;
+    AccessoryLoadout accessories;
     float x = 0, z = 0, rotation = 0;
     bool alive = true;
     Wire::DeathReason deathReason = Wire::DeathReason::None;
@@ -145,9 +148,11 @@ public:
     bool RequestJoin(const std::string& nickname);
     bool RequestReady(bool ready);
     bool RequestCharacterSelection(CharacterId id);
+    bool RequestAppearanceSelection(CharacterId id, AccessoryLoadout accessories);
     bool RequestLeave();
 
     CharacterId GetMyCharacterId() const { return myCharacterId; }
+    AccessoryLoadout GetMyAccessories() const { return myAccessories; }
     bool IsCharacterSelectionPending() const { return characterSelectionPending; }
 
     bool IsMyLobbyReady() const
@@ -213,6 +218,9 @@ private:
     LobbyView lobby;
     CharacterId myCharacterId = CharacterId::Chicken;
     CharacterId requestedCharacterId = CharacterId::Chicken;
+    AccessoryLoadout myAccessories;
+    AccessoryLoadout requestedAccessories;
+    std::array<AccessoryLoadout, 10> savedAccessories{};
     bool characterSelectionPending = false;
 
     int HandleLobbyPacket(

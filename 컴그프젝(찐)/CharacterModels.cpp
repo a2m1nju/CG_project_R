@@ -68,6 +68,10 @@ static void drawMonokuma(GLuint shader, const glm::mat4& model) {
              {0.24f, 0.33f, 0.04f}, white);
     drawPart(shader, model, {0.14f, -0.10f, -0.22f},
              {0.24f, 0.33f, 0.04f}, black);
+    drawPart(shader, model, {-0.10f, -0.33f, 0.36f},
+             {0.20f, 0.18f, 0.28f}, white);
+    drawPart(shader, model, {0.10f, -0.33f, 0.36f},
+             {0.20f, 0.18f, 0.28f}, black);
 }
 
 static void drawKorilakkuma(GLuint shader, const glm::mat4& model) {
@@ -93,9 +97,8 @@ static void drawKorilakkuma(GLuint shader, const glm::mat4& model) {
     drawPart(shader, model, {0.0f, 0.23f, -0.35f}, {0.26f, 0.18f, 0.06f}, white);
     drawPart(shader, model, {0.0f, 0.29f, -0.40f}, {0.06f, 0.06f, 0.03f}, brown);
     drawPart(shader, model, {0.0f, 0.21f, -0.40f}, {0.025f, 0.08f, 0.025f}, brown);
-    for (float x : {-0.07f, 0.07f})
-        drawPart(shader, model, {x, 0.17f, -0.40f},
-                 {0.09f, 0.025f, 0.025f}, brown);
+    drawPart(shader, model, {0.0f, 0.17f, -0.40f},
+             {0.21f, 0.025f, 0.025f}, brown);
     drawPart(shader, model, {0.0f, -0.06f, -0.32f}, {0.14f, 0.14f, 0.04f}, red);
     for (float x : {-0.035f, 0.035f})
         for (float y : {-0.10f, -0.02f})
@@ -136,12 +139,47 @@ static void drawKuromi(GLuint shader, const glm::mat4& model) {
     drawPart(shader, model, {0.0f, 0.39f, -0.40f}, {0.09f, 0.025f, 0.02f}, black);
     drawPart(shader, model, {0.0f, 0.13f, -0.43f}, {0.045f, 0.04f, 0.02f}, pink);
     drawPart(shader, model, {0.0f, 0.06f, -0.43f}, {0.11f, 0.025f, 0.02f}, black);
-    drawPart(shader, model, {0.33f, -0.31f, 0.25f}, {0.11f, 0.10f, 0.37f}, black);
-    drawPart(shader, model, {0.42f, -0.22f, 0.48f}, {0.17f, 0.09f, 0.10f}, black);
+    drawPart(shader, model, {0.0f, -0.37f, 0.30f}, {0.14f, 0.12f, 0.30f}, black);
+    drawPart(shader, model, {0.0f, -0.29f, 0.50f}, {0.18f, 0.10f, 0.18f}, black);
 }
 
-void drawCharacter(GLuint shader, const glm::mat4& model, CharacterId id) {
-    if (id == CharacterId::Chicken || !IsValidCharacterId(static_cast<std::uint8_t>(id))) {
+static void drawAccessories(GLuint shader, const glm::mat4& model,
+                            CharacterId id, HeadAccessory head, BackAccessory back) {
+    const bool fourLegs = id >= CharacterId::Rabbit && id <= CharacterId::Panda;
+    const float headY = fourLegs ? 0.52f : id == CharacterId::Chicken ? 0.42f : 0.77f;
+    const float headZ = fourLegs ? -0.20f : -0.08f;
+    if (CanEquipHead(id, head)) {
+        if (head == HeadAccessory::Ribbon) {
+            const glm::vec3 red(0.88f, 0.16f, 0.27f);
+            drawPart(shader, model, {-0.33f, headY, headZ - 0.08f},
+                     {0.16f, 0.11f, 0.10f}, red);
+            drawPart(shader, model, {-0.10f, headY, headZ - 0.08f},
+                     {0.16f, 0.11f, 0.10f}, red);
+            drawPart(shader, model, {-0.22f, headY, headZ - 0.11f},
+                     {0.08f, 0.12f, 0.12f}, glm::vec3(1.0f, 0.37f, 0.47f));
+        } else if (head == HeadAccessory::Crown) {
+            const glm::vec3 gold(1.0f, 0.78f, 0.12f);
+            drawPart(shader, model, {0.0f, headY + 0.09f, headZ},
+                     {0.37f, 0.13f, 0.30f}, gold);
+            for (float x : {-0.14f, 0.0f, 0.14f})
+                drawPart(shader, model, {x, headY + 0.20f, headZ},
+                         {0.08f, 0.15f, 0.09f}, gold);
+        }
+    }
+    if (CanEquipBack(id, back) && back == BackAccessory::Backpack) {
+        const glm::vec3 blue(0.15f, 0.43f, 0.83f);
+        const glm::vec3 yellow(0.97f, 0.74f, 0.23f);
+        const glm::vec3 pos = fourLegs ? glm::vec3(0.0f, 0.27f, 0.17f) :
+            id == CharacterId::Chicken ? glm::vec3(0.0f, -0.04f, 0.44f) :
+            glm::vec3(0.0f, -0.10f, 0.43f);
+        drawPart(shader, model, pos, {0.36f, 0.29f, 0.24f}, blue);
+        drawPart(shader, model, pos + glm::vec3(0.0f, 0.12f, 0.03f),
+                 {0.38f, 0.08f, 0.26f}, yellow);
+    }
+}
+
+static void drawCharacterBody(GLuint shader, const glm::mat4& model, CharacterId id) {
+    if (id == CharacterId::Chicken) {
         drawChicken(shader, model);
         return;
     }
@@ -192,17 +230,17 @@ void drawCharacter(GLuint shader, const glm::mat4& model, CharacterId id) {
             drawPart(shader, model, {x, 0.48f, -0.20f}, {0.13f, 0.55f, 0.15f}, fur);
             drawPart(shader, model, {x, 0.48f, -0.29f}, {0.07f, 0.38f, 0.02f}, pink);
         }
-        drawPart(shader, model, {0.0f, -0.17f, 0.78f}, {0.18f, 0.18f, 0.18f}, fur);
+        drawPart(shader, model, {0.0f, -0.17f, 0.65f}, {0.23f, 0.18f, 0.23f}, fur);
     } else if (cat) {
         for (float x : {-0.22f, 0.22f}) {
             drawPart(shader, model, {x, 0.36f, -0.19f}, {0.17f, 0.24f, 0.15f}, fur);
             drawPart(shader, model, {x, 0.36f, -0.28f}, {0.08f, 0.13f, 0.02f}, pink);
         }
-        drawPart(shader, model, {0.27f, -0.13f, 0.83f}, {0.10f, 0.12f, 0.38f}, fur);
+        drawPart(shader, model, {0.27f, -0.13f, 0.70f}, {0.10f, 0.12f, 0.46f}, fur);
     } else if (dog) {
         for (float x : {-0.32f, 0.32f})
             drawPart(shader, model, {x, 0.09f, -0.18f}, {0.15f, 0.34f, 0.20f}, dark);
-        drawPart(shader, model, {0.0f, -0.09f, 0.81f}, {0.14f, 0.13f, 0.28f}, fur);
+        drawPart(shader, model, {0.0f, -0.09f, 0.68f}, {0.14f, 0.13f, 0.36f}, fur);
     } else {
         for (float x : {-0.23f, 0.23f})
             drawPart(shader, model, {x, 0.37f, -0.19f},
@@ -222,6 +260,13 @@ void drawCharacter(GLuint shader, const glm::mat4& model, CharacterId id) {
     for (float x : {-0.17f, 0.17f})
         drawPart(shader, model, {x, 0.10f, -0.52f},
                  {0.05f, 0.05f, 0.04f}, dark);
-    drawPart(shader, model, {0.0f, -0.13f, -0.65f},
+    drawPart(shader, model, {0.0f, -0.13f, rabbit || cat ? -0.51f : -0.65f},
              {0.10f, 0.08f, 0.06f}, rabbit || cat ? pink : dark);
+}
+
+void drawCharacter(GLuint shader, const glm::mat4& model, CharacterId id,
+                   HeadAccessory head, BackAccessory back) {
+    id = NormalizeCharacterId(static_cast<std::uint8_t>(id));
+    drawCharacterBody(shader, model, id);
+    drawAccessories(shader, model, id, head, back);
 }

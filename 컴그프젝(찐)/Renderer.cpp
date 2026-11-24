@@ -2,6 +2,7 @@
 #include "Global.h"
 #include "Logic.h" 
 #include "ClientNetwork.h"
+#include "Input.h"
 #include "CharacterModels.h"
 #include "GameViewport.h"
 #include "BananaMesh.h"
@@ -85,7 +86,7 @@ static float birdFlightProgress(const BirdCarryAnimation& animation) {
                       (BirdCarryDurationSeconds - 0.85f), 0.0f, 1.0f);
 }
 
-static void drawBirdCarry(GLuint shader, const BirdCarryAnimation& animation, CharacterId characterId) {
+static void drawBirdCarry(GLuint shader, const BirdCarryAnimation& animation, CharacterId characterId, AccessoryLoadout accessories) {
     if (!animation.active) return;
     const float seconds = glm::clamp(animation.elapsedSeconds, 0.0f,
                                      BirdCarryDurationSeconds);
@@ -106,7 +107,7 @@ static void drawBirdCarry(GLuint shader, const BirdCarryAnimation& animation, Ch
     drawBird(shader, birdModel, seconds);
     glm::mat4 chickenModel = glm::translate(glm::mat4(1.0f), chickenPosition);
     chickenModel = glm::scale(chickenModel, glm::vec3(0.7f));
-    drawCharacter(shader, chickenModel, characterId);
+    drawCharacter(shader, chickenModel, characterId, accessories.head, accessories.back);
 }
 
 void drawShieldModel(GLuint shader, glm::mat4 baseModel) {
@@ -134,7 +135,6 @@ void drawTree(int x, int z, GLuint shader) {
 
 	const SeasonColors& colors = seasonThemes[getSeasonByZ(z)];
 	glm::mat4 model;
-	//glm::mat4 MVP;
 
 	// 1. 나무 기둥
 	for (int i = 0; i < 1; ++i) {
@@ -142,7 +142,6 @@ void drawTree(int x, int z, GLuint shader) {
 		model = glm::translate(model, glm::vec3((float)x, 0.5f + (float)i, (float)z));
 		model = glm::scale(model, glm::vec3(0.4f, 1.0f, 0.4f)); 
 
-		//glUniformMatrix4fv(transLoc, 1, GL_FALSE, glm::value_ptr(model));
 		glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model)); 
 
 		if (shader == shaderProgramID) {
@@ -208,7 +207,7 @@ void drawCar(const Car& car, GLuint shader) {
 // 철로 그리기
 void drawRail(int z, bool isWarning, bool isLightOn, GLuint shader) {
 
-	// 침목 (Sleepers) 
+	// 침목 
 	glm::vec3 woodColor = glm::vec3(0.35f, 0.2f, 0.1f);
 
 	for (float x = -50.0f; x <= 50.0f; x += 1.2f) {
@@ -221,7 +220,7 @@ void drawRail(int z, bool isWarning, bool isLightOn, GLuint shader) {
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
 
-	// 철로 (Rails) - 은색
+	// 철로 - 은색
 	glm::vec3 railColor = glm::vec3(0.6f, 0.6f, 0.7f);
 	float railZPositions[] = { -0.3f, 0.3f }; 
 
@@ -235,7 +234,7 @@ void drawRail(int z, bool isWarning, bool isLightOn, GLuint shader) {
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
 
-	// 신호등 (Signal) - 오른쪽 배치
+	// 신호등 - 오른쪽 배치
 	float signalX = 7.0f;
 
 	// 줄무늬 기둥
@@ -571,14 +570,16 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 
     const CharacterId myCharacter = activeClientNetwork
         ? activeClientNetwork->GetMyCharacterId() : CharacterId::Chicken;
+    const AccessoryLoadout myAccessories = activeClientNetwork
+        ? activeClientNetwork->GetMyAccessories() : AccessoryLoadout{};
     if (localBirdCarry.active) {
-        drawBirdCarry(shader, localBirdCarry, myCharacter);
+        drawBirdCarry(shader, localBirdCarry, myCharacter, myAccessories);
     } else if (!isGameOver) {
         glm::mat4 model = glm::translate(glm::mat4(1.0f), playerPos);
         model = glm::rotate(model, glm::radians(playerRotation),
                             glm::vec3(0.0f, 1.0f, 0.0f));
         model = glm::scale(model, glm::vec3(0.7f));
-        drawCharacter(shader, model, myCharacter);
+        drawCharacter(shader, model, myCharacter, myAccessories.head, myAccessories.back);
     }
 
     if (activeClientNetwork) {
@@ -590,7 +591,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
             model = glm::rotate(model, glm::radians(player.rotation),
                                 glm::vec3(0.0f, 1.0f, 0.0f));
             model = glm::scale(model, glm::vec3(0.7f));
-            drawCharacter(shader, model, player.characterId);
+            drawCharacter(shader, model, player.characterId, player.accessories.head, player.accessories.back);
         }
     }
 }
@@ -952,7 +953,7 @@ static void drawMenuScreen()
 	glEnable(GL_DEPTH_TEST);
 	glDisable(GL_BLEND);
 
-	// 모델 부위별 색상을 drawChicken()에서 지정
+	// 모델 부위별 색상을 drawCharacter()에서 지정
 	glDisableVertexAttribArray(1);
 
 	const glm::mat4 projection = glm::perspective(
@@ -1010,7 +1011,12 @@ static void drawMenuScreen()
 			(std::max)(1, viewport.pixels(260.0f)),
 			(std::max)(1, viewport.pixels(300.0f)));
 
-		drawCharacter(shaderProgramID, glm::mat4(1.0f), lobby->members[i].characterId);
+		glm::mat4 previewModel(1.0f);
+		if (lobby->members[i].id == activeClientNetwork->GetMyPlayerId())
+			previewModel = glm::rotate(previewModel, glm::radians(GetLobbyPreviewAngle()),
+				glm::vec3(0.0f, 1.0f, 0.0f));
+		drawCharacter(shaderProgramID, previewModel, lobby->members[i].characterId,
+            lobby->members[i].accessories.head, lobby->members[i].accessories.back);
 	}
 
 	// 글자는 창 전체를 기준으로 표시
@@ -1038,13 +1044,34 @@ static void drawMenuScreen()
 
 		drawMenuText(
 			320.0f + i * 320.0f,
-			720.0f,
+			700.0f,
 			member.ready ? "READY" : "NOT READY",
 			0.45f);
 		const char* names[] = { "CHICKEN", "RABBIT", "CAT", "DOG", "BEAR", "PANDA", "TINO", "MONOKUMA", "KORILAKKUMA", "KUROMI" };
 		const unsigned id = static_cast<unsigned>(member.characterId);
-		drawMenuText(320.0f + i * 320.0f, 755.0f,
+		drawMenuText(320.0f + i * 320.0f, 730.0f,
 			names[id < 10 ? id : 0], 0.45f);
+		if (member.id == activeClientNetwork->GetMyPlayerId()) {
+			drawMenuText(320.0f + i * 320.0f, 595.0f, "DRAG TO ROTATE", 0.32f);
+			const char* headNames[] = { "HEAD: NONE", "HEAD: RIBBON", "HEAD: CROWN" };
+			const char* backNames[] = { "BACK: NONE", "BACK: BACKPACK" };
+			const auto head = static_cast<unsigned>(member.accessories.head);
+			const auto back = static_cast<unsigned>(member.accessories.back);
+			const float centerX = 320.0f + i * 320.0f;
+			drawMenuText(centerX, 760.0f, headNames[head < 3 ? head : 0], 0.38f);
+			drawMenuText(centerX, 805.0f, backNames[back < 2 ? back : 0], 0.38f);
+			if (lobby->stage == LobbyStage::Ready && !member.ready &&
+				!lobby->readyPending && !lobby->leaving &&
+				!activeClientNetwork->IsCharacterSelectionPending()) {
+				if (CanEquipHead(member.characterId, HeadAccessory::Ribbon) ||
+					CanEquipHead(member.characterId, HeadAccessory::Crown)) {
+					drawMenuButton(centerX - 125.0f, 740.0f, 34.0f, 38.0f, "<");
+					drawMenuButton(centerX + 91.0f, 740.0f, 34.0f, 38.0f, ">");
+				}
+				drawMenuButton(centerX - 125.0f, 785.0f, 34.0f, 38.0f, "<");
+				drawMenuButton(centerX + 91.0f, 785.0f, 34.0f, 38.0f, ">");
+			}
+		}
 		if (member.id == activeClientNetwork->GetMyPlayerId() &&
 			lobby->stage == LobbyStage::Ready && !member.ready &&
 			!lobby->readyPending && !lobby->leaving &&
@@ -1066,15 +1093,9 @@ static void drawMenuScreen()
 	if (lobby->leaving) {
 		readyLabel = "LEAVING...";
 	}
-	drawMenuButton(
-		460.0f, 780.0f,
-		360.0f, 90.0f,
-		readyLabel);
+	drawMenuButton(460.0f, 865.0f, 360.0f, 80.0f, readyLabel);
 
-	drawMenuButton(
-		1000.0f, 820.0f,
-		200.0f, 70.0f,
-		"BACK");
+	drawMenuButton(1000.0f, 875.0f, 200.0f, 60.0f, "BACK");
 }
 
 
@@ -1122,9 +1143,6 @@ GLvoid drawScene()
 	glm::mat4 view = glm::lookAt(cameraTarget + glm::vec3(2, 12, 10) + shakeOffset,
 		cameraTarget + shakeOffset, glm::vec3(0, 1, 0));
 
-	/*glm::mat4 lightProjection = glm::ortho(-50.f, 50.f, -50.f, 50.f, 1.f, 100.f);
-	glm::mat4 lightView = glm::lookAt(lightPos, cameraTarget, glm::vec3(0, 1, 0)); 
-	glm::mat4 lightSpaceMatrix = lightProjection * lightView;*/
 
 	
 	// 그림자 오류 수정 
@@ -1225,7 +1243,6 @@ GLvoid drawScene()
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
 
-	// UI
 	// 1. 점수 표시
 	std::string scoreStr = "SCORE: " + std::to_string(score);
 	renderTextWithOutline(20, 60, scoreStr.c_str());

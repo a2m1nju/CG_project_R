@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 // 창 크기에 맞추면서 게임 좌표계의 1280x960 비율을 유지한다.
 struct GameViewport {

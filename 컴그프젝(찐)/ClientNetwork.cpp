@@ -98,6 +98,8 @@ bool ClientNetwork::RequestJoin(const std::string& nickname)
     }
     lobby = LobbyView{};
     myCharacterId = CharacterId::Chicken;
+    myAccessories = {};
+    savedAccessories.fill({});
     characterSelectionPending = false;
     lobby.stage = LobbyStage::Joining;
     lobby.message = "JOINING...";
@@ -123,20 +125,31 @@ bool ClientNetwork::RequestReady(bool ready)
 }
 bool ClientNetwork::RequestCharacterSelection(CharacterId id)
 {
+    if (!IsValidCharacterId(static_cast<std::uint8_t>(id))) return false;
+    return RequestAppearanceSelection(id, savedAccessories[static_cast<std::size_t>(id)]);
+}
+bool ClientNetwork::RequestAppearanceSelection(CharacterId id, AccessoryLoadout accessories)
+{
     if (!IsConnected() || lobby.stage != LobbyStage::Ready ||
         !lobby.joined || lobby.readyPending || lobby.leaving ||
         IsMyLobbyReady() || characterSelectionPending ||
-        !IsValidCharacterId(static_cast<std::uint8_t>(id)))
+        !IsValidCharacterId(static_cast<std::uint8_t>(id)) ||
+        !CanEquipHead(id, accessories.head) ||
+        !CanEquipBack(id, accessories.back))
     {
         return false;
     }
-    if (id == myCharacterId) return true;
+    if (id == myCharacterId && accessories.head == myAccessories.head &&
+        accessories.back == myAccessories.back) return true;
 
     auto packet = LobbyWire::MakePacket(
-        LobbyWire::CharacterSelection, 5, ++sequence);
+        LobbyWire::CharacterSelection, 7, ++sequence);
     Wire::Write32(packet.data() + 12, lobby.epoch);
     packet[16] = static_cast<std::uint8_t>(id);
+    packet[17] = static_cast<std::uint8_t>(accessories.head);
+    packet[18] = static_cast<std::uint8_t>(accessories.back);
     requestedCharacterId = id;
+    requestedAccessories = accessories;
     characterSelectionPending = true;
     return Queue(packet.data(), packet.size());
 }
@@ -225,7 +238,7 @@ int ClientNetwork::HandleLobbyPacket(
         std::vector<LobbyMemberView> members;
         std::size_t offset = 18;
         for (int i = 0; i < 3; ++i) {
-            if (offset + 8 > size) {
+            if (offset + 10 > size) {
                 return -1;
             }
             LobbyMemberView member;
@@ -233,11 +246,15 @@ int ClientNetwork::HandleLobbyPacket(
             const auto ready = packet[offset + 5];
             const std::size_t nameLength = packet[offset + 6];
             const auto characterId = packet[offset + 7];
+            const auto head = static_cast<HeadAccessory>(packet[offset + 8]);
+            const auto back = static_cast<BackAccessory>(packet[offset + 9]);
             if (member.id == 0 ||
                 ready > 1 ||
                 !IsValidCharacterId(characterId) ||
+                !CanEquipHead(static_cast<CharacterId>(characterId), head) ||
+                !CanEquipBack(static_cast<CharacterId>(characterId), back) ||
                 nameLength > 24 ||
-                offset + 8 + nameLength > size)
+                offset + 10 + nameLength > size)
             {
                 return -1;
             }
@@ -248,12 +265,13 @@ int ClientNetwork::HandleLobbyPacket(
             }
             member.ready = ready != 0;
             member.characterId = static_cast<CharacterId>(characterId);
+            member.accessories = {head, back};
             member.nickname.assign(
-                reinterpret_cast<const char*>(packet + offset + 8),
+                reinterpret_cast<const char*>(packet + offset + 10),
                 nameLength);
 
             members.push_back(std::move(member));
-            offset += 8 + nameLength;
+            offset += 10 + nameLength;
         }
 
         if (offset != size) {
@@ -294,8 +312,12 @@ int ClientNetwork::HandleLobbyPacket(
         for (const auto& member : lobby.members) {
             if (member.id == myPlayerId) {
                 myCharacterId = member.characterId;
+                myAccessories = member.accessories;
+                savedAccessories[static_cast<std::size_t>(myCharacterId)] = myAccessories;
                 if (characterSelectionPending &&
-                    myCharacterId == requestedCharacterId) {
+                    myCharacterId == requestedCharacterId &&
+                    myAccessories.head == requestedAccessories.head &&
+                    myAccessories.back == requestedAccessories.back) {
                     characterSelectionPending = false;
                 }
                 break;
@@ -316,6 +338,7 @@ int ClientNetwork::HandleLobbyPacket(
         ClearWorld();
         lobby = LobbyView{};
         myCharacterId = CharacterId::Chicken;
+        myAccessories = {};
         characterSelectionPending = false;
         lobby.message = "ROOM CLOSED. JOIN AGAIN TO PARTICIPATE.";
 
@@ -493,6 +516,7 @@ void ClientNetwork::Disconnect() {
     ClearWorld();
     lobby = LobbyView{};
     myCharacterId = CharacterId::Chicken;
+    myAccessories = {};
     characterSelectionPending = false;
     lobby.message = "SERVER DISCONNECTED";
     myPlayerId = 0;

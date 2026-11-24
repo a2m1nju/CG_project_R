@@ -288,7 +288,7 @@ int ClientNetwork::HandleWorldPacket(
             Wire::ReadRoundId(p) != roundId ||
             LobbyWire::Read16(p + 16) != Wire::TickRate ||
             p[18] != 3 ||
-            size != 19 + 14 * p[18])
+            size != 19 + 16 * p[18])
         {
             return -1;
         }
@@ -299,7 +299,7 @@ int ClientNetwork::HandleWorldPacket(
 
         for (std::size_t offset = 19;
             offset < size;
-            offset += 14)
+            offset += 16)
         {
             RemotePlayerView player;
             player.id = Wire::Read32(p + offset);
@@ -308,6 +308,11 @@ int ClientNetwork::HandleWorldPacket(
             player.z = Wire::ReadFloat(p + offset + 9);
             if (!IsValidCharacterId(p[offset + 13])) return -1;
             player.characterId = static_cast<CharacterId>(p[offset + 13]);
+            player.accessories = {
+                static_cast<HeadAccessory>(p[offset + 14]),
+                static_cast<BackAccessory>(p[offset + 15])};
+            if (!CanEquipHead(player.characterId, player.accessories.head) ||
+                !CanEquipBack(player.characterId, player.accessories.back)) return -1;
             player.moveStartX = player.x;
             player.moveStartZ = player.z;
 
@@ -369,6 +374,11 @@ int ClientNetwork::HandleWorldPacket(
             player.deathReason = static_cast<Wire::DeathReason>(p[offset + 21]);
             if (!IsValidCharacterId(p[offset + 22])) return -1;
             player.characterId = static_cast<CharacterId>(p[offset + 22]);
+            player.accessories = {
+                static_cast<HeadAccessory>(p[offset + 23]),
+                static_cast<BackAccessory>(p[offset + 24])};
+            if (!CanEquipHead(player.characterId, player.accessories.head) ||
+                !CanEquipBack(player.characterId, player.accessories.back)) return -1;
 
             const auto previous = std::find_if(
                 players.begin(),

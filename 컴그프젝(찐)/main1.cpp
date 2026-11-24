@@ -131,6 +131,7 @@ int main(int argc, char** argv)
     glutSpecialFunc(specialKeyboard);
     glutKeyboardFunc(keyboard);
     glutMouseFunc(mouse);
+    glutMotionFunc(mouseMotion);
     glutTimerFunc(16, timer, 0);
 
     if (argc == 2) {

@@ -67,6 +67,7 @@ private:
 
         std::string nickname;
         CharacterId characterId = CharacterId::Chicken;
+        AccessoryLoadout accessories;
         bool drop = false;
     };
 

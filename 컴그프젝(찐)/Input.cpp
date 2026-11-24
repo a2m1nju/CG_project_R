@@ -5,6 +5,7 @@
 #include "Protocol.h"
 #include "GameViewport.h"
 #include <iostream>
+#include <cmath>
 
 void specialKeyboard(int key, int x, int y)
 {
@@ -32,8 +33,6 @@ void specialKeyboard(int key, int x, int y)
 	default: return;
 	}
 
-	//std::cout << "MOVE direction: "
-	//	<< static_cast<int>(physicalDirection) << '\n';
 #endif
 
 	if (isMoving || isGameOver || localBirdCarry.active) return;
@@ -262,11 +261,18 @@ void keyboard(unsigned char key, int x, int y)
 
 }
 
+static float lobbyPreviewAngle = 0.0f;
+static bool previewDragging = false;
+static int previewLastMouseX = 0;
+
+float GetLobbyPreviewAngle() { return lobbyPreviewAngle; }
+
 void mouse(int button, int state, int x, int y)
 {
-	if (button != GLUT_LEFT_BUTTON || state != GLUT_DOWN) {
-		return;
-	}
+	if (button != GLUT_LEFT_BUTTON) return;
+	if (state == GLUT_UP) { previewDragging = false; return; }
+	if (state != GLUT_DOWN) return;
+	previewDragging = false;
 	const int width = glutGet(GLUT_WINDOW_WIDTH);
 	const int height = glutGet(GLUT_WINDOW_HEIGHT);
 
@@ -316,6 +322,18 @@ void mouse(int button, int state, int x, int y)
 	}
 	if (clientScreen == ClientScreen::Lobby) {
 		const auto& lobby = activeClientNetwork->GetLobby();
+		if (lobby.stage == LobbyStage::Ready) {
+			for (int i = 0; i < static_cast<int>(lobby.members.size()) && i < 3; ++i) {
+				if (lobby.members[i].id != activeClientNetwork->GetMyPlayerId()) continue;
+				const float centerX = 320.0f + i * 320.0f;
+				if (inside(centerX - 130.0f, 300.0f, 260.0f, 300.0f)) {
+					previewDragging = true;
+					previewLastMouseX = x;
+					return;
+				}
+				break;
+			}
+		}
 		if (lobby.stage == LobbyStage::Ready && !lobby.readyPending &&
 			!lobby.leaving && !activeClientNetwork->IsMyLobbyReady() &&
 			!activeClientNetwork->IsCharacterSelectionPending()) {
@@ -333,17 +351,56 @@ void mouse(int button, int state, int x, int y)
 					static_cast<CharacterId>((id + 1) % 10));
 				return;
 				}
+				if (inside(centerX - 125.0f, 740.0f, 34.0f, 38.0f) ||
+					inside(centerX + 91.0f, 740.0f, 34.0f, 38.0f)) {
+					const int direction = inside(centerX - 125.0f, 740.0f, 34.0f, 38.0f) ? -1 : 1;
+					for (int step = 1; step < 3; ++step) {
+						const auto head = static_cast<HeadAccessory>(
+							(static_cast<int>(lobby.members[i].accessories.head) + direction * step + 6) % 3);
+						if (CanEquipHead(lobby.members[i].characterId, head)) {
+							auto next = lobby.members[i].accessories;
+							next.head = head;
+							activeClientNetwork->RequestAppearanceSelection(lobby.members[i].characterId, next);
+							break;
+						}
+					}
+					return;
+				}
+				if (inside(centerX - 125.0f, 785.0f, 34.0f, 38.0f) ||
+					inside(centerX + 91.0f, 785.0f, 34.0f, 38.0f)) {
+					auto next = lobby.members[i].accessories;
+					next.back = next.back == BackAccessory::None ?
+						BackAccessory::Backpack : BackAccessory::None;
+					activeClientNetwork->RequestAppearanceSelection(lobby.members[i].characterId, next);
+					return;
+				}
 			break;
 			}
 		}
 		// 준비 / 준비 취소
-		if (inside(460, 780, 360, 90)) {
+		if (inside(460, 865, 360, 80)) {
 			activeClientNetwork->RequestReady(
 				!activeClientNetwork->IsMyLobbyReady());
 		}
 		// 나가기
-		else if (inside(1000, 820, 200, 70)) {
+		else if (inside(1000, 875, 200, 60)) {
 			activeClientNetwork->RequestLeave();
 		}
 	}
+}
+void mouseMotion(int x, int)
+{
+	if (!previewDragging) return;
+	if (clientScreen != ClientScreen::Lobby || !activeClientNetwork ||
+		activeClientNetwork->GetLobby().stage != LobbyStage::Ready) {
+		previewDragging = false;
+		return;
+	}
+	const int width = FitGameViewport(
+		glutGet(GLUT_WINDOW_WIDTH), glutGet(GLUT_WINDOW_HEIGHT)).width;
+	if (width <= 0) return;
+	lobbyPreviewAngle = std::fmod(lobbyPreviewAngle +
+		(x - previewLastMouseX) * 1280.0f / width, 360.0f);
+	previewLastMouseX = x;
+	glutPostRedisplay();
 }
