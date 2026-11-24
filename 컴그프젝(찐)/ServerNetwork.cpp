@@ -258,6 +258,8 @@ void ServerNetwork::PublishLobby()
         packet.push_back(room.ready[i] ? 1 : 0);
         packet.push_back(
             static_cast<std::uint8_t>(nickname.size()));
+        packet.push_back(session ?
+            static_cast<std::uint8_t>(session->characterId) : 0);
 
         packet.insert(
             packet.end(),
@@ -352,6 +354,7 @@ void ServerNetwork::CloseLobby(SessionId leaverId)
             session->itemSnapshotPending = false;
             session->resetVote = false;
             session->roundId = 0;
+            session->characterId = CharacterId::Chicken;
             if (session->alive) {
                 session->alive = false;
                 session->deathReason = Wire::DeathReason::Other;
@@ -378,6 +381,7 @@ int ServerNetwork::HandleLobbyPacket(
 
     if (type != LobbyWire::Join &&
         type != LobbyWire::Ready &&
+        type != LobbyWire::CharacterSelection &&
         type != LobbyWire::Leave)
     {
         return 0;
@@ -436,6 +440,7 @@ int ServerNetwork::HandleLobbyPacket(
         session.nickname.assign(
             reinterpret_cast<const char*>(packet + 13),
             nameLength);
+        session.characterId = CharacterId::Chicken;
 
         auto welcome = LobbyWire::MakePacket(
             LobbyWire::Welcome, 8);
@@ -499,6 +504,31 @@ int ServerNetwork::HandleLobbyPacket(
 
         PublishLobby();
         BeginLoading();
+        return 1;
+    }
+
+    if (type == LobbyWire::CharacterSelection) {
+        if (size != 17) return -1;
+
+        if (room.phase != ServicePhase::READY_LOBBY ||
+            !IsLobbyMember(session.id) ||
+            !IsValidCharacterId(packet[16]))
+        {
+            SendLobbyError(session, LobbyWire::BadPhase, type, sequence);
+            return 1;
+        }
+        if (Wire::Read32(packet + 12) != room.lobbyEpoch) {
+            SendLobbyError(session, LobbyWire::Stale, type, sequence);
+            return 1;
+        }
+        const auto it = std::find(room.members.begin(),
+                                  room.members.end(), session.id);
+        if (room.ready[static_cast<std::size_t>(it - room.members.begin())]) {
+            SendLobbyError(session, LobbyWire::BadPhase, type, sequence);
+            return 1;
+        }
+        session.characterId = static_cast<CharacterId>(packet[16]);
+        PublishLobby();
         return 1;
     }
 
@@ -1305,7 +1335,7 @@ void ServerNetwork::SendStart(std::uint32_t tick)
 
     roundStartTick = currentTick;
 
-    std::vector<std::uint8_t> packet(19 + 13 * 3, 0);
+    std::vector<std::uint8_t> packet(19 + 14 * 3, 0);
 
     packet[3] = Wire::Start;
     Wire::Write32(packet.data() + 12, tick);
@@ -1326,13 +1356,14 @@ void ServerNetwork::SendStart(std::uint32_t tick)
         }
 
         auto* record =
-            packet.data() + 19 + slot * 13;
+            packet.data() + 19 + slot * 14;
 
         Wire::Write32(record, session->id);
         record[4] = static_cast<std::uint8_t>(slot);
 
         Wire::WriteFloat(record + 5, session->x);
         Wire::WriteFloat(record + 9, session->z);
+        record[13] = static_cast<std::uint8_t>(session->characterId);
     }
 
     for (const auto id : lobbyRoom->members) {
@@ -1386,6 +1417,7 @@ void ServerNetwork::PublishPlayers(std::uint32_t tick)
         Wire::Write32(record + 17,
             effects ? effects->shieldRemainingMs : 0);
         record[21] = static_cast<std::uint8_t>(session->deathReason);
+        record[22] = static_cast<std::uint8_t>(session->characterId);
         ++count;
     }
 

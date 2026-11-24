@@ -2,6 +2,7 @@
 #include "Global.h"
 #include "Logic.h" 
 #include "ClientNetwork.h"
+#include "CharacterModels.h"
 #include "GameViewport.h"
 #include "BananaMesh.h"
 
@@ -84,7 +85,7 @@ static float birdFlightProgress(const BirdCarryAnimation& animation) {
                       (BirdCarryDurationSeconds - 0.85f), 0.0f, 1.0f);
 }
 
-static void drawBirdCarry(GLuint shader, const BirdCarryAnimation& animation) {
+static void drawBirdCarry(GLuint shader, const BirdCarryAnimation& animation, CharacterId characterId) {
     if (!animation.active) return;
     const float seconds = glm::clamp(animation.elapsedSeconds, 0.0f,
                                      BirdCarryDurationSeconds);
@@ -105,7 +106,7 @@ static void drawBirdCarry(GLuint shader, const BirdCarryAnimation& animation) {
     drawBird(shader, birdModel, seconds);
     glm::mat4 chickenModel = glm::translate(glm::mat4(1.0f), chickenPosition);
     chickenModel = glm::scale(chickenModel, glm::vec3(0.7f));
-    drawChicken(shader, chickenModel);
+    drawCharacter(shader, chickenModel, characterId);
 }
 
 void drawShieldModel(GLuint shader, glm::mat4 baseModel) {
@@ -568,14 +569,16 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
 
     if (shader == shaderProgramID) glUniform1i(useTexLoc, 0);
 
+    const CharacterId myCharacter = activeClientNetwork
+        ? activeClientNetwork->GetMyCharacterId() : CharacterId::Chicken;
     if (localBirdCarry.active) {
-        drawBirdCarry(shader, localBirdCarry);
+        drawBirdCarry(shader, localBirdCarry, myCharacter);
     } else if (!isGameOver) {
         glm::mat4 model = glm::translate(glm::mat4(1.0f), playerPos);
         model = glm::rotate(model, glm::radians(playerRotation),
                             glm::vec3(0.0f, 1.0f, 0.0f));
         model = glm::scale(model, glm::vec3(0.7f));
-        drawChicken(shader, model);
+        drawCharacter(shader, model, myCharacter);
     }
 
     if (activeClientNetwork) {
@@ -587,7 +590,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
             model = glm::rotate(model, glm::radians(player.rotation),
                                 glm::vec3(0.0f, 1.0f, 0.0f));
             model = glm::scale(model, glm::vec3(0.7f));
-            drawChicken(shader, model);
+            drawCharacter(shader, model, player.characterId);
         }
     }
 }
@@ -1007,7 +1010,7 @@ static void drawMenuScreen()
 			(std::max)(1, viewport.pixels(260.0f)),
 			(std::max)(1, viewport.pixels(300.0f)));
 
-		drawChicken(shaderProgramID, glm::mat4(1.0f));
+		drawCharacter(shaderProgramID, glm::mat4(1.0f), lobby->members[i].characterId);
 	}
 
 	// 글자는 창 전체를 기준으로 표시
@@ -1038,13 +1041,25 @@ static void drawMenuScreen()
 			720.0f,
 			member.ready ? "READY" : "NOT READY",
 			0.45f);
+		const char* names[] = { "CHICKEN", "RABBIT", "CAT", "DOG", "BEAR", "PANDA", "TINO", "MONOKUMA", "KORILAKKUMA", "KUROMI" };
+		const unsigned id = static_cast<unsigned>(member.characterId);
+		drawMenuText(320.0f + i * 320.0f, 755.0f,
+			names[id < 10 ? id : 0], 0.45f);
+		if (member.id == activeClientNetwork->GetMyPlayerId() &&
+			lobby->stage == LobbyStage::Ready && !member.ready &&
+			!lobby->readyPending && !lobby->leaving &&
+			!activeClientNetwork->IsCharacterSelectionPending()) {
+			const float centerX = 320.0f + i * 320.0f;
+			drawMenuButton(centerX - 195.0f, 485.0f, 55.0f, 70.0f, "<");
+			drawMenuButton(centerX + 140.0f, 485.0f, 55.0f, 70.0f, ">");
+		}
 	}
 	if (lobby->stage == LobbyStage::Loading) {
 		return;
 	}
 	const char* readyLabel = activeClientNetwork->IsMyLobbyReady() ? "CANCEL READY" : "READY";
 
-	if (lobby->readyPending) {
+	if (lobby->readyPending || activeClientNetwork->IsCharacterSelectionPending()) {
 		readyLabel = "WAITING...";
 	}
 

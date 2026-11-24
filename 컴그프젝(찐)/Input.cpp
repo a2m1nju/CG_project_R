@@ -304,6 +304,27 @@ void mouse(int button, int state, int x, int y)
 		return;
 	}
 	if (clientScreen == ClientScreen::Lobby) {
+		const auto& lobby = activeClientNetwork->GetLobby();
+		if (lobby.stage == LobbyStage::Ready && !lobby.readyPending &&
+			!lobby.leaving && !activeClientNetwork->IsMyLobbyReady() &&
+			!activeClientNetwork->IsCharacterSelectionPending()) {
+			for (int i = 0; i < static_cast<int>(lobby.members.size()) && i < 3; ++i) {
+				if (lobby.members[i].id != activeClientNetwork->GetMyPlayerId()) continue;
+				const float centerX = 320.0f + i * 320.0f;
+				const int id = static_cast<int>(lobby.members[i].characterId);
+				if (inside(centerX - 195.0f, 485.0f, 55.0f, 70.0f)) {
+					activeClientNetwork->RequestCharacterSelection(
+						static_cast<CharacterId>((id + 9) % 10));
+					return;
+				}
+				if (inside(centerX + 140.0f, 485.0f, 55.0f, 70.0f)) {
+					activeClientNetwork->RequestCharacterSelection(
+					static_cast<CharacterId>((id + 1) % 10));
+				return;
+				}
+			break;
+			}
+		}
 		// 준비 / 준비 취소
 		if (inside(460, 780, 360, 90)) {
 			activeClientNetwork->RequestReady(

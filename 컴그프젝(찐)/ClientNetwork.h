@@ -2,6 +2,7 @@
 
 #include <winsock2.h>
 #include "Protocol.h"
+#include "CharacterAppearance.h"
 #include "ScreenChase.h"
 
 #include <vector>
@@ -23,6 +24,7 @@ enum class LobbyStage {
 struct LobbyMemberView {
     std::uint32_t id = 0;
     bool ready = false;
+    CharacterId characterId = CharacterId::Chicken;
     std::string nickname;
 };
 
@@ -59,6 +61,7 @@ struct WorldEvent {
 struct RemotePlayerView {
     std::uint32_t id = 0;
     std::uint8_t slot = 0;
+    CharacterId characterId = CharacterId::Chicken;
     float x = 0, z = 0, rotation = 0;
     bool alive = true;
     Wire::DeathReason deathReason = Wire::DeathReason::None;
@@ -141,7 +144,11 @@ public:
 
     bool RequestJoin(const std::string& nickname);
     bool RequestReady(bool ready);
+    bool RequestCharacterSelection(CharacterId id);
     bool RequestLeave();
+
+    CharacterId GetMyCharacterId() const { return myCharacterId; }
+    bool IsCharacterSelectionPending() const { return characterSelectionPending; }
 
     bool IsMyLobbyReady() const
     {
@@ -204,6 +211,9 @@ private:
     float moveX = 0, moveZ = 0;
 
     LobbyView lobby;
+    CharacterId myCharacterId = CharacterId::Chicken;
+    CharacterId requestedCharacterId = CharacterId::Chicken;
+    bool characterSelectionPending = false;
 
     int HandleLobbyPacket(
         const std::uint8_t* packet,

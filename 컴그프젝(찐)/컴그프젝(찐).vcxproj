@@ -144,6 +144,7 @@ glew32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="CharacterModels.cpp" />
     <ClCompile Include="Global.cpp" />
     <ClCompile Include="Input.cpp" />
     <ClCompile Include="Logic.cpp" />
@@ -165,6 +166,8 @@ glew32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     <ClCompile Include="WorldState.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CharacterAppearance.h" />
+    <ClInclude Include="CharacterModels.h" />
     <ClInclude Include="Common.h" />
     <ClInclude Include="GameItemTypes.h" />
     <ClInclude Include="ItemSystem.h" />

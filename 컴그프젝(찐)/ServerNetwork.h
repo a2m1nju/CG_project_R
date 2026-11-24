@@ -2,6 +2,7 @@
 
 #include <winsock2.h>
 #include "Protocol.h"
+#include "CharacterAppearance.h"
 #include "Room.h"
 #include "WorldState.h"
 #include "ItemSystem.h"
@@ -65,6 +66,7 @@ private:
         Wire::MoveStatus status = Wire::MoveStatus::Idle;
 
         std::string nickname;
+        CharacterId characterId = CharacterId::Chicken;
         bool drop = false;
     };
 

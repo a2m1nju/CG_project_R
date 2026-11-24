@@ -20,7 +20,7 @@ std::array<std::uint8_t, 17> EncodeMovePacket(
 
 namespace Wire {
     constexpr std::size_t HeaderSize = 12;
-    constexpr std::size_t PlayerStateRecordSize = 22;
+    constexpr std::size_t PlayerStateRecordSize = 23;
 
     enum class DeathReason : std::uint8_t {
         None = 0,
@@ -147,6 +147,7 @@ namespace LobbyWire {
     constexpr std::uint8_t QueueState = 3;
     constexpr std::uint8_t ReadyLobbyState = 4;
     constexpr std::uint8_t Ready = 5;
+    constexpr std::uint8_t CharacterSelection = 6;
     constexpr std::uint8_t Leave = 17;
     constexpr std::uint8_t RoomClose = 18;
     constexpr std::uint8_t Error = 21;

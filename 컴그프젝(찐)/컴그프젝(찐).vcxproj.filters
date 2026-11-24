@@ -15,6 +15,9 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CharacterModels.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
     <ClCompile Include="Global.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
@@ -62,6 +65,12 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CharacterAppearance.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="CharacterModels.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
     <ClInclude Include="stb_truetype.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
