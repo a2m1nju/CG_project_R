@@ -60,6 +60,9 @@
     <ClCompile Include="WorldState.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="ResultUI.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stb_truetype.h">
@@ -114,6 +117,9 @@
       <Filter>소스 파일\헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="WorldState.h">
+      <Filter>소스 파일\헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="ResultUI.h">
       <Filter>소스 파일\헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>

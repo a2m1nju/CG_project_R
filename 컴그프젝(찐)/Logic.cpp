@@ -4,6 +4,7 @@
 #include "Renderer.h" 
 #include "Texture.h" 
 #include "WorldMotion.h"
+#include "ResultUI.h"
 
 GameSeason getSeasonByZ(int z) {
     int linesPassed = -z;
@@ -699,6 +700,11 @@ void resetGame()
 
 void timer(int value)
 {
+	if (IsResultPreviewActive()) {
+		glutPostRedisplay();
+		glutTimerFunc(16, timer, value);
+		return;
+	}
 	if (activeClientNetwork) {
 		WorldEvent event;
 
@@ -775,49 +781,28 @@ void timer(int value)
 
     static int previousTickMs = glutGet(GLUT_ELAPSED_TIME);
     const int nowMs = glutGet(GLUT_ELAPSED_TIME);
-    const std::uint32_t elapsedMs = nowMs > previousTickMs
-        ? static_cast<std::uint32_t>(nowMs - previousTickMs) : 0;
+    const std::uint32_t elapsedMs = nowMs > previousTickMs ? static_cast<std::uint32_t>(nowMs - previousTickMs) : 0;
     previousTickMs = nowMs;
 	if (activeClientNetwork) {
-		const auto actorSeconds =
-			[nowMs, elapsedMs](unsigned int id)
+		const auto actorSeconds = [nowMs, elapsedMs](unsigned int id)
 			{
 				const auto it = actorLastPacketMs.find(id);
-
-				if (it == actorLastPacketMs.end() ||
-					nowMs < it->second ||
-					nowMs - it->second > 250)
+				if (it == actorLastPacketMs.end() || nowMs < it->second || nowMs - it->second > 250)
 				{
 					return 0.0f;
 				}
-
-				return (std::min)({
-					elapsedMs,
-					std::uint32_t(nowMs - it->second),
-					std::uint32_t{50}
-					}) / 1000.0f;
+				return (std::min)({elapsedMs, std::uint32_t(nowMs - it->second), std::uint32_t{50}}) / 1000.0f;
 			};
 
 		for (auto& car : cars) {
-			car.x = WorldMotion::Advance(
-				car.x,
-				car.speed,
-				actorSeconds(car.id),
-				18.0f);
+			car.x = WorldMotion::Advance(car.x,	car.speed, actorSeconds(car.id), 18.0f);
 		}
 		for (auto& log : logs) {
-			log.x = WorldMotion::Advance(
-				log.x,
-				log.speed,
-				actorSeconds(log.id),
-				20.0f);
+			log.x = WorldMotion::Advance(log.x, log.speed, actorSeconds(log.id), 20.0f);
 		}
 		for (auto& train : trains) {
 			if (train.state == TRAIN_PASSING) {
-				train.x = WorldMotion::Advance(
-					train.x,
-					train.speed,
-					actorSeconds(train.id));
+				train.x = WorldMotion::Advance(train.x, train.speed, actorSeconds(train.id));
 			}
 		}
 	}

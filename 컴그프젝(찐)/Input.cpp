@@ -4,9 +4,18 @@
 #include "Logic.h"
 #include "Protocol.h"
 #include <iostream>
+#include "ResultUI.h"
 
 void specialKeyboard(int key, int x, int y)
 {
+	if (IsResultPreviewActive()) {
+		return;
+	}
+
+	if (key == GLUT_KEY_F6) {
+		OpenResultPreview();
+		return;
+	}
 	if (clientScreen != ClientScreen::Playing) {
 		return;
 	}
@@ -142,6 +151,10 @@ void specialKeyboard(int key, int x, int y)
 
 void keyboard(unsigned char key, int x, int y)
 {
+	if (IsResultPreviewActive()) {
+		HandleResultPreviewKey(key);
+		return;
+	}
 	if (clientScreen != ClientScreen::Playing) {
 		if (key == 'q' || key == 'Q') {
 			glutLeaveMainLoop();
@@ -150,7 +163,6 @@ void keyboard(unsigned char key, int x, int y)
 		return;
 	}
 
-	
 	if (key == 'q' || key == 'Q') {
 		glutLeaveMainLoop();
 		return;
@@ -270,6 +282,10 @@ void keyboard(unsigned char key, int x, int y)
 
 void mouse(int button, int state, int x, int y)
 {
+	if (IsResultPreviewActive()) {
+		HandleResultPreviewMouse(button, state, x, y);
+		return;
+	}
 	if (button != GLUT_LEFT_BUTTON || state != GLUT_DOWN) {
 		return;
 	}
@@ -282,8 +298,7 @@ void mouse(int button, int state, int x, int y)
 	const float uiX = x * 1280.0f / width;
 	const float uiY = y * 960.0f / height;
 
-	const auto inside = [&](float left, float top,
-		float w, float h)
+	const auto inside = [&](float left, float top, float w, float h)
 		{
 			return uiX >= left && uiX <= left + w &&
 				uiY >= top && uiY <= top + h;

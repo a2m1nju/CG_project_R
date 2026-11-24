@@ -2,6 +2,7 @@
 #include "Global.h"
 #include "Logic.h" 
 #include "ClientNetwork.h"
+#include "ResultUI.h"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
@@ -1084,6 +1085,11 @@ static void renderCenteredMessage(float centerY, const char* text)
 
 GLvoid drawScene()
 {
+	if (IsResultPreviewActive()) {
+		DrawResultPreview();
+		glutSwapBuffers();
+		return;
+	}
 	// 타이틀과 대기방에서는 게임 월드를 그리지 않음
 	if (clientScreen != ClientScreen::Playing) {
 		drawMenuScreen();

@@ -150,15 +150,20 @@ glew32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     <ClCompile Include="ItemSystem.cpp" />
     <ClCompile Include="main1.cpp" />
     <ClCompile Include="Renderer.cpp" />
+    <ClCompile Include="ResultUI.cpp" />
     <ClCompile Include="Room.cpp">
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <ClCompile Include="Protocol.cpp" />
-    <ClCompile Include="ClientNetwork.cpp"><AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions></ClCompile>
+    <ClCompile Include="ClientNetwork.cpp">
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
     <ClCompile Include="ServerApp.cpp">
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
-    <ClCompile Include="ServerNetwork.cpp"><AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions></ClCompile>
+    <ClCompile Include="ServerNetwork.cpp">
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="Texture.cpp" />
     <ClCompile Include="WorldClient.cpp" />
@@ -172,6 +177,7 @@ glew32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     <ClInclude Include="Input.h" />
     <ClInclude Include="Logic.h" />
     <ClInclude Include="Renderer.h" />
+    <ClInclude Include="ResultUI.h" />
     <ClInclude Include="Room.h" />
     <ClInclude Include="Protocol.h" />
     <ClInclude Include="ClientNetwork.h" />
