@@ -177,6 +177,7 @@ glew32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     <ClInclude Include="Input.h" />
     <ClInclude Include="Logic.h" />
     <ClInclude Include="Renderer.h" />
+    <ClInclude Include="ResultTypes.h" />
     <ClInclude Include="ResultUI.h" />
     <ClInclude Include="Room.h" />
     <ClInclude Include="Protocol.h" />

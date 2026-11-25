@@ -18,6 +18,39 @@ std::uint32_t LaneRandom(std::uint32_t generation, std::int32_t z,
 }
 }
 
+PlayerState* WorldState::FindPlayer(std::uint32_t id)
+{
+    if (id == 0) {
+        return nullptr;
+    }
+    for (auto& player : players_) {
+        if (player.playerId == id) {
+            return &player;
+        }
+    }
+    return nullptr;
+}
+
+const PlayerState* WorldState::FindPlayer(std::uint32_t id) const
+{
+    if (id == 0) {
+        return nullptr;
+    }
+
+    for (const auto& player : players_) {
+        if (player.playerId == id) {
+            return &player;
+        }
+    }
+    return nullptr;
+}
+
+bool WorldState::IsAlive(std::uint32_t id) const
+{
+    const auto* player = FindPlayer(id);
+    return player && player->alive && !player->departed;
+}
+
 void WorldState::Reset(std::uint32_t roundId) {
     roundId_ = roundId;
     ++generation_;

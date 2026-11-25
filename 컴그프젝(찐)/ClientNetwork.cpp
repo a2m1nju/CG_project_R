@@ -3,6 +3,7 @@
 #include <iostream>
 #include <cmath>
 #include <utility>
+#include <algorithm>
 
 #pragma comment(lib, "Ws2_32.lib")
 
@@ -134,6 +135,126 @@ bool ClientNetwork::RequestLeave()
     lobby.message = "LEAVING...";
 
     return Queue(packet.data(), packet.size());
+}
+int ClientNetwork::HandleResultPacket(
+    const std::uint8_t* p,
+    std::size_t size
+)
+{
+    if (p[3] != Wire::Result) {
+        return 0;
+    }
+
+    if (size != Wire::ResultSize ||
+        p[12] > 1 ||
+        p[13] != 3)
+    {
+        return -1;
+    }
+
+    const auto receivedRound =
+        Wire::ReadRoundId(p);
+
+    if (!lobby.joined ||
+        lobby.leaving ||
+        receivedRound == 0 ||
+        receivedRound != roundId ||
+        lobby.stage != LobbyStage::Playing)
+    {
+        return 1;
+    }
+
+    ResultData received{};
+
+    received.roundId = receivedRound;
+    received.rematchAllowed = p[12] != 0;
+    received.roomClosing =
+        !received.rematchAllowed;
+
+    for (std::size_t i = 0;
+        i < received.entries.size();
+        ++i)
+    {
+        const auto* data =
+            p + 14 + i * Wire::ResultEntrySize;
+
+        auto& entry = received.entries[i];
+
+        entry.playerId = Wire::Read32(data);
+        entry.distanceLanes = Wire::Read32(data + 4);
+        entry.survivalTicks = Wire::Read32(data + 8);
+        entry.itemsUsed = Wire::Read32(data + 12);
+
+        entry.slot = data[16];
+        entry.rank = data[17];
+        entry.departed = data[18] != 0;
+
+        if (entry.playerId == 0 ||
+            entry.slot > 2 ||
+            entry.rank < 1 ||
+            entry.rank > 3 ||
+            data[18] > 1)
+        {
+            return -1;
+        }
+
+        for (std::size_t j = 0; j < i; ++j) {
+            const auto& previous =
+                received.entries[j];
+
+            if (previous.playerId == entry.playerId ||
+                previous.slot == entry.slot)
+            {
+                return -1;
+            }
+        }
+
+        if (received.rematchAllowed &&
+            entry.departed)
+        {
+            return -1;
+        }
+    }
+
+    const bool containsSelf =
+        std::any_of(
+            received.entries.begin(),
+            received.entries.end(),
+            [this](const ResultEntry& entry) {
+                return entry.playerId == myPlayerId;
+            }
+        );
+
+    if (!containsSelf) {
+        return -1;
+    }
+
+    result = received;
+
+    lobby.stage = LobbyStage::Result;
+    lobby.message = "RESULT";
+
+    pendingInput = 0;
+    moveReady = false;
+
+    std::cout
+        << "[RESULT RECEIVED] round="
+        << result.roundId
+        << '\n';
+
+    for (const auto& entry : result.entries) {
+        std::cout
+            << " player=" << entry.playerId
+            << " slot=" << unsigned(entry.slot)
+            << " dist=" << entry.distanceLanes
+            << " ticks=" << entry.survivalTicks
+            << " used=" << entry.itemsUsed
+            << " rank=" << unsigned(entry.rank)
+            << " departed=" << entry.departed
+            << '\n';
+    }
+
+    return 1;
 }
 int ClientNetwork::HandleLobbyPacket(
     const std::uint8_t* packet,
@@ -278,6 +399,7 @@ int ClientNetwork::HandleLobbyPacket(
             return -1;
         }
         ClearWorld();
+        result = ResultData{};
         lobby = LobbyView{};
         lobby.message = "ROOM CLOSED. JOIN AGAIN TO PARTICIPATE.";
 
@@ -335,7 +457,12 @@ bool ClientNetwork::PollDisconnected() {
         if (size < Wire::HeaderSize || size > 1024) { Disconnect(); return true; }
         if (receiveBuffer.size() - offset < size) break;
         if (p[2] != 1) { Disconnect(); return true; }
-        const int itemResult = HandleItemPacket(p, size);
+        const int resultStatus = HandleResultPacket(p, size);
+
+        const int itemResult =
+            resultStatus != 0
+            ? resultStatus
+            : HandleItemPacket(p, size);
 
         const int worldResult = itemResult != 0
             ? itemResult : HandleWorldPacket(p, size);
@@ -455,24 +582,27 @@ bool ClientNetwork::TakeMove(float& x, float& z) {
     if (!moveReady) return false;
     x = moveX; z = moveZ; moveReady = false; return true;
 }
+
 void ClientNetwork::ResetRound()
 {
-    if (!Ready() || resetRequested) {
-        return;
-    }
-    std::array<std::uint8_t, Wire::HeaderSize> packet{};
-    Wire::Header(
-        packet.data(),
-        packet.size(),
-        Wire::Reset,
-        ++sequence,
-        roundId);
-
-    resetRequested = Queue(packet.data(), packet.size());
+//    if (!Ready() || resetRequested) {
+//        return;
+//    }
+//    std::array<std::uint8_t, Wire::HeaderSize> packet{};
+//    Wire::Header(
+//        packet.data(),
+//        packet.size(),
+//        Wire::Reset,
+//        ++sequence,
+//        roundId);
+//
+//    resetRequested = Queue(packet.data(), packet.size());
 }
 
 void ClientNetwork::Disconnect() {
+
     ClearWorld();
+    result = ResultData{};
     lobby = LobbyView{};
     lobby.message = "SERVER DISCONNECTED";
     myPlayerId = 0;

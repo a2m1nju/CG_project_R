@@ -6,11 +6,13 @@
 class ServerApp {
 public:
     ServerApp()
-        : matchCoordinator(room),
-        roundController(room),
-        rematchController(room)
+        : matchCoordinator(room, world),
+        roundController(room, world),
+        rematchController(room, world),
+        network(world)
     {
     }
+
     ServerApp(const ServerApp&) = delete;
     ServerApp& operator=(const ServerApp&) = delete;
 
@@ -19,10 +21,13 @@ public:
     void Shutdown();
 
 private:
+    WorldState world;
     RoomState room;
+
     MatchCoordinator matchCoordinator;
     RoundController roundController;
     RematchController rematchController;
+
     ServerNetwork network;
 
     std::uint16_t port = 0;

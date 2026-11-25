@@ -4,6 +4,13 @@
 #include <cstddef>
 #include <map>
 #include <vector>
+#include <array>
+
+struct PlayerState {
+    std::uint32_t playerId = 0;
+    bool alive = false;
+    bool departed = false;
+};
 
 struct WorldLaneData {
     std::int32_t z = 0;
@@ -42,7 +49,13 @@ public:
     std::uint32_t Generation() const { return generation_; }
     std::int32_t MinZ() const { return lanes_.begin()->first; }
     std::int32_t MaxZ() const { return lanes_.rbegin()->first; }
+    std::array<PlayerState, 3>& Players() {return players_;}
+    const std::array<PlayerState, 3>& Players() const { return players_;}
 
+    PlayerState* FindPlayer(std::uint32_t id);
+    const PlayerState* FindPlayer(std::uint32_t id) const;
+
+    bool IsAlive(std::uint32_t id) const;
 private:
     WorldLaneData MakeLane(std::int32_t z);
     std::map<std::int32_t, WorldLaneData> lanes_;
@@ -50,4 +63,5 @@ private:
     std::uint32_t nextActorId_ = 1;
     std::uint32_t roundId_ = 1;
     std::uint32_t generation_ = 0;
+    std::array<PlayerState, 3> players_{};
 };

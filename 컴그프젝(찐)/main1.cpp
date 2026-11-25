@@ -76,6 +76,10 @@ namespace {
         case LobbyStage::Playing:
             nextScreen = ClientScreen::Playing;
             break;
+        case LobbyStage::Result:
+            // 실제 결과 UI 연결은 3일차에 진행.
+            nextScreen = clientScreen;
+            break;
         default:
             nextScreen = ClientScreen::Title;
             break;

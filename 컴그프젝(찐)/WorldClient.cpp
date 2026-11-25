@@ -141,7 +141,7 @@ int ClientNetwork::HandleWorldPacket(
             generation != worldGeneration)
         {
             ClearWorld();
-
+            result = ResultData{};
             lobby.stage = LobbyStage::Loading;
             lobby.message = "LOADING SHARED WORLD...";
 

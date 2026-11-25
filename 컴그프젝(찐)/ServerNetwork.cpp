@@ -291,18 +291,24 @@ void ServerNetwork::CloseLobby(SessionId leaverId)
             const auto index =
                 static_cast<std::size_t>(
                     it - room.members.begin());
+            RoundController controller(room, world);
 
-            room.players[index].alive = false;
-            room.players[index].departed = true;
-            room.records[index].departed = true;
+            if (const auto* session = FindSession(leaverId)) {
+                controller.RecordPosition(leaverId, session->z);
+            }
+
+            controller.RecordDeath(
+                leaverId,
+                currentTick,
+                true
+            );
+
             room.members[index] = 0;
         }
 
         if (auto* leaver = FindSession(leaverId)) {
-            leaver->alive = false;
             leaver->snapshotting = false;
             leaver->itemSnapshotPending = false;
-            leaver->resetVote = false;
             leaver->roundId = 0;
 
             auto packet = LobbyWire::MakePacket(
@@ -339,6 +345,7 @@ void ServerNetwork::CloseLobby(SessionId leaverId)
     const auto nextEpoch = room.lobbyEpoch + 1;
     const auto previousRound = room.roundId;
 
+    world.Players().fill(PlayerState{});
     room = RoomState{};
     room.lobbyEpoch = nextEpoch;
     room.roundId = previousRound;
@@ -347,9 +354,8 @@ void ServerNetwork::CloseLobby(SessionId leaverId)
         if (auto* session = FindSession(id)) {
             session->snapshotting = false;
             session->itemSnapshotPending = false;
-            session->resetVote = false;
             session->roundId = 0;
-            session->alive = false;
+           
 
             items.RemovePlayer(session->id);
 
@@ -415,7 +421,7 @@ int ServerNetwork::HandleLobbyPacket(
             return 1;
         }
 
-        MatchCoordinator coordinator(room);
+        MatchCoordinator coordinator(room, world);
         const auto result = coordinator.Enqueue(session.id);
 
         if (result.code != 0) {
@@ -475,7 +481,7 @@ int ServerNetwork::HandleLobbyPacket(
             return 1;
         }
 
-        MatchCoordinator coordinator(room);
+        MatchCoordinator coordinator(room, world);
 
         const auto readyResult = coordinator.SetReady(
             session.id,
@@ -573,7 +579,7 @@ bool ServerNetwork::ProcessPackets(
                 !s.snapshotting &&
                 !s.itemSnapshotPending)
             {
-                RoundController controller(*lobbyRoom);
+                RoundController controller(*lobbyRoom, world);
                 controller.MarkLoaded(s.id, round);
 
                 if (lobbyRoom->phase == ServicePhase::PLAYING) {
@@ -619,7 +625,7 @@ bool ServerNetwork::ProcessPackets(
                 return false;
             }
 
-            s.resetVote = true;
+            SendLobbyError(s, LobbyWire::BadPhase, p[3], seq);
         }
         else if (p[3] == Wire::PickupRequest ||
             p[3] == Wire::ItemSpawnRequest ||
@@ -639,7 +645,7 @@ bool ServerNetwork::ProcessPackets(
             const float y = Wire::ReadFloat(p + 16);
             const float z = Wire::ReadFloat(p + 20);
 
-            if (s.alive &&
+            if (world.IsAlive(s.id) &&
                 std::isfinite(x) &&
                 std::isfinite(y) &&
                 std::isfinite(z) &&
@@ -666,7 +672,8 @@ bool ServerNetwork::ProcessPackets(
             const float x = Wire::ReadFloat(p + 12);
             const float z = Wire::ReadFloat(p + 16);
 
-            if (std::isfinite(x) &&
+            if (world.IsAlive(s.id) &&
+                std::isfinite(x) &&
                 std::isfinite(z) &&
                 std::abs(x) < 100.0f &&
                 std::abs(z) < 1000000.0f)
@@ -682,10 +689,14 @@ bool ServerNetwork::ProcessPackets(
 
                     s.x = x;
                     s.z = z;
+                    RoundController(*lobbyRoom, world).RecordPosition(s.id, s.z);
                     s.awaitingBananaPosition = false;
                 }
 
-                s.alive = s.alive && p[20] != 0;
+                if (p[20] == 0) {
+                    RoundController controller(*lobbyRoom, world);
+                    controller.RecordDeath(s.id, tick);
+                }
             }
         }
         else {
@@ -698,7 +709,7 @@ bool ServerNetwork::ProcessPackets(
             if (Wire::Newer(input, s.inputSeq)) {
                 s.inputSeq = input;
 
-                if (!s.alive || p[16] > 3) {
+                if (!world.IsAlive(s.id) || p[16] > 3) {
                     s.status = Wire::MoveStatus::Invalid;
                 }
                 else if (tick < s.nextMoveTick) {
@@ -776,6 +787,7 @@ bool ServerNetwork::ProcessPackets(
                     else {
                         s.x = x;
                         s.z = z;
+                        RoundController(*lobbyRoom, world).RecordPosition(s.id, s.z);
                         s.rotation = rotation;
 
                         s.nextMoveTick =
@@ -803,12 +815,13 @@ bool ServerNetwork::ProcessPackets(
 void ServerNetwork::Tick(std::uint64_t tick)
 {
     currentTick = tick;
+    if (lobbyRoom) {
+        lobbyRoom->recordTick = tick;
+    }
 
-    if (lobbyRoom &&
-        lobbyRoom->phase == ServicePhase::PLAYING)
+    if (lobbyRoom && lobbyRoom->phase == ServicePhase::PLAYING)
     {
-        items.AdvanceEffects(
-            tick % 3 == 0 ? 34 : 33);
+        items.AdvanceEffects(tick % 3 == 0 ? 34 : 33);
     }
 
     for (std::size_t i = sessionCount; i > 0; --i) {
@@ -822,7 +835,6 @@ void ServerNetwork::Tick(std::uint64_t tick)
         }
     }
 
-    TryBeginNextRound();
 
     if (lobbyRoom &&
         lobbyRoom->phase == ServicePhase::LOADING &&
@@ -847,10 +859,7 @@ void ServerNetwork::Tick(std::uint64_t tick)
                 continue;
             }
 
-            const auto z =
-                static_cast<std::int32_t>(
-                    std::floor(sessions[i].z));
-
+            const auto z = static_cast<std::int32_t>(std::floor(sessions[i].z));
             minZ = (std::min)(minZ, z - 30);
             maxZ = (std::max)(maxZ, z + 10);
         }
@@ -867,9 +876,7 @@ void ServerNetwork::Tick(std::uint64_t tick)
             (lobbyRoom->phase == ServicePhase::LOADING ||
                 lobbyRoom->phase == ServicePhase::PLAYING))
         {
-            PumpWorldPackets(
-                s,
-                static_cast<std::uint32_t>(tick));
+            PumpWorldPackets(s, static_cast<std::uint32_t>(tick));
 
             if (lobbyRoom->phase == ServicePhase::PLAYING &&
                 !s.snapshotting &&
@@ -884,12 +891,12 @@ void ServerNetwork::Tick(std::uint64_t tick)
                         actor.z <= s.z + 10;
 
                     // 사망한 참가자는 모든 생존자의 주변 정보 수신
-                    if (!s.alive) {
+                    if (!world.IsAlive(s.id)) {
                         visible = false;
 
                         for (std::size_t j = 0; j < sessionCount; ++j) {
                             const auto& target = sessions[j];
-                            if (target.alive &&
+                            if (world.IsAlive(target.id) &&
                                 IsRoundMember(target.id) &&
                                 actor.z >= target.z - 30 &&
                                 actor.z <= target.z + 10)
@@ -915,7 +922,7 @@ void ServerNetwork::Tick(std::uint64_t tick)
             lobbyRoom->phase == ServicePhase::PLAYING &&
             IsRoundMember(s.id) &&
             s.checkBanana &&
-            s.alive)
+            world.IsAlive(s.id))
         {
             bool ready = true;
 
@@ -938,13 +945,9 @@ void ServerNetwork::Tick(std::uint64_t tick)
 
                 BananaHitResult hit{};
 
-                const auto x =
-                    static_cast<std::int32_t>(
-                        std::round(s.x));
+                const auto x = static_cast<std::int32_t>(std::round(s.x));
 
-                const auto z =
-                    static_cast<std::int32_t>(
-                        std::round(s.z));
+                const auto z =static_cast<std::int32_t>(std::round(s.z));
 
                 items.ResolveBananaHit(s.id, x, z, &hit);
 
@@ -959,9 +962,7 @@ void ServerNetwork::Tick(std::uint64_t tick)
 
                     s.awaitingBananaPosition = hit.pushed;
 
-                    for (std::size_t j = 0;
-                        j < sessionCount;
-                        ++j)
+                    for (std::size_t j = 0; j < sessionCount; ++j)
                     {
                         if (IsRoundMember(sessions[j].id)) {
                             QueueBananaHit(
@@ -1016,16 +1017,24 @@ void ServerNetwork::Tick(std::uint64_t tick)
                 << " round=" << s.roundId
                 << " x=" << s.x
                 << " z=" << s.z
-                << " alive=" << s.alive
+                << " alive=" << world.IsAlive(s.id)
                 << '\n';
         }
     }
 
-    if (lobbyRoom &&
-        lobbyRoom->phase == ServicePhase::PLAYING)
+    if (lobbyRoom && lobbyRoom->phase == ServicePhase::PLAYING)
     {
-        PublishPlayers(
-            static_cast<std::uint32_t>(tick));
+        RoundController controller(*lobbyRoom, world);
+
+        for (std::size_t i = 0; i < sessionCount; ++i)
+        {
+            controller.RecordPosition(sessions[i].id, sessions[i].z);
+        }
+
+        controller.UpdateSurvival(tick);
+
+        PublishPlayers(static_cast<std::uint32_t>(tick));
+        TryFinishRound();
     }
 
     for (std::size_t i = sessionCount; i > 0; --i) {
@@ -1216,6 +1225,7 @@ void ServerNetwork::StopAccepting()
 
 void ServerNetwork::Shutdown()
 {
+    world.Players().fill(PlayerState{});
     for (std::size_t i = 0; i < sessionCount; ++i) {
         closesocket(sessions[i].socket);
         sessions[i] = TransportSession{};
@@ -1241,7 +1251,7 @@ void ServerNetwork::BeginLoading()
         return;
     }
 
-    RoundController controller(*lobbyRoom);
+    RoundController controller(*lobbyRoom, world);
 
     if (controller.BeginRound(false)) {
         StartRoundSnapshots();
@@ -1272,7 +1282,7 @@ void ServerNetwork::StartRoundSnapshots()
 
         session->z = 0;
         session->rotation = 0;
-        session->alive = true;
+       
 
         session->visualValid = false;
         session->visualTick = 0;
@@ -1281,7 +1291,6 @@ void ServerNetwork::StartRoundSnapshots()
         session->nextMoveTick = 0;
         session->status = Wire::MoveStatus::Idle;
 
-        session->resetVote = false;
         session->checkBanana = false;
         session->awaitingBananaPosition = false;
 
@@ -1312,12 +1321,21 @@ void ServerNetwork::StartRoundSnapshots()
 
 void ServerNetwork::SendStart(std::uint32_t tick)
 {
-    if (!lobbyRoom ||
-        lobbyRoom->phase != ServicePhase::PLAYING)
-    {
-        return;
-    }
+    if (!lobbyRoom || lobbyRoom->phase != ServicePhase::PLAYING)
+    { return; }
+    if (!lobbyRoom->recordClockStarted) {
+        for (std::size_t i = 0; i < lobbyRoom->records.size(); ++i)
+        {
+            const auto* session = FindSession(lobbyRoom->records[i].playerId);
 
+            if (session) {
+                lobbyRoom->records[i].startZ =
+                    session->z;
+            }
+        }
+
+        RoundController(*lobbyRoom, world).StartRecordClock(currentTick);
+    }
     std::vector<std::uint8_t> packet(19 + 13 * 3, 0);
 
     packet[3] = Wire::Start;
@@ -1379,7 +1397,6 @@ void ServerNetwork::PublishPlayers(std::uint32_t tick)
             continue;
         }
 
-        lobbyRoom->players[slot].alive = session->alive;
 
         const auto offset = packet.size();
         packet.resize(offset + Wire::PlayerStateRecordSize);
@@ -1391,7 +1408,7 @@ void ServerNetwork::PublishPlayers(std::uint32_t tick)
         Wire::WriteFloat(record + 8, session->z);
         Wire::WriteFloat(record + 12, session->rotation);
 
-        record[16] = session->alive ? 1 : 0;
+        record[16] = world.IsAlive(session->id) ? 1 : 0;
 
         const bool freshVisual =
             session->visualValid &&
@@ -1745,26 +1762,128 @@ void ServerNetwork::PumpWorldPackets(
     }
 }
 
-void ServerNetwork::TryBeginNextRound()
+void ServerNetwork::TryFinishRound()
 {
-    if (!lobbyRoom ||
-        lobbyRoom->phase != ServicePhase::PLAYING)
+    if (!lobbyRoom) {
+        return;
+    }
+
+    RoundController controller(*lobbyRoom, world);
+
+    if (!controller.ShouldFinish() ||
+        lobbyRoom->resultReady)
     {
         return;
     }
 
+    controller.UpdateSurvival(currentTick);
+
+    lobbyRoom->result =
+        controller.BuildResult(RankConfig{});
+
+    lobbyRoom->resultReady = true;
+
+    lobbyRoom->rematchVotes.fill(
+        RematchVote::UNSET
+    );
+
+    lobbyRoom->phase = ServicePhase::RESULT;
+
+    PublishResult();
+
+    std::cout
+        << "[RESULT] round="
+        << lobbyRoom->roundId
+        << '\n';
+}
+
+void ServerNetwork::PublishResult()
+{
+    if (!lobbyRoom ||
+        lobbyRoom->phase != ServicePhase::RESULT ||
+        !lobbyRoom->resultReady)
+    {
+        return;
+    }
+
+    auto& result = lobbyRoom->result;
+
+    std::size_t connectedCount = 0;
+
     for (const auto id : lobbyRoom->members) {
         const auto* session = FindSession(id);
 
-        if (!session || !session->resetVote) {
-            return;
+        if (session &&
+            !session->drop &&
+            session->roundId == result.roundId)
+        {
+            ++connectedCount;
         }
     }
 
-    RoundController controller(*lobbyRoom);
+    const bool hasDeparted =
+        std::any_of(
+            result.entries.begin(),
+            result.entries.end(),
+            [](const ResultEntry& entry) {
+                return entry.departed;
+            }
+        );
 
-    if (controller.ReloadRound()) {
-        StartRoundSnapshots();
+    result.rematchAllowed =
+        connectedCount == 3 &&
+        !hasDeparted;
+
+    result.roomClosing =
+        !result.rematchAllowed;
+
+    std::vector<std::uint8_t> packet(
+        Wire::ResultSize,
+        0
+    );
+
+    packet[3] = Wire::Result;
+    packet[12] = result.rematchAllowed ? 1 : 0;
+    packet[13] = 3;
+
+    for (std::size_t i = 0; i < result.entries.size(); ++i)
+    {
+        const auto& entry = result.entries[i];
+
+        auto* data =
+            packet.data() +
+            14 +
+            i * Wire::ResultEntrySize;
+
+        Wire::Write32(data, entry.playerId);
+        Wire::Write32(data + 4, entry.distanceLanes);
+        Wire::Write32(data + 8, entry.survivalTicks);
+        Wire::Write32(data + 12, entry.itemsUsed);
+
+        data[16] = entry.slot;
+        data[17] = entry.rank;
+        data[18] = entry.departed ? 1 : 0;
+
+        std::cout
+            << " player=" << entry.playerId
+            << " slot=" << unsigned(entry.slot)
+            << " dist=" << entry.distanceLanes
+            << " ticks=" << entry.survivalTicks
+            << " used=" << entry.itemsUsed
+            << " rank=" << unsigned(entry.rank)
+            << " departed=" << entry.departed
+            << '\n';
+    }
+
+    for (const auto id : lobbyRoom->members) {
+        auto* session = FindSession(id);
+
+        if (session &&
+            !session->drop &&
+            session->roundId == result.roundId)
+        {
+            SendGame(*session, packet);
+        }
     }
 }
 
@@ -2215,7 +2334,7 @@ bool ServerNetwork::HandleItemRequest(
                         std::round(s.x)),
                     static_cast<std::int32_t>(
                         std::round(s.z)),
-                    s.alive
+                    world.IsAlive(s.id)
                 };
 
                 if (items.TryPickup(
@@ -2241,7 +2360,7 @@ bool ServerNetwork::HandleItemRequest(
         size == Wire::ItemSpawnRequestSize)
     {
         if (Wire::ReadRoundId(p) == s.roundId &&
-            s.alive &&
+            world.IsAlive(s.id) &&
             p[12] >= 1 &&
             p[12] <= 4 &&
             nextSpawnItemId != 0 &&
@@ -2299,48 +2418,37 @@ bool ServerNetwork::HandleItemRequest(
             }
         }
     }
-    else if (p[3] == Wire::ItemSwitch &&
-        size == Wire::ItemSwitchSize)
+    else if (p[3] == Wire::ItemSwitch && size == Wire::ItemSwitchSize)
     {
         if (Wire::ReadRoundId(p) == s.roundId) {
-            const bool accepted =
-                s.alive &&
-                items.SwitchSlot(s.id, p[12]);
-
+            const bool accepted = world.IsAlive(s.id) && items.SwitchSlot(s.id, p[12]);
             if (!QueueInventoryState(s, accepted)) {
                 return false;
             }
         }
     }
-    else if (p[3] == Wire::ItemUse &&
-        size == Wire::ItemUseSize)
+    else if (p[3] == Wire::ItemUse && size == Wire::ItemUseSize)
     {
         if (Wire::ReadRoundId(p) == s.roundId) {
             std::vector<TargetPlayer> players;
 
-            for (std::size_t i = 0;
-                i < sessionCount;
-                ++i)
+            for (std::size_t i = 0; i < sessionCount; ++i)
             {
                 if (IsRoundMember(sessions[i].id)) {
                     players.push_back({
                         sessions[i].id,
                         static_cast<std::int32_t>(
                             std::round(sessions[i].z * 1000)),
-                        sessions[i].alive
+                        world.IsAlive(sessions[i].id)
                         });
                 }
             }
 
-            const auto* inventory =
-                items.GetInventory(s.id);
+            const auto* inventory = items.GetInventory(s.id);
 
-            const auto kind = inventory
-                ? inventory->slots[inventory->selectedSlot]
-                : ItemKind::Empty;
+            const auto kind = inventory ? inventory->slots[inventory->selectedSlot] : ItemKind::Empty;
 
-            const auto target =
-                items.SelectAttackTarget(s.id, players);
+            const auto target = items.SelectAttackTarget(s.id, players);
 
             const bool needsTarget =
                 kind == ItemKind::ReverseControls ||
@@ -2349,9 +2457,7 @@ bool ServerNetwork::HandleItemRequest(
             TransportSession* targetSession = nullptr;
 
             if (needsTarget) {
-                for (std::size_t i = 0;
-                    i < sessionCount;
-                    ++i)
+                for (std::size_t i = 0; i < sessionCount; ++i)
                 {
                     if (IsRoundMember(sessions[i].id) &&
                         sessions[i].id == target)
@@ -2386,7 +2492,7 @@ bool ServerNetwork::HandleItemRequest(
             }
 
             const bool accepted =
-                s.alive &&
+                world.IsAlive(s.id) &&
                 targetReady &&
                 shieldReady &&
                 items.UseSelectedItem(
@@ -2396,6 +2502,11 @@ bool ServerNetwork::HandleItemRequest(
                     static_cast<std::int32_t>(
                         std::round(s.z)),
                     target);
+
+            if (accepted) {
+                RoundController(*lobbyRoom, world)
+                    .RecordItemUsed(s.id);
+            }
 
             if (!QueueInventoryState(s, accepted)) {
                 return false;

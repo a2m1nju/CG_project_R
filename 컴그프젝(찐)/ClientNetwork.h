@@ -9,6 +9,7 @@
 #include <set>
 #include <map>
 #include <string>
+#include "ResultTypes.h"
 
 enum class LobbyStage {
     Title,
@@ -16,7 +17,8 @@ enum class LobbyStage {
     Matching,
     Ready,
     Loading,
-    Playing
+    Playing,
+    Result
 };
 
 struct LobbyMemberView {
@@ -199,6 +201,10 @@ public:
     bool RequestSwitch(std::uint8_t slot);
     bool RequestUse();
     bool RequestSpawn(std::uint8_t itemKind);
+    const ResultData& GetResult() const
+    {
+        return result;
+    }
 
 private:
     bool Queue(const std::uint8_t* p, std::size_t size);
@@ -224,9 +230,10 @@ private:
 
     LobbyView lobby;
 
-    int HandleLobbyPacket(
-        const std::uint8_t* packet,
-        std::size_t size);
+    ResultData result{};
+
+    int HandleResultPacket(const std::uint8_t* packet, std::size_t size);
+    int HandleLobbyPacket(const std::uint8_t* packet, std::size_t size);
 
     std::uint32_t worldGeneration = 0;
     std::int32_t initialMinZ = 0, initialMaxZ = -1;
@@ -265,3 +272,4 @@ private:
 };
 
 extern ClientNetwork* activeClientNetwork;
+

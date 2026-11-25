@@ -20,6 +20,11 @@ std::array<std::uint8_t, 17> EncodeMovePacket(
 
 namespace Wire {
     constexpr std::size_t HeaderSize = 12;
+    constexpr std::uint8_t Result = 14;
+
+    constexpr std::size_t ResultEntrySize = 19;
+
+    constexpr std::size_t ResultSize = HeaderSize + 2 + ResultEntrySize * 3;
 
     // 기존 이동 메시지
     constexpr std::uint8_t State = 10;
