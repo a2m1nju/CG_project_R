@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>Off-screen player indicator</title>
+  <path d="M256 40 381 190 307 185 307 245 205 245 205 185 131 190Z"
+        fill="#2FAEFF" stroke="#102438" stroke-width="14"
+        stroke-linejoin="round"/>
+  <circle cx="256" cy="330" r="93" fill="none"
+          stroke="#102438" stroke-width="38"/>
+  <circle cx="256" cy="330" r="93" fill="none"
+          stroke="#2FAEFF" stroke-width="25"/>
+</svg>

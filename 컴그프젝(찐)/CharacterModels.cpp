@@ -150,7 +150,7 @@ static void drawSans(GLuint shader, const glm::mat4& model) {
     const glm::vec3 blue(0.08f, 0.55f, 0.91f);
     const glm::vec3 darkBlue(0.04f, 0.32f, 0.58f);
 
-    // Jacket, shirt, shorts and slippers.
+    // 재킷, 셔츠, 반바지와 슬리퍼.
     drawPart(shader, model, {0.0f, -0.17f, 0.02f}, {0.60f, 0.53f, 0.40f}, blue);
     drawPart(shader, model, {0.0f, -0.18f, -0.20f}, {0.28f, 0.44f, 0.04f}, bone);
     for (float side : {-1.0f, 1.0f}) {
@@ -170,7 +170,7 @@ static void drawSans(GLuint shader, const glm::mat4& model) {
                  {0.16f, 0.07f, 0.04f}, darkBlue);
     }
 
-    // Broad skull, eye sockets, triangular nose and toothy grin.
+    // 넓은 두개골, 눈구멍, 코와 이가 드러난 미소.
     drawPart(shader, model, {0.0f, 0.39f, -0.04f}, {0.78f, 0.59f, 0.58f}, bone);
     drawPart(shader, model, {0.0f, 0.14f, -0.10f}, {0.65f, 0.25f, 0.46f}, bone);
     for (float side : {-1.0f, 1.0f}) {
@@ -219,8 +219,7 @@ static void drawAccessories(GLuint shader, const glm::mat4& model,
                      {0.44f, 0.05f, 0.05f}, glm::vec3(0.95f, 0.73f, 0.24f));
         } else if (head == HeadAccessory::Halo) {
             const glm::vec3 gold(1.0f, 0.85f, 0.27f);
-            // The halo lies flat above the head. Overlapping segments form
-            // a continuous oval when viewed from any side.
+            // 머리 위에 고리를 수평으로 놓고 조각을 겹쳐 끊김 없이 이어 준다.
             const float ringY = id == CharacterId::Chicken ? 0.43f :
                 id == CharacterId::Rabbit ? 0.88f :
                 id == CharacterId::Cat ? 0.65f :

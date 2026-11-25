@@ -133,5 +133,8 @@
     <Image Include="logo.png">
       <Filter>소스 파일\리소스 파일</Filter>
     </Image>
+    <Image Include="assets\offscreen_player_indicator.png">
+      <Filter>소스 파일\리소스 파일</Filter>
+    </Image>
   </ItemGroup>
 </Project>

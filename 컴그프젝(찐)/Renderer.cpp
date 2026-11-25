@@ -5,6 +5,7 @@
 #include "Input.h"
 #include "CharacterModels.h"
 #include "GameViewport.h"
+#include "Texture.h"
 #include "BananaMesh.h"
 
 #define STB_TRUETYPE_IMPLEMENTATION
@@ -398,6 +399,216 @@ static glm::vec3 RemotePlayerPosition(const RemotePlayerView& player) {
             glm::mix(player.moveStartZ, player.z, t));
     }
     return glm::vec3(player.x, 0.5f, player.z);
+}
+
+
+struct OffscreenPlayerMarker {
+    CharacterId character;
+    AccessoryLoadout accessories;
+    glm::vec2 circle;
+    glm::vec2 direction;
+};
+
+static void beginIndicator2D(GLint& previousMatrixMode) {
+    glGetIntegerv(GL_MATRIX_MODE, &previousMatrixMode);
+    glUseProgram(0);
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glActiveTexture(GL_TEXTURE0);
+    glEnable(GL_TEXTURE_2D);
+    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_LIGHTING);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    gluOrtho2D(0, 1280, 0, 960);
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+}
+
+static void endIndicator2D(GLint previousMatrixMode) {
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(previousMatrixMode);
+}
+
+static void drawOffscreenPlayerIndicators(const glm::mat4& projection,
+                                          const glm::mat4& view,
+                                          const GameViewport& viewport) {
+    if (!activeClientNetwork || isGameOver || localBirdCarry.active) return;
+
+    constexpr float markerSize = 180.0f;
+    constexpr float edgeInset = 105.0f;
+    std::vector<OffscreenPlayerMarker> markers;
+    for (const auto& player : activeClientNetwork->GetPlayers()) {
+        if (player.id == activeClientNetwork->GetMyPlayerId() || !player.alive)
+            continue;
+
+        const glm::vec3 position = RemotePlayerPosition(player);
+        const glm::vec4 clip = projection * view *
+            glm::vec4(position + glm::vec3(0.0f, 0.20f, 0.0f), 1.0f);
+        if (clip.w > 0.0f &&
+            std::abs(clip.x) <= clip.w * 1.05f &&
+            std::abs(clip.y) <= clip.w * 1.05f)
+            continue;
+
+        glm::vec2 direction(clip.x, clip.y);
+        if (glm::length(direction) < 0.0001f)
+            direction = glm::vec2(0.0f, -1.0f);
+        else
+            direction = glm::normalize(direction);
+        const float distanceX = std::abs(direction.x) > 0.0001f
+            ? (640.0f - edgeInset) / std::abs(direction.x) : 1000000.0f;
+        const float distanceY = std::abs(direction.y) > 0.0001f
+            ? (480.0f - edgeInset) / std::abs(direction.y) : 1000000.0f;
+        const float distance = (std::min)(distanceX, distanceY);
+        markers.push_back({player.characterId, player.accessories,
+            glm::vec2(640.0f, 480.0f) + direction * distance, direction});
+    }
+    if (markers.empty()) return;
+
+    if (markers.size() == 2 &&
+        glm::length(markers[0].circle - markers[1].circle) < 120.0f) {
+        const glm::vec2 tangent(-markers[0].direction.y,
+                                 markers[0].direction.x);
+        markers[0].circle = glm::clamp(markers[0].circle - tangent * 55.0f,
+            glm::vec2(edgeInset), glm::vec2(1280.0f - edgeInset, 960.0f - edgeInset));
+        markers[1].circle = glm::clamp(markers[1].circle + tangent * 55.0f,
+            glm::vec2(edgeInset), glm::vec2(1280.0f - edgeInset, 960.0f - edgeInset));
+    }
+
+    glPushAttrib(GL_CURRENT_BIT | GL_ENABLE_BIT | GL_COLOR_BUFFER_BIT |
+        GL_DEPTH_BUFFER_BIT | GL_TEXTURE_BIT | GL_VIEWPORT_BIT);
+    static GLuint indicatorTexture = 0;
+    if (indicatorTexture == 0) {
+        loadTexture("assets/offscreen_player_indicator.png", &indicatorTexture);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    }
+
+    // 캐릭터를 불투명한 초상화로 그린 뒤 원형으로 잘라 표시한다.
+    static GLuint portraitFramebuffer = 0;
+    static GLuint portraitTexture = 0;
+    static GLuint portraitDepth = 0;
+    static bool portraitReady = false;
+    GLint previousFramebuffer = 0;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &previousFramebuffer);
+    glActiveTexture(GL_TEXTURE0);
+
+    if (portraitFramebuffer == 0) {
+        glGenFramebuffers(1, &portraitFramebuffer);
+        glGenTextures(1, &portraitTexture);
+        glBindTexture(GL_TEXTURE_2D, portraitTexture);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 128, 128, 0,
+            GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+        glGenRenderbuffers(1, &portraitDepth);
+        glBindRenderbuffer(GL_RENDERBUFFER, portraitDepth);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 128, 128);
+        glBindFramebuffer(GL_FRAMEBUFFER, portraitFramebuffer);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+            GL_TEXTURE_2D, portraitTexture, 0);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+            GL_RENDERBUFFER, portraitDepth);
+        portraitReady = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+        glBindFramebuffer(GL_FRAMEBUFFER, previousFramebuffer);
+    }
+    if (!portraitReady) {
+        glPopAttrib();
+        return;
+    }
+
+    const glm::mat4 portraitProjection =
+        glm::perspective(glm::radians(38.0f), 1.0f, 0.1f, 10.0f);
+    const glm::mat4 portraitView = glm::lookAt(
+        glm::vec3(0.55f, 0.70f, -2.5f), glm::vec3(0.0f, 0.10f, 0.0f),
+        glm::vec3(0.0f, 1.0f, 0.0f));
+    const glm::mat4 noShadow = glm::translate(glm::mat4(1.0f),
+        glm::vec3(0.0f, 0.0f, 4.0f));
+    const float portraitRadius = markerSize * 74.0f / 512.0f;
+    GLint previousMatrixMode = GL_MODELVIEW;
+    glUseProgram(shaderProgramID);
+    glBindVertexArray(vao);
+    glDisableVertexAttribArray(1);
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "projection"),
+        1, GL_FALSE, glm::value_ptr(portraitProjection));
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "view"),
+        1, GL_FALSE, glm::value_ptr(portraitView));
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgramID, "lightSpaceMatrix"),
+        1, GL_FALSE, glm::value_ptr(noShadow));
+    glUniform3f(glGetUniformLocation(shaderProgramID, "lightPos"),
+        1.0f, 3.0f, -3.0f);
+    glUniform1i(glGetUniformLocation(shaderProgramID, "useTexture"), 0);
+    glUniform1i(glGetUniformLocation(shaderProgramID, "enableSpotlight"), 0);
+    glUniform1i(glGetUniformLocation(shaderProgramID, "isGlitch"), 0);
+    for (const auto& marker : markers) {
+        glBindFramebuffer(GL_FRAMEBUFFER, portraitFramebuffer);
+        glViewport(0, 0, 128, 128);
+        glDisable(GL_SCISSOR_TEST);
+        glDepthMask(GL_TRUE);
+        glClearColor(0.04f, 0.08f, 0.13f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glUseProgram(shaderProgramID);
+        glBindVertexArray(vao);
+        glDisable(GL_BLEND);
+        glDisable(GL_CULL_FACE);
+        glEnable(GL_DEPTH_TEST);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        drawCharacter(shaderProgramID, glm::mat4(1.0f), marker.character,
+            marker.accessories.head, marker.accessories.back,
+            marker.accessories.face);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, previousFramebuffer);
+        glViewport(viewport.x, viewport.y, viewport.width, viewport.height);
+        beginIndicator2D(previousMatrixMode);
+        glBindTexture(GL_TEXTURE_2D, portraitTexture);
+        glBegin(GL_TRIANGLE_FAN);
+        glTexCoord2f(0.5f, 0.5f);
+        glVertex2f(marker.circle.x, marker.circle.y);
+        for (int i = 0; i <= 48; ++i) {
+            const float angle = glm::radians(i * 360.0f / 48.0f);
+            const float x = std::cos(angle);
+            const float y = std::sin(angle);
+            glTexCoord2f(0.5f + 0.5f * x, 0.5f + 0.5f * y);
+            glVertex2f(marker.circle.x + portraitRadius * x,
+                       marker.circle.y + portraitRadius * y);
+        }
+        glEnd();
+        endIndicator2D(previousMatrixMode);
+    }
+
+    beginIndicator2D(previousMatrixMode);
+    glBindTexture(GL_TEXTURE_2D, indicatorTexture);
+    const float halfSize = markerSize * 0.5f;
+    for (const auto& marker : markers) {
+        const glm::vec2 imageCenter = marker.circle +
+            marker.direction * (markerSize * 74.0f / 512.0f);
+        const float angle = glm::degrees(
+            std::atan2(-marker.direction.x, marker.direction.y));
+        glPushMatrix();
+        glTranslatef(imageCenter.x, imageCenter.y, 0.0f);
+        glRotatef(angle, 0.0f, 0.0f, 1.0f);
+        glBegin(GL_QUADS);
+        glTexCoord2f(0.0f, 0.0f); glVertex2f(-halfSize, -halfSize);
+        glTexCoord2f(1.0f, 0.0f); glVertex2f( halfSize, -halfSize);
+        glTexCoord2f(1.0f, 1.0f); glVertex2f( halfSize,  halfSize);
+        glTexCoord2f(0.0f, 1.0f); glVertex2f(-halfSize,  halfSize);
+        glEnd();
+        glPopMatrix();
+    }
+    endIndicator2D(previousMatrixMode);
+    glPopAttrib();
 }
 
 void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
@@ -1314,6 +1525,7 @@ GLvoid drawScene()
         }
     }
 
+	drawOffscreenPlayerIndicators(proj, view, viewport);
 	glutSwapBuffers();
 }
 
