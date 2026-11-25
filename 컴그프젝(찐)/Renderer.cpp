@@ -107,7 +107,7 @@ static void drawBirdCarry(GLuint shader, const BirdCarryAnimation& animation, Ch
     drawBird(shader, birdModel, seconds);
     glm::mat4 chickenModel = glm::translate(glm::mat4(1.0f), chickenPosition);
     chickenModel = glm::scale(chickenModel, glm::vec3(0.7f));
-    drawCharacter(shader, chickenModel, characterId, accessories.head, accessories.back);
+    drawCharacter(shader, chickenModel, characterId, accessories.head, accessories.back, accessories.face);
 }
 
 void drawShieldModel(GLuint shader, glm::mat4 baseModel) {
@@ -579,7 +579,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
         model = glm::rotate(model, glm::radians(playerRotation),
                             glm::vec3(0.0f, 1.0f, 0.0f));
         model = glm::scale(model, glm::vec3(0.7f));
-        drawCharacter(shader, model, myCharacter, myAccessories.head, myAccessories.back);
+        drawCharacter(shader, model, myCharacter, myAccessories.head, myAccessories.back, myAccessories.face);
     }
 
     if (activeClientNetwork) {
@@ -591,7 +591,7 @@ void renderObjects(GLuint shader, const glm::mat4& pvMatrix)
             model = glm::rotate(model, glm::radians(player.rotation),
                                 glm::vec3(0.0f, 1.0f, 0.0f));
             model = glm::scale(model, glm::vec3(0.7f));
-            drawCharacter(shader, model, player.characterId, player.accessories.head, player.accessories.back);
+            drawCharacter(shader, model, player.characterId, player.accessories.head, player.accessories.back, player.accessories.face);
         }
     }
 }
@@ -1016,7 +1016,8 @@ static void drawMenuScreen()
 			previewModel = glm::rotate(previewModel, glm::radians(GetLobbyPreviewAngle()),
 				glm::vec3(0.0f, 1.0f, 0.0f));
 		drawCharacter(shaderProgramID, previewModel, lobby->members[i].characterId,
-            lobby->members[i].accessories.head, lobby->members[i].accessories.back);
+            lobby->members[i].accessories.head, lobby->members[i].accessories.back,
+            lobby->members[i].accessories.face);
 	}
 
 	// 글자는 창 전체를 기준으로 표시
@@ -1047,29 +1048,35 @@ static void drawMenuScreen()
 			700.0f,
 			member.ready ? "READY" : "NOT READY",
 			0.45f);
-		const char* names[] = { "CHICKEN", "RABBIT", "CAT", "DOG", "BEAR", "PANDA", "TINO", "MONOKUMA", "KORILAKKUMA", "KUROMI" };
+		const char* names[] = { "CHICKEN", "RABBIT", "CAT", "DOG", "BEAR", "PANDA", "TINO", "MONOKUMA", "KORILAKKUMA", "KUROMI", "SANS" };
 		const unsigned id = static_cast<unsigned>(member.characterId);
 		drawMenuText(320.0f + i * 320.0f, 730.0f,
-			names[id < 10 ? id : 0], 0.45f);
+			names[id < CharacterCount ? id : 0], 0.45f);
 		if (member.id == activeClientNetwork->GetMyPlayerId()) {
 			drawMenuText(320.0f + i * 320.0f, 595.0f, "DRAG TO ROTATE", 0.32f);
-			const char* headNames[] = { "HEAD: NONE", "HEAD: RIBBON", "HEAD: CROWN" };
-			const char* backNames[] = { "BACK: NONE", "BACK: BACKPACK" };
+			const char* headNames[] = { "HEAD: NONE", "HEAD: RIBBON", "HEAD: CROWN",
+				"HEAD: HAT", "HEAD: HALO", "HEAD: HORNS", "HEAD: FLOWER" };
+			const char* backNames[] = { "BACK: NONE", "BACK: BACKPACK",
+				"BACK: ANGEL WINGS", "BACK: DEVIL WINGS" };
+			const char* faceNames[] = { "FACE: NONE", "FACE: GLASSES", "FACE: SUNGLASSES" };
 			const auto head = static_cast<unsigned>(member.accessories.head);
 			const auto back = static_cast<unsigned>(member.accessories.back);
+			const auto face = static_cast<unsigned>(member.accessories.face);
 			const float centerX = 320.0f + i * 320.0f;
-			drawMenuText(centerX, 760.0f, headNames[head < 3 ? head : 0], 0.38f);
-			drawMenuText(centerX, 805.0f, backNames[back < 2 ? back : 0], 0.38f);
+			drawMenuText(centerX, 760.0f, headNames[head < HeadAccessoryCount ? head : 0], 0.38f);
+			drawMenuText(centerX, 795.0f, backNames[back < BackAccessoryCount ? back : 0], 0.38f);
+			drawMenuText(centerX, 830.0f, faceNames[face < FaceAccessoryCount ? face : 0], 0.38f);
 			if (lobby->stage == LobbyStage::Ready && !member.ready &&
 				!lobby->readyPending && !lobby->leaving &&
 				!activeClientNetwork->IsCharacterSelectionPending()) {
-				if (CanEquipHead(member.characterId, HeadAccessory::Ribbon) ||
-					CanEquipHead(member.characterId, HeadAccessory::Crown)) {
-					drawMenuButton(centerX - 125.0f, 740.0f, 34.0f, 38.0f, "<");
-					drawMenuButton(centerX + 91.0f, 740.0f, 34.0f, 38.0f, ">");
+				drawMenuButton(centerX - 125.0f, 740.0f, 34.0f, 38.0f, "<");
+				drawMenuButton(centerX + 91.0f, 740.0f, 34.0f, 38.0f, ">");
+				drawMenuButton(centerX - 125.0f, 775.0f, 34.0f, 38.0f, "<");
+				drawMenuButton(centerX + 91.0f, 775.0f, 34.0f, 38.0f, ">");
+				if (member.characterId != CharacterId::Chicken) {
+					drawMenuButton(centerX - 125.0f, 810.0f, 34.0f, 38.0f, "<");
+					drawMenuButton(centerX + 91.0f, 810.0f, 34.0f, 38.0f, ">");
 				}
-				drawMenuButton(centerX - 125.0f, 785.0f, 34.0f, 38.0f, "<");
-				drawMenuButton(centerX + 91.0f, 785.0f, 34.0f, 38.0f, ">");
 			}
 		}
 		if (member.id == activeClientNetwork->GetMyPlayerId() &&

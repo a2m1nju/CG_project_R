@@ -264,6 +264,8 @@ void ServerNetwork::PublishLobby()
             static_cast<std::uint8_t>(session->accessories.head) : 0);
         packet.push_back(session ?
             static_cast<std::uint8_t>(session->accessories.back) : 0);
+        packet.push_back(session ?
+            static_cast<std::uint8_t>(session->accessories.face) : 0);
 
         packet.insert(
             packet.end(),
@@ -514,16 +516,18 @@ int ServerNetwork::HandleLobbyPacket(
     }
 
     if (type == LobbyWire::CharacterSelection) {
-        if (size != 19) return -1;
+        if (size != 20) return -1;
 
         const auto character = static_cast<CharacterId>(packet[16]);
         const auto head = static_cast<HeadAccessory>(packet[17]);
         const auto back = static_cast<BackAccessory>(packet[18]);
+        const auto face = static_cast<FaceAccessory>(packet[19]);
 
         if (room.phase != ServicePhase::READY_LOBBY ||
             !IsLobbyMember(session.id) ||
             !IsValidCharacterId(packet[16]) ||
-            !CanEquipHead(character, head) || !CanEquipBack(character, back))
+            !CanEquipHead(character, head) || !CanEquipBack(character, back) ||
+            !CanEquipFace(character, face))
         {
             SendLobbyError(session, LobbyWire::BadPhase, type, sequence);
             return 1;
@@ -539,7 +543,7 @@ int ServerNetwork::HandleLobbyPacket(
             return 1;
         }
         session.characterId = character;
-        session.accessories = {head, back};
+        session.accessories = {head, back, face};
         PublishLobby();
         return 1;
     }
@@ -1347,7 +1351,7 @@ void ServerNetwork::SendStart(std::uint32_t tick)
 
     roundStartTick = currentTick;
 
-    std::vector<std::uint8_t> packet(19 + 16 * 3, 0);
+    std::vector<std::uint8_t> packet(19 + 17 * 3, 0);
 
     packet[3] = Wire::Start;
     Wire::Write32(packet.data() + 12, tick);
@@ -1368,7 +1372,7 @@ void ServerNetwork::SendStart(std::uint32_t tick)
         }
 
         auto* record =
-            packet.data() + 19 + slot * 16;
+            packet.data() + 19 + slot * 17;
 
         Wire::Write32(record, session->id);
         record[4] = static_cast<std::uint8_t>(slot);
@@ -1378,6 +1382,7 @@ void ServerNetwork::SendStart(std::uint32_t tick)
         record[13] = static_cast<std::uint8_t>(session->characterId);
         record[14] = static_cast<std::uint8_t>(session->accessories.head);
         record[15] = static_cast<std::uint8_t>(session->accessories.back);
+        record[16] = static_cast<std::uint8_t>(session->accessories.face);
     }
 
     for (const auto id : lobbyRoom->members) {
@@ -1434,6 +1439,7 @@ void ServerNetwork::PublishPlayers(std::uint32_t tick)
         record[22] = static_cast<std::uint8_t>(session->characterId);
         record[23] = static_cast<std::uint8_t>(session->accessories.head);
         record[24] = static_cast<std::uint8_t>(session->accessories.back);
+        record[25] = static_cast<std::uint8_t>(session->accessories.face);
         ++count;
     }
 

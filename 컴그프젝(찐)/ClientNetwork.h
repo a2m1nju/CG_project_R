@@ -220,7 +220,7 @@ private:
     CharacterId requestedCharacterId = CharacterId::Chicken;
     AccessoryLoadout myAccessories;
     AccessoryLoadout requestedAccessories;
-    std::array<AccessoryLoadout, 10> savedAccessories{};
+    std::array<AccessoryLoadout, CharacterCount> savedAccessories{};
     bool characterSelectionPending = false;
 
     int HandleLobbyPacket(

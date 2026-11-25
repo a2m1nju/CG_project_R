@@ -343,20 +343,20 @@ void mouse(int button, int state, int x, int y)
 				const int id = static_cast<int>(lobby.members[i].characterId);
 				if (inside(centerX - 195.0f, 485.0f, 55.0f, 70.0f)) {
 					activeClientNetwork->RequestCharacterSelection(
-						static_cast<CharacterId>((id + 9) % 10));
+						static_cast<CharacterId>((id + CharacterCount - 1) % CharacterCount));
 					return;
 				}
 				if (inside(centerX + 140.0f, 485.0f, 55.0f, 70.0f)) {
 					activeClientNetwork->RequestCharacterSelection(
-					static_cast<CharacterId>((id + 1) % 10));
+					static_cast<CharacterId>((id + 1) % CharacterCount));
 				return;
 				}
 				if (inside(centerX - 125.0f, 740.0f, 34.0f, 38.0f) ||
 					inside(centerX + 91.0f, 740.0f, 34.0f, 38.0f)) {
 					const int direction = inside(centerX - 125.0f, 740.0f, 34.0f, 38.0f) ? -1 : 1;
-					for (int step = 1; step < 3; ++step) {
+					for (int step = 1; step < HeadAccessoryCount; ++step) {
 						const auto head = static_cast<HeadAccessory>(
-							(static_cast<int>(lobby.members[i].accessories.head) + direction * step + 6) % 3);
+							(static_cast<int>(lobby.members[i].accessories.head) + direction * step + HeadAccessoryCount) % HeadAccessoryCount);
 						if (CanEquipHead(lobby.members[i].characterId, head)) {
 							auto next = lobby.members[i].accessories;
 							next.head = head;
@@ -366,11 +366,21 @@ void mouse(int button, int state, int x, int y)
 					}
 					return;
 				}
-				if (inside(centerX - 125.0f, 785.0f, 34.0f, 38.0f) ||
-					inside(centerX + 91.0f, 785.0f, 34.0f, 38.0f)) {
+				if (inside(centerX - 125.0f, 775.0f, 34.0f, 38.0f) ||
+					inside(centerX + 91.0f, 775.0f, 34.0f, 38.0f)) {
+					const int direction = inside(centerX - 125.0f, 775.0f, 34.0f, 38.0f) ? -1 : 1;
 					auto next = lobby.members[i].accessories;
-					next.back = next.back == BackAccessory::None ?
-						BackAccessory::Backpack : BackAccessory::None;
+					next.back = static_cast<BackAccessory>(
+						(static_cast<int>(next.back) + direction + BackAccessoryCount) % BackAccessoryCount);
+					activeClientNetwork->RequestAppearanceSelection(lobby.members[i].characterId, next);
+					return;
+				}
+				if (inside(centerX - 125.0f, 810.0f, 34.0f, 38.0f) ||
+					inside(centerX + 91.0f, 810.0f, 34.0f, 38.0f)) {
+					const int direction = inside(centerX - 125.0f, 810.0f, 34.0f, 38.0f) ? -1 : 1;
+					auto next = lobby.members[i].accessories;
+					next.face = static_cast<FaceAccessory>(
+						(static_cast<int>(next.face) + direction + FaceAccessoryCount) % FaceAccessoryCount);
 					activeClientNetwork->RequestAppearanceSelection(lobby.members[i].characterId, next);
 					return;
 				}

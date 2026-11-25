@@ -135,19 +135,22 @@ bool ClientNetwork::RequestAppearanceSelection(CharacterId id, AccessoryLoadout 
         IsMyLobbyReady() || characterSelectionPending ||
         !IsValidCharacterId(static_cast<std::uint8_t>(id)) ||
         !CanEquipHead(id, accessories.head) ||
-        !CanEquipBack(id, accessories.back))
+        !CanEquipBack(id, accessories.back) ||
+        !CanEquipFace(id, accessories.face))
     {
         return false;
     }
     if (id == myCharacterId && accessories.head == myAccessories.head &&
-        accessories.back == myAccessories.back) return true;
+        accessories.back == myAccessories.back &&
+        accessories.face == myAccessories.face) return true;
 
     auto packet = LobbyWire::MakePacket(
-        LobbyWire::CharacterSelection, 7, ++sequence);
+        LobbyWire::CharacterSelection, 8, ++sequence);
     Wire::Write32(packet.data() + 12, lobby.epoch);
     packet[16] = static_cast<std::uint8_t>(id);
     packet[17] = static_cast<std::uint8_t>(accessories.head);
     packet[18] = static_cast<std::uint8_t>(accessories.back);
+    packet[19] = static_cast<std::uint8_t>(accessories.face);
     requestedCharacterId = id;
     requestedAccessories = accessories;
     characterSelectionPending = true;
@@ -238,7 +241,7 @@ int ClientNetwork::HandleLobbyPacket(
         std::vector<LobbyMemberView> members;
         std::size_t offset = 18;
         for (int i = 0; i < 3; ++i) {
-            if (offset + 10 > size) {
+            if (offset + 11 > size) {
                 return -1;
             }
             LobbyMemberView member;
@@ -248,13 +251,15 @@ int ClientNetwork::HandleLobbyPacket(
             const auto characterId = packet[offset + 7];
             const auto head = static_cast<HeadAccessory>(packet[offset + 8]);
             const auto back = static_cast<BackAccessory>(packet[offset + 9]);
+            const auto face = static_cast<FaceAccessory>(packet[offset + 10]);
             if (member.id == 0 ||
                 ready > 1 ||
                 !IsValidCharacterId(characterId) ||
                 !CanEquipHead(static_cast<CharacterId>(characterId), head) ||
                 !CanEquipBack(static_cast<CharacterId>(characterId), back) ||
+                !CanEquipFace(static_cast<CharacterId>(characterId), face) ||
                 nameLength > 24 ||
-                offset + 10 + nameLength > size)
+                offset + 11 + nameLength > size)
             {
                 return -1;
             }
@@ -265,13 +270,13 @@ int ClientNetwork::HandleLobbyPacket(
             }
             member.ready = ready != 0;
             member.characterId = static_cast<CharacterId>(characterId);
-            member.accessories = {head, back};
+            member.accessories = {head, back, face};
             member.nickname.assign(
-                reinterpret_cast<const char*>(packet + offset + 10),
+                reinterpret_cast<const char*>(packet + offset + 11),
                 nameLength);
 
             members.push_back(std::move(member));
-            offset += 10 + nameLength;
+            offset += 11 + nameLength;
         }
 
         if (offset != size) {
@@ -317,7 +322,8 @@ int ClientNetwork::HandleLobbyPacket(
                 if (characterSelectionPending &&
                     myCharacterId == requestedCharacterId &&
                     myAccessories.head == requestedAccessories.head &&
-                    myAccessories.back == requestedAccessories.back) {
+                    myAccessories.back == requestedAccessories.back &&
+                    myAccessories.face == requestedAccessories.face) {
                     characterSelectionPending = false;
                 }
                 break;
