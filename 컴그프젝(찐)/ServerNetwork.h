@@ -113,6 +113,7 @@ private:
     void SendStart(std::uint32_t tick);
     void PublishPlayers(std::uint32_t tick);
     void PublishResult();
+    void PublishRematchState();
 
     bool QueueWorldBegin(TransportSession& session);
     bool QueueWorldLane(TransportSession& session, const WorldLaneData& lane);

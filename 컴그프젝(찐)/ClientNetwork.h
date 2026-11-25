@@ -39,6 +39,9 @@ struct LobbyView {
     std::uint32_t epoch = 0;
 
     std::vector<LobbyMemberView> members;
+
+    // result.entries와 같은 순서로 보관하는 서버 확정 투표 상태
+    std::array<RematchVote, 3> rematchVotes{};
     std::string message;
 };
 
@@ -196,6 +199,10 @@ private:
     ResultData result{};
 
     int HandleResultPacket(
+        const std::uint8_t* packet,
+        std::size_t size);
+
+    int HandleRematchStatePacket(
         const std::uint8_t* packet,
         std::size_t size);
 

@@ -642,12 +642,14 @@ bool ServerNetwork::ProcessPackets(
             RematchController controller(*lobbyRoom, world);
             controller.SetVote(s.id, p[12] != 0);
 
+            PublishRematchState(); //서버에 저장된 투표 상태 전체 통지
+
             std::cout << "[REMATCH RECEIVED] round=" << round
                 << " player=" << s.id
                 << " agree=" << static_cast<unsigned>(p[12])
                 << '\n';
 
-            //다음 단계에서 REMATCH_STATE와 Evaluate 결과 처리 연결
+            //다음 단계에서 Evaluate 결과에 따른 재경기·방 종료 연결
             offset += size;
             continue;
         }
@@ -1820,6 +1822,58 @@ void ServerNetwork::PublishResult()
     }
 }
 
+void ServerNetwork::PublishRematchState()
+{
+    if (!lobbyRoom ||
+        lobbyRoom->phase != ServicePhase::RESULT)
+    {
+        return;
+    }
+
+    std::array<TransportSession*, 3> recipients{};
+
+    // 현재 경기 참가자 3명이 연결을 유지할 때만 투표 상태 전송
+    for (std::size_t i = 0; i < recipients.size(); ++i) {
+        const auto& player = world.Players()[i];
+        auto* session = FindSession(player.playerId);
+
+        if (player.departed ||
+            !IsRoundMember(player.playerId) ||
+            !session ||
+            session->socket == INVALID_SOCKET ||
+            session->drop ||
+            session->roundId != lobbyRoom->roundId)
+        {
+            return;
+        }
+
+        recipients[i] = session;
+    }
+
+    std::vector<std::uint8_t> packet(
+        Wire::RematchStateSize, 0);
+
+    packet[3] = Wire::RematchState;
+    packet[12] =
+        static_cast<std::uint8_t>(recipients.size());
+
+    for (std::size_t i = 0; i < recipients.size(); ++i) {
+        auto* data =
+            packet.data() + 13 + i * Wire::RematchVoteSize;
+
+        // SetVote에서 사용하는 서버 월드의 참가자 순서 재사용
+        Wire::Write32(data, world.Players()[i].playerId);
+
+        data[4] = static_cast<std::uint8_t>(
+            lobbyRoom->rematchVotes[i]);
+    }
+
+    for (auto* session : recipients) {
+        // 기존 경기 번호 설정과 송신 큐 처리 재사용
+        SendGame(*session, packet);
+    }
+}
+
 void ServerNetwork::TryFinishRound()
 {
     if (!lobbyRoom) { //연결된 방이 없으면 처리하지 않음
@@ -1836,6 +1890,7 @@ void ServerNetwork::TryFinishRound()
     lobbyRoom->phase = ServicePhase::RESULT; //결과 단계로 전환
 
     PublishResult(); //최종 플레이어 상태 다음에 결과 등록
+    PublishRematchState(); //결과 다음에 전원 미응답 상태 통지
 
     std::cout
         << "[RESULT] round=" << lobbyRoom->roundId

@@ -30,6 +30,12 @@ namespace Wire {
     constexpr std::uint8_t Rematch = 15;
     constexpr std::size_t RematchSize = HeaderSize + 1;
 
+    // FIX 재경기 투표 상태: 인원 수 + 참가자별 플레이어 번호·투표값
+    constexpr std::uint8_t RematchState = 16;
+    constexpr std::size_t RematchVoteSize = 5;
+    constexpr std::size_t RematchStateSize =
+        HeaderSize + 1 + RematchVoteSize * 3;
+
     // 기존 이동 메시지
     constexpr std::uint8_t State = 10;
     constexpr std::uint8_t WorldPosition = 11;

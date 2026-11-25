@@ -231,6 +231,7 @@ int ClientNetwork::HandleResultPacket(
     }
 
     result = received; //모든 기록 검사 후 한 번에 적용
+    lobby.rematchVotes.fill(RematchVote::UNSET); //이전 투표 상태 폐기
     lobby.stage = LobbyStage::Result;
     lobby.message = "RESULT";
     pendingInput = 0;
@@ -245,6 +246,85 @@ int ClientNetwork::HandleResultPacket(
             << " survivalTicks=" << entry.survivalTicks
             << " rank=" << static_cast<unsigned>(entry.rank)
             << " departed=" << entry.departed << '\n';
+    }
+
+    return 1;
+}
+
+int ClientNetwork::HandleRematchStatePacket(
+    const std::uint8_t* p, std::size_t size)
+{
+    if (p[3] != Wire::RematchState) {
+        return 0; //다른 메시지는 기존 수신 함수에서 처리
+    }
+
+    if (size != Wire::RematchStateSize || p[12] != 3) {
+        return -1; //FIX의 투표 상태 패킷 형식 검사
+    }
+
+    const auto receivedRound = Wire::ReadRoundId(p);
+
+    if (!lobby.joined ||
+        lobby.leaving ||
+        lobby.stage != LobbyStage::Result ||
+        receivedRound == 0 ||
+        receivedRound != roundId ||
+        receivedRound != result.roundId ||
+        !result.rematchAllowed ||
+        result.roomClosing)
+    {
+        return 1; //이전 경기 또는 현재 적용할 수 없는 투표 상태 무시
+    }
+
+    std::array<RematchVote, 3> received{};
+    std::array<bool, 3> seen{};
+
+    for (std::size_t i = 0; i < received.size(); ++i) {
+        const auto* data =
+            p + 13 + i * Wire::RematchVoteSize;
+
+        const auto playerId = Wire::Read32(data);
+        const auto value = data[4];
+
+        if (playerId == 0 ||
+            value > static_cast<std::uint8_t>(
+                RematchVote::DISAGREE))
+        {
+            return -1;
+        }
+
+        const auto it = std::find_if(
+            result.entries.begin(),
+            result.entries.end(),
+            [playerId](const ResultEntry& entry) {
+                return entry.playerId == playerId;
+            });
+
+        if (it == result.entries.end()) {
+            return -1; //현재 경기 결과에 없는 참가자 거절
+        }
+
+        const auto index = static_cast<std::size_t>(
+            it - result.entries.begin());
+
+        if (seen[index]) {
+            return -1; //같은 참가자의 중복 투표 항목 거절
+        }
+
+        seen[index] = true;
+        received[index] = static_cast<RematchVote>(value);
+    }
+
+    // 전체 항목 검사 후 결과 참가자 순서에 맞춰 한 번에 적용
+    lobby.rematchVotes = received;
+
+    std::cout << "[REMATCH STATE] round="
+        << receivedRound << '\n';
+
+    for (std::size_t i = 0; i < received.size(); ++i) {
+        std::cout << " player=" << result.entries[i].playerId
+            << " vote=" << static_cast<unsigned>(received[i])
+            << '\n';
     }
 
     return 1;
@@ -451,7 +531,11 @@ bool ClientNetwork::PollDisconnected() {
         if (size < Wire::HeaderSize || size > 1024) { Disconnect(); return true; }
         if (receiveBuffer.size() - offset < size) break;
         if (p[2] != 1) { Disconnect(); return true; }
-        const int resultStatus = HandleResultPacket(p, size);
+        const int rematchStatus =
+            HandleRematchStatePacket(p, size);
+
+        const int resultStatus = rematchStatus != 0
+            ? rematchStatus : HandleResultPacket(p, size);
 
         const int itemResult = resultStatus != 0
             ? resultStatus : HandleItemPacket(p, size);
