@@ -26,6 +26,10 @@ namespace Wire {
     constexpr std::size_t ResultEntrySize = 14;
     constexpr std::size_t ResultSize = HeaderSize + 2 + ResultEntrySize * 3;
 
+    // FIX 재경기 요청: 공통 헤더 + 동의 여부
+    constexpr std::uint8_t Rematch = 15;
+    constexpr std::size_t RematchSize = HeaderSize + 1;
+
     // 기존 이동 메시지
     constexpr std::uint8_t State = 10;
     constexpr std::uint8_t WorldPosition = 11;

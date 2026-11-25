@@ -583,6 +583,75 @@ bool ServerNetwork::ProcessPackets(
             continue;
         }
 
+        if (p[3] == Wire::Rematch) {
+            if (size != Wire::RematchSize || p[12] > 1) {
+                return false; //FIX의 재경기 요청 형식 검사
+            }
+
+            if (!lobbyRoom ||
+                lobbyRoom->phase != ServicePhase::RESULT ||
+                !IsRoundMember(s.id))
+            {
+                SendLobbyError(
+                    s, LobbyWire::BadPhase, p[3], seq);
+
+                offset += size;
+                continue;
+            }
+
+            if (round == 0 ||
+                round != lobbyRoom->roundId ||
+                round != s.roundId)
+            {
+                SendLobbyError(
+                    s, LobbyWire::Stale, p[3], seq);
+
+                offset += size;
+                continue;
+            }
+
+            // 사망한 관전자도 포함해 현재 경기 참가자 3명 연결 확인
+            const bool allConnected = std::all_of(
+                lobbyRoom->members.begin(),
+                lobbyRoom->members.end(),
+                [this](SessionId id) {
+                    const auto* session = FindSession(id);
+
+                    return id != 0 &&
+                        session &&
+                        session->socket != INVALID_SOCKET &&
+                        !session->drop &&
+                        session->roundId == lobbyRoom->roundId;
+                });
+
+            const bool hasDeparted = std::any_of(
+                world.Players().begin(), world.Players().end(),
+                [](const PlayerState& player) {
+                    return player.departed;
+                });
+
+            if (!allConnected || hasDeparted) {
+                SendLobbyError(
+                    s, LobbyWire::BadPhase, p[3], seq);
+
+                offset += size;
+                continue;
+            }
+
+            // 기존 투표 처리 함수 재사용
+            RematchController controller(*lobbyRoom, world);
+            controller.SetVote(s.id, p[12] != 0);
+
+            std::cout << "[REMATCH RECEIVED] round=" << round
+                << " player=" << s.id
+                << " agree=" << static_cast<unsigned>(p[12])
+                << '\n';
+
+            //다음 단계에서 REMATCH_STATE와 Evaluate 결과 처리 연결
+            offset += size;
+            continue;
+        }
+
         if (p[3] != Wire::Reset &&
             p[3] != Wire::WorldPosition &&
             p[3] != Wire::PickupRequest &&

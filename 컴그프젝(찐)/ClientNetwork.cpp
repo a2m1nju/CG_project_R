@@ -118,6 +118,42 @@ bool ClientNetwork::RequestReady(bool ready)
     lobby.readyPending = true;
     return Queue(packet.data(), packet.size());
 }
+bool ClientNetwork::RequestRematch(bool agree)
+{
+    if (!IsConnected() ||
+        lobby.stage != LobbyStage::Result ||
+        !lobby.joined ||
+        lobby.leaving ||
+        roundId == 0 ||
+        result.roundId != roundId ||
+        !result.rematchAllowed ||
+        result.roomClosing)
+    {
+        return false;
+    }
+
+    std::array<std::uint8_t, Wire::RematchSize> packet{};
+
+    // 결과를 받은 경기 번호로 재경기 의사 전송
+    Wire::Header(
+        packet.data(),
+        packet.size(),
+        Wire::Rematch,
+        ++sequence,
+        roundId);
+
+    packet[12] = agree ? 1 : 0;
+
+    if (!Queue(packet.data(), packet.size())) {
+        return false;
+    }
+
+    // 송신 큐 등록 결과이며 서버의 투표 확정 통지는 별도 처리
+    std::cout << "[REMATCH REQUEST] round=" << roundId
+        << " agree=" << agree << '\n';
+
+    return true;
+}
 bool ClientNetwork::RequestLeave()
 {
     if (!IsConnected() ||

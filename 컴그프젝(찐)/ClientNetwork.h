@@ -143,6 +143,7 @@ public:
 
     bool RequestJoin(const std::string& nickname);
     bool RequestReady(bool ready);
+    bool RequestRematch(bool agree);
     bool RequestLeave();
 
     bool IsMyLobbyReady() const
