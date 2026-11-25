@@ -43,6 +43,7 @@ public:
                           BananaHitResult* result = nullptr);
     bool RemoveBananaTrap(ObjectId trapId);
     void AdvanceEffects(std::uint32_t elapsedMs);
+    void ClearPlayerEffects(PlayerId playerId);
     std::vector<PickupResult> ResolvePickups(const std::vector<PickupPlayer>& players);
     bool TryPickup(ObjectId objectId, const PickupPlayer& player, PickupResult& result);
     bool ApplyConfirmedPickup(PlayerId playerId, std::uint8_t slot, ItemKind kind);

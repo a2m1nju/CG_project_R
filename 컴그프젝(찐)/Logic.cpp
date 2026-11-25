@@ -440,6 +440,7 @@ static void applyItemEvent(const ItemEvent& event)
 	}
 
 	if (event.kind == ItemEvent::Kind::Effect) {
+		if (localBirdCarry.active || isGameOver) return;
 		if (event.itemKind ==
 			static_cast<std::uint8_t>(ItemKind::Shield))
 		{
@@ -972,6 +973,9 @@ void timer(int value)
 				localBirdCarry = BirdCarryAnimation{};
 				localBirdCarry.active = true;
 				localBirdCarry.origin = playerPos;
+				localItems.ClearPlayerEffects(1);
+				itemFeedbackMessage.clear();
+				itemFeedbackUntilMs = 0;
 				isMoving = false;
 				bananaReboundPending = false;
 				playerTargetPos = playerPos;

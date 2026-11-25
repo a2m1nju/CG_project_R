@@ -888,6 +888,7 @@ void ServerNetwork::Tick(std::uint64_t tick)
                 ScreenChase::Overtaken(session.z, elapsedTicks)) {
                 session.alive = false;
                 session.deathReason = Wire::DeathReason::Chase;
+                items.ClearPlayerEffects(session.id);
             }
         }
 

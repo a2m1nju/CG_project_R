@@ -98,6 +98,11 @@ void ItemSystem::AdvanceEffects(std::uint32_t elapsedMs) {
     }
 }
 
+void ItemSystem::ClearPlayerEffects(PlayerId playerId) {
+    const auto found = playerEffects_.find(playerId);
+    if (found != playerEffects_.end()) found->second = PlayerEffectState{};
+}
+
 std::vector<PickupResult> ItemSystem::ResolvePickups(
     const std::vector<PickupPlayer>& players) {
     std::vector<PickupPlayer> ordered = players;
