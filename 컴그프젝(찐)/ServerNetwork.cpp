@@ -272,7 +272,7 @@ void ServerNetwork::PublishLobby()
     }
 }
 
-void ServerNetwork::CloseLobby(SessionId leaverId)
+void ServerNetwork::CloseLobby(SessionId leaverId, std::uint8_t reason)
 {
     if (!lobbyRoom || !IsLobbyMember(leaverId)) {
         return;
@@ -292,9 +292,11 @@ void ServerNetwork::CloseLobby(SessionId leaverId)
                 static_cast<std::size_t>(
                     it - room.members.begin());
 
-            world.Players()[index].alive = false;
-            world.Players()[index].departed = true;
-            room.records[index].departed = true;
+            RoundController controller(room, world);
+            if (const auto* session = FindSession(leaverId)) {
+                controller.RecordPosition(leaverId, session->z);
+            }
+            controller.RecordDeath(leaverId, currentTick, true);
             room.members[index] = 0;
         }
 
@@ -306,6 +308,7 @@ void ServerNetwork::CloseLobby(SessionId leaverId)
             auto packet = LobbyWire::MakePacket(
                 LobbyWire::RoomClose, 1);
 
+            packet[12] = reason;
             SendLobby(*leaver, std::move(packet));
         }
 
@@ -353,6 +356,7 @@ void ServerNetwork::CloseLobby(SessionId leaverId)
             auto packet = LobbyWire::MakePacket(
                 LobbyWire::RoomClose, 1);
 
+            packet[12] = reason;
             SendLobby(*session, std::move(packet));
         }
     }
@@ -583,8 +587,10 @@ bool ServerNetwork::ProcessPackets(
             continue;
         }
 
-        if (p[3] == Wire::Rematch) {
-            if (size != Wire::RematchSize || p[12] > 1) {
+        if (p[3] == Wire::Rematch || p[3] == Wire::RematchOpen) {
+            const bool opening = p[3] == Wire::RematchOpen;
+            if ((opening && size != Wire::HeaderSize) ||
+                (!opening && (size != Wire::RematchSize || p[12] > 1))) {
                 return false; //FIX의 재경기 요청 형식 검사
             }
 
@@ -638,18 +644,49 @@ bool ServerNetwork::ProcessPackets(
                 continue;
             }
 
+            const auto member = std::find(
+                lobbyRoom->members.begin(), lobbyRoom->members.end(), s.id);
+            const auto slot = static_cast<std::size_t>(
+                member - lobbyRoom->members.begin());
+
+            if (opening) {
+                if (!lobbyRoom->rematchOpened[slot]) {
+                    // 중복 알림으로 개인별 30초를 연장하지 않음
+                    lobbyRoom->rematchOpened[slot] = true;
+                    lobbyRoom->rematchOpenedTick[slot] = tick;
+                    std::cout << "[REMATCH OPEN] round=" << round
+                        << " player=" << s.id << " tick=" << tick << '\n';
+                }
+                offset += size;
+                continue;
+            }
+
+            if (!lobbyRoom->rematchOpened[slot]) {
+                SendLobbyError(s, LobbyWire::BadPhase, p[3], seq);
+                offset += size;
+                continue; //STATS 확인 전 투표 거절
+            }
+
+            if (tick - lobbyRoom->rematchOpenedTick[slot] >=
+                Wire::RematchTimeoutTicks)
+            {
+                CloseLobby(s.id, LobbyWire::CloseTimeout);
+                offset += size;
+                continue; //제한 시간이 지난 투표는 저장하지 않음
+            }
+
             // 기존 투표 처리 함수 재사용
             RematchController controller(*lobbyRoom, world);
             controller.SetVote(s.id, p[12] != 0);
 
             PublishRematchState(); //서버에 저장된 투표 상태 전체 통지
+            TryResolveRematch(); //비동의와 전원 동의는 즉시 처리
 
             std::cout << "[REMATCH RECEIVED] round=" << round
                 << " player=" << s.id
                 << " agree=" << static_cast<unsigned>(p[12])
                 << '\n';
 
-            //다음 단계에서 Evaluate 결과에 따른 재경기·방 종료 연결
             offset += size;
             continue;
         }
@@ -723,18 +760,12 @@ bool ServerNetwork::ProcessPackets(
 
                     s.x = x;
                     s.z = z;
+                    RoundController(*lobbyRoom, world).RecordPosition(s.id, s.z);
                     s.awaitingBananaPosition = false;
                 }
 
-                // 생존 상태는 서버 월드에만 보관한다. 사망 후 같은 경기에서 복구하지 않는다.
                 if (p[20] == 0) {
-                    if (auto* player = world.FindPlayer(s.id)) {
-                        if (player->alive) {
-                            player->alive = false;
-                            std::cout << "[DEAD] player=" << s.id
-                                << " round=" << s.roundId << '\n';
-                        }
-                    }
+                    RoundController(*lobbyRoom, world).RecordDeath(s.id, tick);
                 }
             }
         }
@@ -826,6 +857,7 @@ bool ServerNetwork::ProcessPackets(
                     else {
                         s.x = x;
                         s.z = z;
+                        RoundController(*lobbyRoom, world).RecordPosition(s.id, s.z);
                         s.rotation = rotation;
 
                         s.nextMoveTick =
@@ -873,6 +905,8 @@ void ServerNetwork::Tick(std::uint64_t tick)
     }
 
 
+
+    TryResolveRematch(); //미응답자의 개인별 제한 시간 검사
 
     if (lobbyRoom &&
         lobbyRoom->phase == ServicePhase::LOADING &&
@@ -1054,6 +1088,12 @@ void ServerNetwork::Tick(std::uint64_t tick)
     if (lobbyRoom &&
         lobbyRoom->phase == ServicePhase::PLAYING)
     {
+        RoundController controller(*lobbyRoom, world);
+        for (std::size_t i = 0; i < sessionCount; ++i) {
+            controller.RecordPosition(sessions[i].id, sessions[i].z);
+        }
+        controller.UpdateSurvival(tick);
+
         PublishPlayers(
             static_cast<std::uint32_t>(tick));
 
@@ -1340,12 +1380,21 @@ void ServerNetwork::StartRoundSnapshots()
 
 void ServerNetwork::SendStart(std::uint32_t tick)
 {
-    if (!lobbyRoom ||
-        lobbyRoom->phase != ServicePhase::PLAYING)
-    {
-        return;
-    }
+    if (!lobbyRoom || lobbyRoom->phase != ServicePhase::PLAYING)
+    { return; }
+    if (!lobbyRoom->recordClockStarted) {
+        for (std::size_t i = 0; i < lobbyRoom->records.size(); ++i)
+        {
+            const auto* session = FindSession(lobbyRoom->records[i].playerId);
 
+            if (session) {
+                lobbyRoom->records[i].startZ =
+                    session->z;
+            }
+        }
+
+        RoundController(*lobbyRoom, world).StartRecordClock(currentTick);
+    }
     std::vector<std::uint8_t> packet(19 + 13 * 3, 0);
 
     packet[3] = Wire::Start;
@@ -1758,66 +1807,89 @@ void ServerNetwork::PumpWorldPackets(
 void ServerNetwork::PublishResult()
 {
     if (!lobbyRoom ||
-        lobbyRoom->phase != ServicePhase::RESULT)
+        lobbyRoom->phase != ServicePhase::RESULT ||
+        !lobbyRoom->resultReady)
     {
         return;
     }
+
+    auto& result = lobbyRoom->result;
 
     std::size_t connectedCount = 0;
 
     for (const auto id : lobbyRoom->members) {
         const auto* session = FindSession(id);
 
-        if (session && !session->drop &&
-            session->roundId == lobbyRoom->roundId)
+        if (session &&
+            !session->drop &&
+            session->roundId == result.roundId)
         {
-            ++connectedCount; //사망 후 연결을 유지하는 관전자도 포함
+            ++connectedCount;
         }
     }
 
-    if (connectedCount == 0) { //전송할 참가자가 없으면 생략
-        return;
-    }
-
-    // 기존 결과 구성 함수와 자료형 재사용
-    RoundController controller(*lobbyRoom, world);
-    const RankConfig config{};
-    ResultData result = controller.BuildResult(config);
-
-    const bool hasDeparted = std::any_of(
-        result.entries.begin(), result.entries.end(),
-        [](const ResultEntry& entry) {
-            return entry.departed;
-        });
+    const bool hasDeparted =
+        std::any_of(
+            result.entries.begin(),
+            result.entries.end(),
+            [](const ResultEntry& entry) {
+                return entry.departed;
+            }
+        );
 
     result.rematchAllowed =
-        connectedCount == result.entries.size() && !hasDeparted;
-    result.roomClosing = !result.rematchAllowed;
+        connectedCount == 3 &&
+        !hasDeparted;
 
-    std::vector<std::uint8_t> packet(Wire::ResultSize, 0);
+    result.roomClosing =
+        !result.rematchAllowed;
+
+    std::vector<std::uint8_t> packet(
+        Wire::ResultSize,
+        0
+    );
+
     packet[3] = Wire::Result;
     packet[12] = result.rematchAllowed ? 1 : 0;
-    packet[13] = static_cast<std::uint8_t>(result.entries.size());
+    packet[13] = 3;
 
-    // FIX 본문: 재경기 가능 여부 + 기록 수 + 이탈자를 포함한 참가자별 결과
-    for (std::size_t i = 0; i < result.entries.size(); ++i) {
+    for (std::size_t i = 0; i < result.entries.size(); ++i)
+    {
         const auto& entry = result.entries[i];
-        auto* data = packet.data() + 14 + i * Wire::ResultEntrySize;
+
+        auto* data =
+            packet.data() +
+            14 +
+            i * Wire::ResultEntrySize;
 
         Wire::Write32(data, entry.playerId);
         Wire::Write32(data + 4, entry.distanceLanes);
         Wire::Write32(data + 8, entry.survivalTicks);
-        data[12] = entry.rank;
-        data[13] = entry.departed ? 1 : 0;
+        Wire::Write32(data + 12, entry.itemsUsed);
+
+        data[16] = entry.slot;
+        data[17] = entry.rank;
+        data[18] = entry.departed ? 1 : 0;
+
+        std::cout
+            << " player=" << entry.playerId
+            << " slot=" << unsigned(entry.slot)
+            << " dist=" << entry.distanceLanes
+            << " ticks=" << entry.survivalTicks
+            << " used=" << entry.itemsUsed
+            << " rank=" << unsigned(entry.rank)
+            << " departed=" << entry.departed
+            << '\n';
     }
 
     for (const auto id : lobbyRoom->members) {
         auto* session = FindSession(id);
 
-        if (session && !session->drop &&
+        if (session &&
+            !session->drop &&
             session->roundId == result.roundId)
         {
-            SendGame(*session, packet); //기존 헤더 설정·송신 큐 사용
+            SendGame(*session, packet);
         }
     }
 }
@@ -1876,28 +1948,95 @@ void ServerNetwork::PublishRematchState()
 
 void ServerNetwork::TryFinishRound()
 {
-    if (!lobbyRoom) { //연결된 방이 없으면 처리하지 않음
+    if (!lobbyRoom) {
         return;
     }
 
     RoundController controller(*lobbyRoom, world);
 
-    if (!controller.ShouldFinish()) { //경기 중이고 생존자가 없을 때만 종료
+    if (!controller.ShouldFinish() ||
+        lobbyRoom->resultReady)
+    {
         return;
     }
 
-    lobbyRoom->rematchVotes.fill(RematchVote::UNSET); //이전 재경기 응답 초기화
-    lobbyRoom->phase = ServicePhase::RESULT; //결과 단계로 전환
+    controller.UpdateSurvival(currentTick);
 
-    PublishResult(); //최종 플레이어 상태 다음에 결과 등록
-    PublishRematchState(); //결과 다음에 전원 미응답 상태 통지
+    lobbyRoom->result =
+        controller.BuildResult(RankConfig{});
+
+    lobbyRoom->resultReady = true;
+
+    lobbyRoom->rematchVotes.fill(
+        RematchVote::UNSET
+    );
+
+    lobbyRoom->rematchOpened.fill(false);
+    lobbyRoom->rematchOpenedTick.fill(0);
+    lobbyRoom->phase = ServicePhase::RESULT;
+
+    PublishResult();
+    PublishRematchState();
+    TryResolveRematch();
 
     std::cout
-        << "[RESULT] round=" << lobbyRoom->roundId
-        << " all players dead.\n";
-
-    // 거리·생존 시간·순위 계산은 기록 담당 코드 연결 후 적용
+        << "[RESULT] round="
+        << lobbyRoom->roundId
+        << '\n';
 }
+void ServerNetwork::TryResolveRematch()
+{
+    if (!lobbyRoom || lobbyRoom->phase != ServicePhase::RESULT) {
+        return;
+    }
+
+    const bool allConnected = std::all_of(
+        lobbyRoom->members.begin(), lobbyRoom->members.end(),
+        [this](SessionId id) {
+            const auto* session = FindSession(id);
+            return id != 0 && session &&
+                session->socket != INVALID_SOCKET && !session->drop &&
+                session->roundId == lobbyRoom->roundId;
+        });
+
+    bool timedOut = false;
+    for (std::size_t i = 0; i < lobbyRoom->members.size(); ++i) {
+        if (lobbyRoom->rematchOpened[i] &&
+            lobbyRoom->rematchVotes[i] == RematchVote::UNSET &&
+            currentTick - lobbyRoom->rematchOpenedTick[i] >=
+                Wire::RematchTimeoutTicks)
+        {
+            timedOut = true;
+            break; //이미 응답한 참가자는 제외
+        }
+    }
+
+    RematchController controller(*lobbyRoom, world);
+    const auto decision = !allConnected || timedOut
+        ? RematchDecision::CLOSE : controller.Evaluate();
+    if (decision == RematchDecision::WAIT) {
+        return;
+    }
+    if (decision == RematchDecision::CLOSE) {
+        for (const auto id : lobbyRoom->members) {
+            if (id != 0) {
+                std::cout << "[REMATCH CLOSE] round=" << lobbyRoom->roundId
+                    << " timeout=" << timedOut << '\n';
+                CloseLobby(id, timedOut
+                    ? LobbyWire::CloseTimeout : LobbyWire::CloseNormal);
+                return;
+            }
+        }
+        return;
+    }
+
+    RoundController roundController(*lobbyRoom, world);
+    if (roundController.BeginRound(true)) {
+        StartRoundSnapshots(); //READY 생략, 기존 맵·아이템 초기화 재사용
+        std::cout << "[REMATCH LOADING] round=" << lobbyRoom->roundId << '\n';
+    }
+}
+
 void ServerNetwork::ResetWorld(std::uint32_t roundId)
 {
     world.Reset(roundId);
@@ -2526,6 +2665,10 @@ bool ServerNetwork::HandleItemRequest(
                     static_cast<std::int32_t>(
                         std::round(s.z)),
                     target);
+
+            if (accepted) { //서버가 승인한 아이템 사용만 집계
+                RoundController(*lobbyRoom, world).RecordItemUsed(s.id);
+            }
 
             if (!QueueInventoryState(s, accepted)) {
                 return false;

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <winsock2.h>
 #include "Protocol.h"
@@ -33,6 +33,8 @@ struct LobbyView {
     bool joined = false;
     bool readyPending = false;
     bool leaving = false;
+    bool rematchPromptOpen = false;
+    bool rematchSubmitted = false;
 
     std::uint16_t position = 0;
     std::uint16_t count = 0;
@@ -147,6 +149,9 @@ public:
     bool RequestJoin(const std::string& nickname);
     bool RequestReady(bool ready);
     bool RequestRematch(bool agree);
+    bool RequestRematchOpen();
+    int GetRematchSecondsLeft() const;
+    bool ConfirmResult();
     bool RequestLeave();
 
     bool IsMyLobbyReady() const
@@ -175,6 +180,10 @@ public:
     bool RequestSpawn(std::uint8_t itemKind);
 
 private:
+    bool CanRematch() const;
+    void ResetLobby(const char* message);
+    std::chrono::steady_clock::time_point rematchDeadline{};
+
     bool Queue(const std::uint8_t* p, std::size_t size);
     bool Flush();
 

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <array>
 #include <cstdint>
@@ -23,7 +23,7 @@ namespace Wire {
 
     // 경기 결과 메시지: 헤더 + 재경기 가능 여부·기록 수 + 참가자 기록 3개
     constexpr std::uint8_t Result = 14;
-    constexpr std::size_t ResultEntrySize = 14;
+    constexpr std::size_t ResultEntrySize = 19;
     constexpr std::size_t ResultSize = HeaderSize + 2 + ResultEntrySize * 3;
 
     // FIX 재경기 요청: 공통 헤더 + 동의 여부
@@ -32,6 +32,7 @@ namespace Wire {
 
     // FIX 재경기 투표 상태: 인원 수 + 참가자별 플레이어 번호·투표값
     constexpr std::uint8_t RematchState = 16;
+    constexpr std::uint8_t RematchOpen = 22; //STATS 확인 후 질문 시작
     constexpr std::size_t RematchVoteSize = 5;
     constexpr std::size_t RematchStateSize =
         HeaderSize + 1 + RematchVoteSize * 3;
@@ -92,6 +93,7 @@ namespace Wire {
     constexpr std::size_t ItemSpawnedSize = 25;
 
     constexpr std::uint32_t TickRate = 30;
+    constexpr std::uint64_t RematchTimeoutTicks = 30ull * TickRate;
     constexpr std::uint32_t MoveCooldownTicks = 3;
 
     enum class MoveStatus : std::uint8_t {
@@ -158,6 +160,9 @@ namespace LobbyWire {
     constexpr std::uint8_t Leave = 17;
     constexpr std::uint8_t RoomClose = 18;
     constexpr std::uint8_t Error = 21;
+
+    constexpr std::uint8_t CloseNormal = 0;
+    constexpr std::uint8_t CloseTimeout = 1;
 
     constexpr std::uint16_t Busy = 1;
     constexpr std::uint16_t BadPhase = 2;

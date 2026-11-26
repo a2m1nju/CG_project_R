@@ -118,42 +118,86 @@ bool ClientNetwork::RequestReady(bool ready)
     lobby.readyPending = true;
     return Queue(packet.data(), packet.size());
 }
-bool ClientNetwork::RequestRematch(bool agree)
+bool ClientNetwork::CanRematch() const
 {
-    if (!IsConnected() ||
-        lobby.stage != LobbyStage::Result ||
-        !lobby.joined ||
-        lobby.leaving ||
-        roundId == 0 ||
-        result.roundId != roundId ||
-        !result.rematchAllowed ||
-        result.roomClosing)
-    {
+    return IsConnected() && lobby.stage == LobbyStage::Result &&
+        lobby.joined && !lobby.leaving && roundId != 0 &&
+        result.roundId == roundId && result.rematchAllowed && !result.roomClosing;
+}
+
+bool ClientNetwork::RequestRematchOpen()
+{
+    if (!CanRematch() || lobby.rematchPromptOpen) {
         return false;
     }
-
-    std::array<std::uint8_t, Wire::RematchSize> packet{};
-
-    // 결과를 받은 경기 번호로 재경기 의사 전송
-    Wire::Header(
-        packet.data(),
-        packet.size(),
-        Wire::Rematch,
-        ++sequence,
-        roundId);
-
-    packet[12] = agree ? 1 : 0;
-
+    std::array<std::uint8_t, Wire::HeaderSize> packet{};
+    Wire::Header(packet.data(), packet.size(), Wire::RematchOpen, ++sequence, roundId);
     if (!Queue(packet.data(), packet.size())) {
         return false;
     }
-
-    // 송신 큐 등록 결과이며 서버의 투표 확정 통지는 별도 처리
-    std::cout << "[REMATCH REQUEST] round=" << roundId
-        << " agree=" << agree << '\n';
-
+    lobby.rematchPromptOpen = true;
+    lobby.rematchSubmitted = false;
+    // 화면 표시용이며 실제 제한 시간은 서버에서 검사
+    rematchDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    std::cout << "[REMATCH OPEN REQUEST] round=" << roundId << '\n';
     return true;
 }
+
+int ClientNetwork::GetRematchSecondsLeft() const
+{
+    if (!lobby.rematchPromptOpen || lobby.rematchSubmitted) {
+        return 0;
+    }
+    const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+        rematchDeadline - std::chrono::steady_clock::now()).count();
+    return remaining <= 0 ? 0 : static_cast<int>((remaining + 999) / 1000);
+}
+
+bool ClientNetwork::RequestRematch(bool agree)
+{
+    if (!CanRematch() || !lobby.rematchPromptOpen || lobby.rematchSubmitted) {
+        return false;
+    }
+    std::array<std::uint8_t, Wire::RematchSize> packet{};
+    Wire::Header(packet.data(), packet.size(), Wire::Rematch, ++sequence, roundId);
+    packet[12] = agree ? 1 : 0;
+    if (!Queue(packet.data(), packet.size())) {
+        return false;
+    }
+    lobby.rematchSubmitted = true; //확정 값은 서버 통지로만 갱신
+    std::cout << "[REMATCH REQUEST] round=" << roundId << " agree=" << agree << '\n';
+    return true;
+}
+
+void ClientNetwork::ResetLobby(const char* message)
+{
+    const bool keepResult = lobby.stage == LobbyStage::Result && result.roundId != 0;
+    ClearWorld();
+    lobby = LobbyView{};
+    lobby.message = message;
+    if (keepResult) {
+        result.rematchAllowed = false;
+        result.roomClosing = true;
+        lobby.stage = LobbyStage::Result; //RESULT·STATS를 확인할 때까지 보존
+    }
+    else {
+        result = ResultData{};
+    }
+}
+
+bool ClientNetwork::ConfirmResult()
+{
+    if (lobby.stage != LobbyStage::Result || !result.roomClosing || lobby.joined) {
+        return false;
+    }
+    result = ResultData{};
+    lobby = LobbyView{};
+    if (!IsConnected()) {
+        myPlayerId = 0;
+    }
+    return true;
+}
+
 bool ClientNetwork::RequestLeave()
 {
     if (!IsConnected() ||
@@ -172,80 +216,124 @@ bool ClientNetwork::RequestLeave()
     return Queue(packet.data(), packet.size());
 }
 int ClientNetwork::HandleResultPacket(
-    const std::uint8_t* p, std::size_t size)
+    const std::uint8_t* p,
+    std::size_t size
+)
 {
     if (p[3] != Wire::Result) {
-        return 0; //다른 메시지는 기존 수신 함수에서 처리
+        return 0;
     }
 
-    if (size != Wire::ResultSize || p[12] > 1 || p[13] != 3) {
-        return -1; //FIX의 결과 패킷 형식 검사
-    }
-
-    const auto receivedRound = Wire::ReadRoundId(p);
-
-    if (!lobby.joined || lobby.leaving || receivedRound == 0 ||
-        receivedRound != roundId || lobby.stage != LobbyStage::Playing)
+    if (size != Wire::ResultSize ||
+        p[12] > 1 ||
+        p[13] != 3)
     {
-        return 1; //이전 경기·이탈 후·중복 결과 무시
+        return -1;
+    }
+
+    const auto receivedRound =
+        Wire::ReadRoundId(p);
+
+    if (!lobby.joined ||
+        lobby.leaving ||
+        receivedRound == 0 ||
+        receivedRound != roundId ||
+        lobby.stage != LobbyStage::Playing)
+    {
+        return 1;
     }
 
     ResultData received{};
+
     received.roundId = receivedRound;
     received.rematchAllowed = p[12] != 0;
-    received.roomClosing = !received.rematchAllowed;
+    received.roomClosing =
+        !received.rematchAllowed;
 
-    for (std::size_t i = 0; i < received.entries.size(); ++i) {
-        const auto* data = p + 14 + i * Wire::ResultEntrySize;
+    for (std::size_t i = 0;
+        i < received.entries.size();
+        ++i)
+    {
+        const auto* data =
+            p + 14 + i * Wire::ResultEntrySize;
+
         auto& entry = received.entries[i];
 
         entry.playerId = Wire::Read32(data);
         entry.distanceLanes = Wire::Read32(data + 4);
         entry.survivalTicks = Wire::Read32(data + 8);
-        entry.rank = data[12];
-        entry.departed = data[13] != 0;
+        entry.itemsUsed = Wire::Read32(data + 12);
 
-        if (entry.playerId == 0 || entry.rank > 3 || data[13] > 1) {
+        entry.slot = data[16];
+        entry.rank = data[17];
+        entry.departed = data[18] != 0;
+
+        if (entry.playerId == 0 ||
+            entry.slot > 2 ||
+            entry.rank < 1 ||
+            entry.rank > 3 ||
+            data[18] > 1)
+        {
             return -1;
         }
 
         for (std::size_t j = 0; j < i; ++j) {
-            if (received.entries[j].playerId == entry.playerId) {
-                return -1; //중복 참가자 기록 거절
+            const auto& previous =
+                received.entries[j];
+
+            if (previous.playerId == entry.playerId ||
+                previous.slot == entry.slot)
+            {
+                return -1;
             }
         }
 
-        if (received.rematchAllowed && entry.departed) {
-            return -1; //이탈자가 있으면 재경기 불가
+        if (received.rematchAllowed &&
+            entry.departed)
+        {
+            return -1;
         }
     }
 
-    const bool containsSelf = std::any_of(
-        received.entries.begin(), received.entries.end(),
-        [this](const ResultEntry& entry) {
-            return entry.playerId == myPlayerId;
-        });
+    const bool containsSelf =
+        std::any_of(
+            received.entries.begin(),
+            received.entries.end(),
+            [this](const ResultEntry& entry) {
+                return entry.playerId == myPlayerId;
+            }
+        );
 
     if (!containsSelf) {
-        return -1; //내가 참가하지 않은 결과 거절
+        return -1;
     }
 
-    result = received; //모든 기록 검사 후 한 번에 적용
-    lobby.rematchVotes.fill(RematchVote::UNSET); //이전 투표 상태 폐기
+    result = received;
+    lobby.rematchVotes.fill(RematchVote::UNSET);
+    lobby.rematchPromptOpen = false;
+    lobby.rematchSubmitted = false;
+
     lobby.stage = LobbyStage::Result;
     lobby.message = "RESULT";
+
     pendingInput = 0;
     moveReady = false;
 
-    std::cout << "[RESULT RECEIVED] round=" << result.roundId
-        << " rematchAllowed=" << result.rematchAllowed << '\n';
+    std::cout
+        << "[RESULT RECEIVED] round="
+        << result.roundId
+        << '\n';
 
     for (const auto& entry : result.entries) {
-        std::cout << " player=" << entry.playerId
-            << " distance=" << entry.distanceLanes
-            << " survivalTicks=" << entry.survivalTicks
-            << " rank=" << static_cast<unsigned>(entry.rank)
-            << " departed=" << entry.departed << '\n';
+        std::cout
+            << " player=" << entry.playerId
+            << " slot=" << unsigned(entry.slot)
+            << " dist=" << entry.distanceLanes
+            << " ticks=" << entry.survivalTicks
+            << " used=" << entry.itemsUsed
+            << " rank=" << unsigned(entry.rank)
+            << " departed=" << entry.departed
+            << '\n';
     }
 
     return 1;
@@ -472,10 +560,8 @@ int ClientNetwork::HandleLobbyPacket(
         if (size != 13) {
             return -1;
         }
-        ClearWorld();
-        result = ResultData{}; //이전 경기 결과 폐기
-        lobby = LobbyView{};
-        lobby.message = "ROOM CLOSED. JOIN AGAIN TO PARTICIPATE.";
+        ResetLobby(packet[12] == LobbyWire::CloseTimeout
+            ? "REMATCH RESPONSE TIMED OUT" : "ROOM CLOSED");
 
         return 1;
     }
@@ -651,11 +737,10 @@ void ClientNetwork::ResetRound()
 }
 
 void ClientNetwork::Disconnect() {
-    ClearWorld();
-    result = ResultData{}; //이전 경기 결과 폐기
-    lobby = LobbyView{};
-    lobby.message = "SERVER DISCONNECTED";
-    myPlayerId = 0;
+    ResetLobby("SERVER DISCONNECTED");
+    if (lobby.stage != LobbyStage::Result) {
+        myPlayerId = 0; //결과 보존 중에는 본인 표시 유지
+    }
     receiveBuffer.clear(); 
     sendBuffer.clear();
     sequence = inputSeq = pendingInput = roundId = 0; pollingStarted = moveReady = false;

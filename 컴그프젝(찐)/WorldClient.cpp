@@ -1,4 +1,4 @@
-﻿#include "ClientNetwork.h"
+#include "ClientNetwork.h"
 #include <cmath>
 #include <iostream>
 #include <algorithm>
@@ -100,13 +100,19 @@ int ClientNetwork::HandleWorldPacket(
     if (p[3] == Wire::WorldBegin &&
         size == Wire::WorldBeginSize)
     {
+        const auto round = Wire::ReadRoundId(p);
+        const bool fromResult = lobby.stage == LobbyStage::Result;
+        if (fromResult && (!result.rematchAllowed || result.roomClosing ||
+            result.roundId != roundId || !Wire::Newer(round, roundId)))
+        {
+            return 1; //취소되었거나 이전 경기의 로딩 통지 무시
+        }
         if (lobby.stage != LobbyStage::Ready &&
-            lobby.stage != LobbyStage::Loading &&
+            lobby.stage != LobbyStage::Loading && !fromResult &&
             !(lobby.stage == LobbyStage::Playing && resetRequested))
         {
             return -1;
         }
-        const auto round = Wire::ReadRoundId(p);
         const auto generation = Wire::Read32(p + 12);
 
         const auto minZ =
@@ -142,6 +148,9 @@ int ClientNetwork::HandleWorldPacket(
             ClearWorld();
 
             result = ResultData{}; //새 경기의 이전 결과 폐기
+            lobby.rematchVotes.fill(RematchVote::UNSET);
+            lobby.rematchPromptOpen = false;
+            lobby.rematchSubmitted = false;
 
             lobby.stage = LobbyStage::Loading;
             lobby.message = "LOADING SHARED WORLD...";

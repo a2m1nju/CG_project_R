@@ -1,4 +1,6 @@
 #include "Room.h"
+#include <cmath>
+#include <limits>
 
 JoinResult MatchCoordinator::Enqueue(SessionId id) { // 서버가 참가자의 JOIN 요청을 처리할 때 호출
 	JoinResult result {};
@@ -101,7 +103,7 @@ void MatchCoordinator::CancelLoading(SessionId leaverId) {
 	room.members.fill(0); //기존상태로 초기화
 	room.ready.fill(false);
 	room.loaded.fill(false);
-	world.Players().fill(PlayerState{}); //취소한 경기의 참가자 상태 폐기
+	world.Players().fill(PlayerState{});
 	// 5. 월드 구현 시 초기 월드와 관련 입력·예약 작업 폐기
 
 	room.phase = ServicePhase::MATCHING; //상태변경
@@ -134,9 +136,14 @@ void MatchCoordinator::OnDisconnect(SessionId id) {
 	if (world.Players()[index].departed) { //중복 이탈 처리 방지
 		return;
 	}
-	if (room.phase == ServicePhase::PLAYING) { //경기 중 이탈 기록
-		world.Players()[index].alive = false;
-		world.Players()[index].departed = true;
+	if (room.phase == ServicePhase::PLAYING) {
+		RoundController controller(room, world);
+
+		controller.RecordDeath(
+			id,
+			room.recordTick,
+			true
+		);
 		room.records[index].departed = true;
 
 		// 기록 구현 시 alive 변경 전 생존 여부를 확인해 기록 동결
@@ -176,26 +183,40 @@ bool RoundController::BeginRound(bool rematch) { // 첫경기인지 재경기인
 	return true;
 }
 
-void RoundController::PrepareRound() {
-	++room.roundId; // 새로운 라운드 번호 발급
-	room.ready.fill(false); // 이전 준비·로딩 상태 초기화
+void RoundController::PrepareRound()
+{
+	++room.roundId;
+
+	room.ready.fill(false);
 	room.loaded.fill(false);
+	room.rematchVotes.fill(RematchVote::UNSET);
+	room.rematchOpened.fill(false);
+	room.rematchOpenedTick.fill(0);
 
-	// 5. 참가자와 라운드 기록 초기화
-	// 공유 월드·아이템 생성은 ServerNetwork의 StartRoundSnapshots에서 처리
-	for (std::size_t i = 0; i < world.Players().size(); ++i) {
-		world.Players()[i] = PlayerState{};
-		world.Players()[i].playerId = room.members[i];
-		world.Players()[i].alive = true;
+	room.roundStartTick = 0;
+	room.recordTick = 0;
+	room.recordClockStarted = false;
 
-		room.records[i] = RoundRecord{};
-		room.records[i].playerId = world.Players()[i].playerId;
+	room.resultReady = false;
+	room.result = ResultData{};
+
+	for (std::size_t i = 0; i < world.Players().size(); ++i)
+	{
+		auto& player = world.Players()[i];
+
+		// 참가자 식별 정보는 유지하고 경기 상태만 초기화
+		player.playerId = room.members[i];
+		player.alive = true;
+		player.departed = false;
+
+		auto& record = room.records[i];
+
+		record = RoundRecord{};
+		record.playerId = player.playerId;
+		record.slot = static_cast<std::uint8_t>(i);
 	}
 
-	// 6. 로딩 단계로 전환
 	room.phase = ServicePhase::LOADING;
-
-	// 7. 호출부에서 같은 roundId의 맵·아이템 스냅샷 전송
 }
 
 bool RoundController::MarkLoaded(PlayerId id, RoundId roundId) //로딩완료기록, 플레이로 전환
@@ -229,15 +250,20 @@ bool RoundController::MarkLoaded(PlayerId id, RoundId roundId) //로딩완료기
 	return true;
 }
 
-bool RoundController::ShouldFinish() const { //세명 다 죽었는지 확인
-	if (room.phase != ServicePhase::PLAYING) { // 경기 중에만 종료 조건 검사
+bool RoundController::ShouldFinish() const
+{
+	if (room.phase != ServicePhase::PLAYING) {
 		return false;
 	}
-	return std::none_of( // 살아 있는 참가자가 한 명도 없으면 종료
-		world.Players().begin(), world.Players().end(),
+
+	return std::none_of(
+		world.Players().begin(),
+		world.Players().end(),
 		[](const PlayerState& player) {
-			return player.alive && !player.departed;
-		});
+			return player.alive &&
+				!player.departed;
+		}
+	);
 }
 
 ResultData RoundController::BuildResult(const RankConfig& config)
@@ -245,23 +271,70 @@ ResultData RoundController::BuildResult(const RankConfig& config)
 	ResultData result{};
 	result.roundId = room.roundId;
 
-	for (std::size_t i = 0; i < room.records.size(); ++i) {
-		const RoundRecord& record = room.records[i];
-		ResultEntry& entry = result.entries[i];
+	for (std::size_t i = 0; i < room.records.size(); ++i)
+	{
+		const auto& record = room.records[i];
+		auto& entry = result.entries[i];
 
 		entry.playerId = record.playerId;
+		entry.slot = record.slot;
 		entry.distanceLanes = record.maxForwardLanes;
 		entry.survivalTicks = record.survivalTicks;
+		entry.itemsUsed = record.itemsUsed;
 		entry.departed = record.departed;
-		entry.rank = 0; // 순위 미산정
 	}
 
-	// 순위 정책 구현 시 config를 RankPolicy에 전달
-	(void)config;
+	const auto better = [&](const ResultEntry& a, const ResultEntry& b)
+		{
+			if (config.departedLast &&
+				a.departed != b.departed)
+			{
+				return !a.departed;
+			}
 
-	// 세션 관리 연결 시 현재 연결 참가자 수에 따라 설정
-	// 연결 3명: rematchAllowed=true, roomClosing=false
-	// 연결 1~2명: rematchAllowed=false, roomClosing=true
+			if (a.distanceLanes != b.distanceLanes) {
+				return a.distanceLanes >
+					b.distanceLanes;
+			}
+
+			return a.survivalTicks >
+				b.survivalTicks;
+		};
+
+	std::sort(
+		result.entries.begin(),
+		result.entries.end(),
+		[&](const ResultEntry& a,
+			const ResultEntry& b)
+		{
+			if (better(a, b)) {
+				return true;
+			}
+
+			if (better(b, a)) {
+				return false;
+			}
+
+			// 동률 기록의 표시 순서만 슬롯으로 고정.
+			// 공동 순위를 깨는 기준은 아님.
+			return a.slot < b.slot;
+		}
+	);
+
+	for (std::size_t i = 0; i < result.entries.size();++i)
+	{
+		auto& entry = result.entries[i];
+		entry.rank = static_cast<std::uint8_t>(i + 1);
+		if (config.jointTies && i > 0) {
+			const auto& previous = result.entries[i - 1];
+
+			if (!better(previous, entry) &&
+				!better(entry, previous))
+			{
+				entry.rank = previous.rank;
+			}
+		}
+	}
 
 	return result;
 }
@@ -333,4 +406,156 @@ RematchDecision RematchController::Evaluate() const {
 		return RematchDecision::RESTART;
 	}
 	return RematchDecision::WAIT; //미응답자가 있으면 대기
+}
+
+void RoundController::StartRecordClock(std::uint64_t tick)
+{
+	if (room.phase != ServicePhase::PLAYING ||
+		room.recordClockStarted)
+	{
+		return;
+	}
+
+	room.roundStartTick = tick;
+	room.recordTick = tick;
+	room.recordClockStarted = true;
+}
+
+void RoundController::RecordPosition(PlayerId id, float z)
+{
+	if (room.phase != ServicePhase::PLAYING ||
+		!room.recordClockStarted ||
+		!world.IsAlive(id) ||
+		!std::isfinite(z))
+	{
+		return;
+	}
+
+	for (auto& record : room.records) {
+		if (record.playerId != id ||
+			record.frozen)
+		{
+			continue;
+		}
+
+		const double distance =
+			(std::max)(
+				0.0,
+				static_cast<double>(record.startZ) - z
+				);
+
+		const auto lanes =
+			static_cast<std::uint32_t>(
+				(std::min)(
+					1000000.0,
+					std::floor(distance + .0001)
+					)
+				);
+
+		record.maxForwardLanes =
+			(std::max)(
+				record.maxForwardLanes,
+				lanes
+				);
+
+		return;
+	}
+}
+
+void RoundController::RecordDeath(PlayerId id, std::uint64_t tick, bool departed)
+{
+	if (room.phase != ServicePhase::PLAYING) {
+		return;
+	}
+
+	for (auto& record : room.records) {
+		if (record.playerId != id || id == 0) {
+			continue;
+		}
+
+		if (!record.frozen &&
+			room.recordClockStarted)
+		{
+			const auto elapsed = tick >= room.roundStartTick ? tick - room.roundStartTick : 0;
+			record.survivalTicks = static_cast<std::uint32_t>((std::min)(elapsed, static_cast<std::uint64_t>((std::numeric_limits<std::uint32_t>::max)()
+							)
+						)
+					);
+
+			record.deathTick = tick;
+			record.frozen = true;
+		}
+
+		record.departed = record.departed || departed;
+
+		if (auto* player = world.FindPlayer(id)) {
+			player->alive = false;
+
+			player->departed =
+				player->departed || departed;
+		}
+
+		return;
+	}
+}
+
+void RoundController::RecordItemUsed(PlayerId id)
+{
+	if (room.phase != ServicePhase::PLAYING ||
+		!room.recordClockStarted ||
+		!world.IsAlive(id))
+	{
+		return;
+	}
+
+	for (auto& record : room.records) {
+		if (record.playerId == id &&
+			!record.frozen &&
+			record.itemsUsed <
+			(std::numeric_limits<
+				std::uint32_t>::max)())
+		{
+			++record.itemsUsed;
+			return;
+		}
+	}
+}
+
+void RoundController::UpdateSurvival(std::uint64_t tick)
+{
+	if (room.phase != ServicePhase::PLAYING ||
+		!room.recordClockStarted)
+	{
+		return;
+	}
+
+	room.recordTick = tick;
+
+	for (auto& record : room.records) {
+		if (record.playerId == 0 ||
+			record.frozen)
+		{
+			continue;
+		}
+
+		if (!world.IsAlive(record.playerId)) {
+			const auto* player = world.FindPlayer(record.playerId);
+
+			RecordDeath(record.playerId, tick, !player || player->departed);
+		}
+		else {
+			const auto elapsed = tick >= room.roundStartTick ? tick - room.roundStartTick : 0;
+
+			record.survivalTicks =
+				static_cast<std::uint32_t>(
+					(std::min)(
+						elapsed,
+						static_cast<std::uint64_t>(
+							(std::numeric_limits<
+								std::uint32_t>::max)()
+							)
+						)
+					);
+		}
+	}
 }

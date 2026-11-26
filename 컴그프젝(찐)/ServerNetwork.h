@@ -98,7 +98,9 @@ private:
         std::uint32_t rejectedSequence);
 
     void PublishLobby();
-    void CloseLobby(SessionId leaverId);
+    void CloseLobby(
+        SessionId leaverId,
+        std::uint8_t reason = LobbyWire::CloseNormal);
 
     int HandleLobbyPacket(
         TransportSession& session,
@@ -114,6 +116,7 @@ private:
     void PublishPlayers(std::uint32_t tick);
     void PublishResult();
     void PublishRematchState();
+    void TryResolveRematch();
 
     bool QueueWorldBegin(TransportSession& session);
     bool QueueWorldLane(TransportSession& session, const WorldLaneData& lane);
