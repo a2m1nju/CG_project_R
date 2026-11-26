@@ -776,15 +776,19 @@ void DrawResultPlayer(std::uint32_t playerId, const glm::vec3& footPosition, flo
     }
 
     // 커스터마이징 통합 시 모델 선택은 이곳에서 연결.
-    glm::mat4 model = glm::translate(
-            glm::mat4(1),
-            footPosition +
-            glm::vec3(0, .5f * scale, 0)
-        );
+    glm::mat4 model = glm::translate(glm::mat4(1), footPosition + glm::vec3(0, .5f * scale, 0));
+
+    const double seconds = glutGet(GLUT_ELAPSED_TIME) * 0.001;
+
+    // 초당 20도: 약 18초에 한 바퀴.
+    const float angleDegrees =
+        static_cast<float>(
+            std::fmod(135.0 + seconds * 20.0, 360.0)
+            );
 
     model = glm::rotate(
         model,
-        glm::radians(135.0f),
+        glm::radians(angleDegrees),
         glm::vec3(0, 1, 0)
     );
 
