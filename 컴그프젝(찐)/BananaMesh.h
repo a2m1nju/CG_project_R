@@ -32,18 +32,34 @@ struct Flap {
     glm::vec2 direction;
     float length;
     float tint;
+    float rootStart;
+    float rootEnd;
 };
+
+inline float Unfold(float t) {
+    const float u = (std::min)(1.0f, t * 4.0f);
+    return u * u * (3.0f - 2.0f * u);
+}
 
 inline glm::vec3 FlapPoint(const Flap& flap, float t, float across) {
     const float distance = 0.14f + flap.length * t;
-    const float halfWidth = 0.20f * (1.0f - t) + 0.045f;
+    const float unfold = Unfold(t);
+    const float halfWidth = (0.20f * (1.0f - t) + 0.045f) *
+                            (0.44f + 0.56f * unfold);
     const float curl = t * t * t;
     const float y = -0.22f - 0.24f * std::sin(t * 1.57079633f) +
                     0.07f * curl * curl + 0.035f * across * across;
-    return glm::vec3(
+    const glm::vec3 openPoint(
         flap.direction.x * distance - flap.direction.y * across * halfWidth,
         y,
         flap.direction.y * distance + flap.direction.x * across * halfWidth);
+    // 세 갈래의 첫 단면은 하나의 원형 밑동을 정확히 공유한다.
+    // 바깥쪽 단면으로 서서히 옮겨 갈라지는 부분에 틈이 생기지 않게 한다.
+    const float angle = flap.rootStart +
+                        (flap.rootEnd - flap.rootStart) * (across + 1.0f) * 0.5f;
+    const glm::vec3 rootPoint(0.17f * std::cos(angle), y,
+                              0.17f * std::sin(angle));
+    return glm::mix(rootPoint, openPoint, unfold);
 }
 
 inline std::vector<Vertex> Build() {
@@ -80,10 +96,16 @@ inline std::vector<Vertex> Build() {
     }
 
     // 같은 밑동에서 세 갈래의 껍질이 서로 다른 방향으로 휘어지게 만든다.
+    constexpr float cut01 = 1.84f;
+    constexpr float cut12 = -0.45f;
+    constexpr float cut20 = -2.34f;
     const Flap flaps[] = {
-        { glm::normalize(glm::vec2(-1.0f, 0.05f)), 0.69f, 1.00f },
-        { glm::normalize(glm::vec2(0.83f, 0.55f)), 0.73f, 0.94f },
-        { glm::normalize(glm::vec2(0.08f, -1.0f)), 0.55f, 0.88f },
+        { glm::normalize(glm::vec2(-1.0f, 0.05f)), 0.69f, 1.00f,
+          cut01, cut20 + tau },
+        { glm::normalize(glm::vec2(0.83f, 0.55f)), 0.73f, 0.94f,
+          cut12, cut01 },
+        { glm::normalize(glm::vec2(0.08f, -1.0f)), 0.55f, 0.88f,
+          cut20, cut12 },
     };
     constexpr int steps = 10;
     constexpr int strips = 4;
@@ -99,7 +121,15 @@ inline std::vector<Vertex> Build() {
                 const glm::vec3 c = FlapPoint(flap, t1, u1);
                 const glm::vec3 d = FlapPoint(flap, t0, u1);
                 const float shade = 0.86f + 0.14f * (1.0f - std::abs((u0 + u1) * 0.5f));
-                AddQuad(vertices, a, b, c, d, peel * (flap.tint * shade));
+                const float tint0 = 1.0f + (flap.tint - 1.0f) * Unfold(t0);
+                const float tint1 = 1.0f + (flap.tint - 1.0f) * Unfold(t1);
+                // 단면별 색 차이도 밑동에서는 같게 맞춘다.
+                AddVertex(vertices, a, peel * (tint0 * shade));
+                AddVertex(vertices, b, peel * (tint1 * shade));
+                AddVertex(vertices, c, peel * (tint1 * shade));
+                AddVertex(vertices, a, peel * (tint0 * shade));
+                AddVertex(vertices, c, peel * (tint1 * shade));
+                AddVertex(vertices, d, peel * (tint0 * shade));
                 const glm::vec3 thickness(0.0f, -0.035f, 0.0f);
                 AddQuad(vertices, d + thickness, c + thickness,
                         b + thickness, a + thickness, underside);
