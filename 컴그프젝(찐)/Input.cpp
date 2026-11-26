@@ -8,7 +8,7 @@
 
 void specialKeyboard(int key, int x, int y)
 {
-	if (IsResultPreviewActive()) {
+	if (IsResultScreenActive()) {
 		return;
 	}
 
@@ -151,8 +151,8 @@ void specialKeyboard(int key, int x, int y)
 
 void keyboard(unsigned char key, int x, int y)
 {
-	if (IsResultPreviewActive()) {
-		HandleResultPreviewKey(key);
+	if (IsResultScreenActive()) {
+		HandleResultKey(key);
 		return;
 	}
 	if (clientScreen != ClientScreen::Playing) {
@@ -282,8 +282,8 @@ void keyboard(unsigned char key, int x, int y)
 
 void mouse(int button, int state, int x, int y)
 {
-	if (IsResultPreviewActive()) {
-		HandleResultPreviewMouse(button, state, x, y);
+	if (IsResultScreenActive()) {
+		HandleResultMouse(button, state, x, y);
 		return;
 	}
 	if (button != GLUT_LEFT_BUTTON || state != GLUT_DOWN) {

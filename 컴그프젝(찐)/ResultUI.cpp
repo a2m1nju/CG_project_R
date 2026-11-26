@@ -4,6 +4,7 @@
 #include "ClientNetwork.h"
 
 #include <array>
+#include <cstdio>
 
 namespace {
 
@@ -16,30 +17,41 @@ namespace {
     };
 
     bool active = false;
-
     Page page = Page::Podium;
 
-    struct Entry {
-        std::uint32_t playerId;
+    using Entry = ResultEntry;
 
-        int slot;           // 화면 표시 번호: 1P, 2P, 3P
-        int rank;           // 이미 결정된 순위
-        int distance;
-        int seconds;
-        int used;
+    std::array<Entry, 3> entries{};
 
-        int appearanceId;   // 나중에 커스터마이징 연결
-    };
+    std::uint32_t myPlayerId = 0;
+    std::uint32_t shownRound = 0;
 
-    // 1일차 임시 데이터.
-    // 실제 결과 패킷을 연결할 때 이 데이터 공급 부분을 바꾸면 됨.
-    const std::array<Entry, 3> entries = { {
-        {3, 3, 1, 92, 52, 2, 0},
-        {1, 1, 2, 80, 45, 3, 0},
-        {2, 2, 3, 65, 40, 6, 0}
-    } };
+    bool previewMode = false;
+    bool resultConfirmed = false;
 
-    constexpr std::uint32_t previewMyId = 1;
+    void ConfirmResult()
+    {
+        if (!active || resultConfirmed) {
+            return;
+        }
+
+        resultConfirmed = true;
+        glutPostRedisplay();
+    }
+
+    std::string Seconds(std::uint32_t ticks)
+    {
+        char buffer[32];
+
+        std::snprintf(
+            buffer,
+            sizeof(buffer),
+            "%.1fs",
+            static_cast<double>(ticks) / Wire::TickRate
+        );
+
+        return buffer;
+    }
 
     struct Rect {
         float x;
@@ -59,7 +71,6 @@ namespace {
         int h;
     };
 
-    // 창 크기가 달라도 16:9 화면 비율 유지.
     Viewport FitViewport()
     {
         const int ww = (std::max)(1, glutGet(GLUT_WINDOW_WIDTH));
@@ -79,7 +90,6 @@ namespace {
     void Begin2D()
     {
         glUseProgram(0);
-
         glBindVertexArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
 
@@ -88,6 +98,7 @@ namespace {
         glDisable(GL_TEXTURE_2D);
 
         glEnable(GL_BLEND);
+
         glBlendFunc(
             GL_SRC_ALPHA,
             GL_ONE_MINUS_SRC_ALPHA
@@ -128,17 +139,13 @@ namespace {
 
         for (unsigned char c : text) {
             if (c >= 32 && c < 128) {
-                width +=
-                    cdata[c - 32].xadvance * scale;
+                width += cdata[c - 32].xadvance * scale;
             }
         }
 
         return width;
     }
 
-    // cx: 글자 가로 중앙.
-    // baseline: 글자 기준선.
-    // 좌표는 결과 화면 전용 1280 x 720 기준.
     void Text(
         float cx,
         float baseline,
@@ -147,20 +154,29 @@ namespace {
         float maxWidth = 1100
     )
     {
-        const float width = TextWidth(text, scale);
+        const float width =
+            TextWidth(text, scale);
 
         if (width > maxWidth) {
             scale *= maxWidth / width;
         }
 
-        const float start = cx - TextWidth(text, scale) * .5f;
+        const float start =
+            cx - TextWidth(text, scale) * .5f;
 
         glActiveTexture(GL_TEXTURE0);
-
         glEnable(GL_TEXTURE_2D);
-        glBindTexture(GL_TEXTURE_2D, fontTexture);
 
-        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+        glBindTexture(
+            GL_TEXTURE_2D,
+            fontTexture
+        );
+
+        glTexEnvi(
+            GL_TEXTURE_ENV,
+            GL_TEXTURE_ENV_MODE,
+            GL_MODULATE
+        );
 
         glColor3f(1, 1, 1);
 
@@ -176,7 +192,6 @@ namespace {
 
             stbtt_aligned_quad q;
 
-            // 기존 initFont()의 폰트 이미지 크기는 512 x 512.
             stbtt_GetBakedQuad(
                 cdata,
                 512,
@@ -214,14 +229,10 @@ namespace {
         }
 
         glEnd();
-
         glDisable(GL_TEXTURE_2D);
     }
 
-    void Button(
-        const Rect& r,
-        const char* label
-    )
+    void Button(const Rect& r, const char* label)
     {
         Box(r, .27f, .40f, .49f);
 
@@ -258,8 +269,10 @@ namespace {
     std::string PlayerName(const Entry& e)
     {
         return
-            (e.playerId == previewMyId ? "YOU: " : "") +
-            std::to_string(e.slot) +
+            (e.playerId == myPlayerId ? "YOU: " : "") +
+            std::to_string(
+                static_cast<unsigned>(e.slot) + 1
+            ) +
             "P";
     }
 
@@ -292,13 +305,12 @@ namespace {
         );
     }
 
-    // 3D 위치에 맞춰 이름·순위 글자를 배치.
-    glm::vec2 ScreenPoint(glm::vec3 p)
+    glm::vec2 ScreenPoint(glm::vec3 position)
     {
         const glm::vec4 clip =
             PodiumProjection() *
             PodiumView() *
-            glm::vec4(p, 1);
+            glm::vec4(position, 1);
 
         return {
             (clip.x / clip.w + 1) * W * .5f,
@@ -306,14 +318,17 @@ namespace {
         };
     }
 
-    float PodiumX(int rank)
+    // 가로 위치는 표시 순서로 결정.
+    // 공동 순위여도 같은 위치에 겹치지 않음.
+    float PodiumX(std::size_t index)
     {
         return
-            rank == 1 ? 0.0f :
-            rank == 2 ? -3.0f :
+            index == 0 ? 0.0f :
+            index == 1 ? -3.0f :
             3.0f;
     }
 
+    // 높이는 실제 서버 순위로 결정.
     float PodiumHeight(int rank)
     {
         return
@@ -322,7 +337,6 @@ namespace {
             .8f;
     }
 
-    // 폰트에 없는 왕관 문자는 도형으로 그림.
     void Crown(float x, float y)
     {
         glDisable(GL_TEXTURE_2D);
@@ -356,16 +370,17 @@ namespace {
     {
         glEnable(GL_DEPTH_TEST);
         glDepthMask(GL_TRUE);
-
         glDisable(GL_BLEND);
 
         glUseProgram(shaderProgramID);
         glBindVertexArray(vao);
 
-        const glm::mat4 projection = PodiumProjection();
+        const glm::mat4 projection =
+            PodiumProjection();
 
-        const glm::mat4 view = PodiumView();
-        // 결과 화면이 기존 게임의 그림자 맵에 영향받지 않도록 함.
+        const glm::mat4 view =
+            PodiumView();
+
         const glm::mat4 light =
             glm::translate(
                 glm::mat4(1),
@@ -374,7 +389,7 @@ namespace {
 
         auto matrix = [](
             const char* name,
-            const glm::mat4& m
+            const glm::mat4& value
             )
             {
                 glUniformMatrix4fv(
@@ -384,7 +399,7 @@ namespace {
                     ),
                     1,
                     GL_FALSE,
-                    glm::value_ptr(m)
+                    glm::value_ptr(value)
                 );
             };
 
@@ -392,12 +407,38 @@ namespace {
         matrix("view", view);
         matrix("lightSpaceMatrix", light);
 
-        glUniform3f(glGetUniformLocation(shaderProgramID, "lightPos"), -3, 8, 7);
-        glUniform1i(glGetUniformLocation(shaderProgramID, "useTexture"),0);
-        glUniform1i(glGetUniformLocation(shaderProgramID, "enableSpotlight"), 0);
-        glUniform1i(glGetUniformLocation(shaderProgramID, "isGlitch"),0);
+        glUniform3f(
+            glGetUniformLocation(
+                shaderProgramID,
+                "lightPos"
+            ),
+            -3, 8, 7
+        );
 
-        // 시상대 바닥.
+        glUniform1i(
+            glGetUniformLocation(
+                shaderProgramID,
+                "useTexture"
+            ),
+            0
+        );
+
+        glUniform1i(
+            glGetUniformLocation(
+                shaderProgramID,
+                "enableSpotlight"
+            ),
+            0
+        );
+
+        glUniform1i(
+            glGetUniformLocation(
+                shaderProgramID,
+                "isGlitch"
+            ),
+            0
+        );
+
         drawPart(
             shaderProgramID,
             glm::mat4(1),
@@ -406,8 +447,13 @@ namespace {
             { .16f, .25f, .30f }
         );
 
-        for (const auto& e : entries) {
-            const float x = PodiumX(e.rank);
+        for (std::size_t i = 0;
+            i < entries.size();
+            ++i)
+        {
+            const auto& e = entries[i];
+
+            const float x = PodiumX(i);
             const float h = PodiumHeight(e.rank);
 
             const glm::vec3 color =
@@ -425,7 +471,6 @@ namespace {
                 color
             );
 
-            // 모델 출력은 이 함수 한 곳을 통해 호출.
             DrawResultPlayer(
                 e.playerId,
                 { x, h, 0 },
@@ -437,10 +482,17 @@ namespace {
 
         Text(640, 78, "RESULT", .85f);
 
-        for (const auto& e : entries) {
-            const float x = PodiumX(e.rank);
+        for (std::size_t i = 0;
+            i < entries.size();
+            ++i)
+        {
+            const auto& e = entries[i];
+
+            const float x = PodiumX(i);
             const float h = PodiumHeight(e.rank);
-            const auto name = ScreenPoint({ x, h + 1.65f, 0 });
+
+            const auto name =
+                ScreenPoint({ x, h + 1.65f, 0 });
 
             Text(
                 name.x,
@@ -450,31 +502,35 @@ namespace {
                 255
             );
 
-            const auto rank = ScreenPoint({ x, h * .47f, 1.0f });
+            const auto rank =
+                ScreenPoint({ x, h * .47f, 1.0f });
 
-            Text(rank.x, rank.y + 10, RankName(e.rank), .65f, 210);
+            Text(
+                rank.x,
+                rank.y + 10,
+                RankName(e.rank),
+                .65f,
+                210
+            );
 
             if (e.rank == 1) {
-                Crown(
-                    name.x,
-                    name.y - 65
-                );
+                Crown(name.x, name.y - 65);
             }
         }
 
         Button(nextButton, "NEXT >");
     }
 
-    // 최대 거리 / 최다 사용 카드.
-    // 같은 기록이면 해당 플레이어를 함께 표시.
     std::string Award(bool distance)
     {
-        int best = 0;
+        std::uint32_t best = 0;
 
         for (const auto& e : entries) {
             best = (std::max)(
                 best,
-                distance ? e.distance : e.used
+                distance
+                ? e.distanceLanes
+                : e.itemsUsed
                 );
         }
 
@@ -485,7 +541,11 @@ namespace {
         std::string names;
 
         for (const auto& e : entries) {
-            const int value = distance ? e.distance : e.used;
+            const auto value =
+                distance
+                ? e.distanceLanes
+                : e.itemsUsed;
+
             if (value != best) {
                 continue;
             }
@@ -494,7 +554,11 @@ namespace {
                 names += ", ";
             }
 
-            names += std::to_string(e.slot) + "P";
+            names +=
+                std::to_string(
+                    static_cast<unsigned>(e.slot) + 1
+                ) +
+                "P";
         }
 
         return
@@ -506,56 +570,152 @@ namespace {
     {
         Text(640, 78, "STATS", .85f);
 
-        Box({ 90, 130, 1100, 300 }, .09f, .17f, .23f);
-        Box({ 90, 130, 1100, 62 }, .16f, .28f, .34f);
-        const float cols[] = {270, 610, 820, 1040};
+        Box(
+            { 90, 130, 1100, 300 },
+            .09f, .17f, .23f
+        );
 
-        const char* labels[] = {"PLAYER", "DIST", "TIME", "USED"};
+        Box(
+            { 90, 130, 1100, 62 },
+            .16f, .28f, .34f
+        );
+
+        const float cols[] = {
+            270,
+            610,
+            820,
+            1040
+        };
+
+        const char* labels[] = {
+            "PLAYER",
+            "DIST",
+            "TIME",
+            "USED"
+        };
 
         for (int i = 0; i < 4; ++i) {
-            Text(cols[i], 174, labels[i], .50f, 240);
+            Text(
+                cols[i],
+                174,
+                labels[i],
+                .50f,
+                240
+            );
         }
 
-        for (std::size_t i = 0; i < entries.size(); ++i)
+        for (std::size_t i = 0;
+            i < entries.size();
+            ++i)
         {
             const auto& e = entries[i];
-            const float y = 251.0f + i * 76.0f;
-            const std::string name = std::string(RankName(e.rank)) + " " + std::to_string(e.slot) +
-                "P" + (e.playerId == previewMyId ? " (YOU)" : "");
 
-            Text(cols[0], y, name, .50f, 310);
-            Text(cols[1], y, std::to_string(e.distance));
-            Text(cols[2], y, std::to_string(e.seconds) + "s");
-            Text(cols[3], y, std::to_string(e.used));
+            const float y =
+                251.0f + i * 76.0f;
+
+            const std::string name =
+                std::string(RankName(e.rank)) +
+                " " +
+                std::to_string(
+                    static_cast<unsigned>(e.slot) + 1
+                ) +
+                "P" +
+                (e.playerId == myPlayerId ? " (YOU)" : "") +
+                (e.departed ? " LEFT" : "");
+
+            Text(
+                cols[0],
+                y,
+                name,
+                .50f,
+                310
+            );
+
+            Text(
+                cols[1],
+                y,
+                std::to_string(e.distanceLanes)
+            );
+
+            Text(
+                cols[2],
+                y,
+                Seconds(e.survivalTicks)
+            );
+
+            Text(
+                cols[3],
+                y,
+                std::to_string(e.itemsUsed)
+            );
         }
 
-        Box( { 130, 466, 470, 112 }, .14f, .25f, .30f);
-        Box({ 680, 466, 470, 112 }, .14f, .25f, .30f);
+        Box(
+            { 130, 466, 470, 112 },
+            .14f, .25f, .30f
+        );
+
+        Box(
+            { 680, 466, 470, 112 },
+            .14f, .25f, .30f
+        );
 
         Text(365, 506, "MOST DIST", .48f, 430);
         Text(915, 506, "MOST USED", .48f, 430);
+
         Text(365, 552, Award(true), .55f, 430);
         Text(915, 552, Award(false), .55f, 430);
 
         Button(backButton, "< BACK");
-        Button(okButton, "OK");
+
+        Button(
+            okButton,
+            resultConfirmed ? "CONFIRMED" : "OK"
+        );
     }
 
-}
+} // namespace
 
-bool IsResultPreviewActive()
+bool IsResultScreenActive()
 {
     return active;
 }
 
-void OpenResultPreview()
+void OpenResultScreen(const ResultData& data, std::uint32_t selfId)
 {
-    // 1일차 미리보기는 오프라인 타이틀에서만 허용.
-    if (clientScreen != ClientScreen::Title ||
-        activeClientNetwork != nullptr)
+    if (data.roundId == 0 || selfId == 0) {
+        return;
+    }
+
+    // 같은 경기 결과를 매 프레임 다시 초기화하지 않음.
+    if (active &&
+        !previewMode &&
+        shownRound == data.roundId &&
+        myPlayerId == selfId)
     {
         return;
     }
+
+    // 네트워크 자료형을 참조로 붙들지 않고 값으로 보관.
+    entries = data.entries;
+
+    // 서버가 정한 순위는 유지.
+    // 동률끼리의 표시 순서만 슬롯 기준으로 고정.
+    std::stable_sort(
+        entries.begin(),
+        entries.end(),
+        [](const Entry& a, const Entry& b) {
+            return a.rank != b.rank
+                ? a.rank < b.rank
+                : a.slot < b.slot;
+        }
+    );
+
+    shownRound = data.roundId;
+    myPlayerId = selfId;
+
+    previewMode = false;
+    resultConfirmed = false;
 
     page = Page::Podium;
     active = true;
@@ -563,9 +723,47 @@ void OpenResultPreview()
     glutPostRedisplay();
 }
 
+void OpenResultPreview()
+{
+    if (clientScreen != ClientScreen::Title ||
+        activeClientNetwork != nullptr)
+    {
+        return;
+    }
+
+    // 오프라인 F6 미리보기 전용 데이터.
+    entries = { {
+        {3, 92, 1560, 2, 2, 1, false},
+        {1, 80, 1350, 3, 0, 2, false},
+        {2, 65, 1200, 6, 1, 3, false}
+    } };
+
+    shownRound = 0;
+    myPlayerId = 1;
+
+    previewMode = true;
+    resultConfirmed = false;
+
+    page = Page::Podium;
+    active = true;
+
+    glutPostRedisplay();
+}
+
+void CloseResultScreen()
+{
+    active = false;
+    resultConfirmed = false;
+    previewMode = false;
+
+    shownRound = 0;
+    myPlayerId = 0;
+}
+
 void DrawResultPlayer(std::uint32_t playerId, const glm::vec3& footPosition, float scale)
 {
     const Entry* entry = nullptr;
+
     for (const auto& e : entries) {
         if (e.playerId == playerId) {
             entry = &e;
@@ -577,29 +775,47 @@ void DrawResultPlayer(std::uint32_t playerId, const glm::vec3& footPosition, flo
         return;
     }
 
-    // 나중에 entry->appearanceId에 따라
-    // 선택된 캐릭터 모델을 그리도록 이곳에서 연결.
+    // 커스터마이징 통합 시 모델 선택은 이곳에서 연결.
+    glm::mat4 model = glm::translate(
+            glm::mat4(1),
+            footPosition +
+            glm::vec3(0, .5f * scale, 0)
+        );
 
-    // 기존 닭 모델은 발바닥이 원점보다 0.5 아래에 있음.
-    // 따라서 발 위치가 시상대 위에 오도록 보정.
-    glm::mat4 model = glm::translate(glm::mat4(1), footPosition + glm::vec3(0, .5f * scale, 0));
-    model = glm::rotate(model, glm::radians(135.0f), glm::vec3(0, 1, 0));
-    model = glm::scale(model, glm::vec3(scale));
+    model = glm::rotate(
+        model,
+        glm::radians(135.0f),
+        glm::vec3(0, 1, 0)
+    );
+
+    model = glm::scale(
+        model,
+        glm::vec3(scale)
+    );
 
     drawChicken(shaderProgramID, model);
 }
 
-void DrawResultPreview()
+void DrawResultScreen()
 {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     glDisable(GL_SCISSOR_TEST);
     glDepthMask(GL_TRUE);
 
-    glViewport(0, 0, glutGet(GLUT_WINDOW_WIDTH), glutGet(GLUT_WINDOW_HEIGHT));
+    glViewport(
+        0,
+        0,
+        glutGet(GLUT_WINDOW_WIDTH),
+        glutGet(GLUT_WINDOW_HEIGHT)
+    );
 
-    glClearColor(.035f, .07f,.10f, 1);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClearColor(.035f, .07f, .10f, 1);
+
+    glClear(
+        GL_COLOR_BUFFER_BIT |
+        GL_DEPTH_BUFFER_BIT
+    );
 
     const auto v = FitViewport();
 
@@ -613,46 +829,54 @@ void DrawResultPreview()
     else {
         Stats();
     }
+
+    if (resultConfirmed) {
+        Text(
+            1100,
+            75,
+            "CONFIRMED",
+            .30f,
+            170
+        );
+    }
 }
 
-void HandleResultPreviewKey(unsigned char key)
+void HandleResultKey(unsigned char key)
 {
-    if (key == 27) {
-        // ESC: 미리보기 종료.
-        active = false;
+    if (key == 27 && previewMode) {
+        // ESC는 오프라인 미리보기만 종료.
+        CloseResultScreen();
     }
     else if (key == 13) {
-        // Enter: NEXT 또는 OK.
         if (page == Page::Podium) {
             page = Page::Stats;
         }
         else {
-            active = false;
+            ConfirmResult();
         }
     }
     else if (key == 8 &&
         page == Page::Stats)
     {
-        // Backspace: 순위 화면으로 돌아가기.
         page = Page::Podium;
     }
 
     glutPostRedisplay();
 }
 
-void HandleResultPreviewMouse(int button, int state, int x, int y)
+void HandleResultMouse(int button, int state, int x, int y)
 {
     if (button != GLUT_LEFT_BUTTON ||
         state != GLUT_DOWN)
     {
         return;
     }
+
     const auto v = FitViewport();
     const int top = glutGet(GLUT_WINDOW_HEIGHT) - v.y - v.h;
-    // 실제 창 좌표 → 결과 UI 좌표.
     const float ux = (x - v.x) * W / v.w;
-
     const float uy = (y - top) * H / v.h;
+
     if (page == Page::Podium) {
         if (Contains(nextButton, ux, uy)) {
             page = Page::Stats;
@@ -663,7 +887,7 @@ void HandleResultPreviewMouse(int button, int state, int x, int y)
             page = Page::Podium;
         }
         else if (Contains(okButton, ux, uy)) {
-            active = false;
+            ConfirmResult();
         }
     }
 

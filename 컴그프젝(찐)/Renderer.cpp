@@ -1085,8 +1085,8 @@ static void renderCenteredMessage(float centerY, const char* text)
 
 GLvoid drawScene()
 {
-	if (IsResultPreviewActive()) {
-		DrawResultPreview();
+	if (IsResultScreenActive()) {
+		DrawResultScreen();
 		glutSwapBuffers();
 		return;
 	}

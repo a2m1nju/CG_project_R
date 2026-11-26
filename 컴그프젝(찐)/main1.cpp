@@ -5,6 +5,7 @@
 #include "Renderer.h"
 #include "Logic.h"
 #include "Input.h"
+#include "ResultUI.h"
 
 #pragma comment(lib, "opengl32.lib")
 #pragma comment(lib, "glew32.lib")
@@ -62,39 +63,56 @@ namespace {
         if (activeClientNetwork->PollDisconnected()) {
             std::cout << "Server disconnected.\n";
         }
+
         const auto& lobby = activeClientNetwork->GetLobby();
+
         ClientScreen nextScreen = ClientScreen::Title;
+
         switch (lobby.stage) {
         case LobbyStage::Joining:
-        case LobbyStage::Matching:
-            nextScreen = ClientScreen::Matching;
+        case LobbyStage::Matching: nextScreen = ClientScreen::Matching;
             break;
+
         case LobbyStage::Loading:
-        case LobbyStage::Ready:
-            nextScreen = ClientScreen::Lobby;
+        case LobbyStage::Ready: nextScreen = ClientScreen::Lobby;
             break;
-        case LobbyStage::Playing:
-            nextScreen = ClientScreen::Playing;
+
+        case LobbyStage::Playing: nextScreen = ClientScreen::Playing;
             break;
+
         case LobbyStage::Result:
-            // 실제 결과 UI 연결은 3일차에 진행.
-            nextScreen = clientScreen;
+            OpenResultScreen(
+                activeClientNetwork->GetResult(),
+                activeClientNetwork->GetMyPlayerId()
+            );
+
+            nextScreen = ClientScreen::Result;
             break;
+
         default:
             nextScreen = ClientScreen::Title;
             break;
         }
+
+        // 새 로딩·방 종료·연결 종료 등에서는 결과 UI 정리.
+        if (lobby.stage != LobbyStage::Result) {
+            CloseResultScreen();
+        }
+
         if (nextScreen == ClientScreen::Title &&
             clientScreen != ClientScreen::Title)
         {
             introState = 2;
             logoX = logoTargetX;
         }
+
         if (nextScreen != ClientScreen::Title) {
             introState = 0;
         }
+
         clientScreen = nextScreen;
         glutPostRedisplay();
+        // 결과 화면에서도 네트워크 확인은 계속 유지.
         glutTimerFunc(16, PollServerConnection, value);
     }
 }

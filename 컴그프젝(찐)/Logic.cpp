@@ -660,10 +660,7 @@ static void applyItemEvent(const ItemEvent& event)
 	if (activeClientNetwork &&
 		event.playerId == activeClientNetwork->PlayerId())
 	{
-		const ItemKind kind = found->type == ITEM_SHIELD
-			? ItemKind::Shield
-			: static_cast<ItemKind>(
-				found->type - ITEM_REVERSE + 1);
+		const ItemKind kind = found->type == ITEM_SHIELD ? ItemKind::Shield : static_cast<ItemKind>(found->type - ITEM_REVERSE + 1);
 
 		if (localItems.ApplyConfirmedPickup(
 			1, event.slot, kind))
@@ -691,16 +688,12 @@ void resetGame()
 		generateLane(z);
 	}
 
-	spawnItem(
-		0,
-		-1,
-		static_cast<ItemType>(
-			ITEM_REVERSE + rand() % 3));
+	spawnItem(0, -1, static_cast<ItemType>(ITEM_REVERSE + rand() % 3));
 }
 
 void timer(int value)
 {
-	if (IsResultPreviewActive()) {
+	if (IsResultScreenActive()) {
 		glutPostRedisplay();
 		glutTimerFunc(16, timer, value);
 		return;

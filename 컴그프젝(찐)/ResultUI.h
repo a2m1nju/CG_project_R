@@ -1,26 +1,23 @@
 #pragma once
 
 #include "Common.h"
-#include <cstdint>
+#include "ResultTypes.h"
 
-bool IsResultPreviewActive();
+bool IsResultScreenActive();
 
 void OpenResultPreview();
 
-void DrawResultPreview();
-
-void HandleResultPreviewKey(unsigned char key);
-
-void HandleResultPreviewMouse(
-    int button,
-    int state,
-    int x,
-    int y
+void OpenResultScreen(
+    const ResultData& data,
+    std::uint32_t selfId
 );
 
-// footPosition은 모델 중심이 아니라 발바닥 위치.
-void DrawResultPlayer(
-    std::uint32_t playerId,
-    const glm::vec3& footPosition,
-    float scale
-);
+void CloseResultScreen();
+
+void DrawResultScreen();
+
+void HandleResultKey(unsigned char key);
+
+void HandleResultMouse(int button, int state, int x, int y);
+
+void DrawResultPlayer(std::uint32_t playerId, const glm::vec3& footPosition,float scale);
