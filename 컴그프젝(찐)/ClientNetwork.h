@@ -187,6 +187,9 @@ private:
     bool Queue(const std::uint8_t* p, std::size_t size);
     bool Flush();
 
+    std::string serverAddress;
+    std::uint16_t serverPort = 0;
+
     SOCKET serverSocket = INVALID_SOCKET;
     bool winsockInitialized = false;
 

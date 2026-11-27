@@ -525,6 +525,14 @@ static void applyItemEvent(const ItemEvent& event)
 
 	found->isCollected = true;
 }
+void returnToTitle()
+{
+    //결과 확인·방 해산 후 처음처럼 GAME START를 누를 수 있게 복구
+    clientScreen = ClientScreen::Title;
+    introState = 2;
+    logoX = logoTargetX;
+}
+
 void resetGame()
 {
 	if (activeClientNetwork) {

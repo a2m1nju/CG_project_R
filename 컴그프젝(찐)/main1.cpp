@@ -92,8 +92,7 @@ namespace {
         if (nextScreen == ClientScreen::Title &&
             clientScreen != ClientScreen::Title)
         {
-            introState = 2;
-            logoX = logoTargetX;
+            returnToTitle();
         }
         if (nextScreen != ClientScreen::Title) {
             introState = 0;

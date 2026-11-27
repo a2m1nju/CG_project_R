@@ -29,6 +29,10 @@ bool ClientNetwork::Connect(const char* serverIp, std::uint16_t port) {
         return false;
     }
 
+    //연결 종료 후에도 사용자가 GAME START로 같은 서버에 재접속 가능
+    serverAddress = serverIp;
+    serverPort = port;
+
     serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (serverSocket == INVALID_SOCKET) {
         std::cerr << "socket failed: " << WSAGetLastError() << '\n';
@@ -73,12 +77,17 @@ bool ClientNetwork::Queue(const std::uint8_t* p, std::size_t size) {
 }
 bool ClientNetwork::RequestJoin(const std::string& nickname)
 {
-    if (!IsConnected()) {
-        lobby.message = "NOT CONNECTED TO SERVER";
-        return false;
-    }
     if (lobby.stage != LobbyStage::Title) {
         return false;
+    }
+    if (!IsConnected()) {
+        //재경기 실패로 연결까지 끊겼다면 기존 주소로 접속 후 JOIN
+        const auto address = serverAddress;
+        const auto port = serverPort;
+        if (address.empty() || port == 0 || !Connect(address.c_str(), port)) {
+            lobby.message = "CONNECTION FAILED - PRESS GAME START TO RETRY";
+            return false;
+        }
     }
     if (nickname.empty() || nickname.size() > 24) {
         return false;

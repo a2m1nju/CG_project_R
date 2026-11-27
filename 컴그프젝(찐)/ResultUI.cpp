@@ -1,6 +1,7 @@
 ﻿#include "ResultUI.h"
 #include "Global.h"
 #include "Renderer.h"
+#include "Logic.h"
 #include "ClientNetwork.h"
 
 #include <array>
@@ -41,7 +42,7 @@ namespace {
         if (activeClientNetwork->GetResult().roomClosing) {
             if (activeClientNetwork->ConfirmResult()) {
                 CloseResultScreen();
-                clientScreen = ClientScreen::Title;
+                returnToTitle();
             }
         }
         // STATS의 OK를 누른 참가자만 개인별 응답 시간 시작

@@ -7,6 +7,7 @@ void generateLane(int z);
 bool spawnItem(int x, int z, ItemType type);
 void showItemFeedback(const char* message);
 void resetGame();
+void returnToTitle();
 void spawnParticles(glm::vec3 pos, glm::vec3 color, int count, float speedScale);
 void timer(int value);
 void initGame();
