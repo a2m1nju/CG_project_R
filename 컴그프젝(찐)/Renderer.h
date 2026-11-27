@@ -14,3 +14,5 @@ void drawTrain(const Train& train, GLuint shader);
 void drawItem(const Item& item, GLuint shader);
 void drawParticles(GLuint shader);
 void drawLogo();
+void drawPart(GLuint shader, glm::mat4 parentModel, glm::vec3 offset, glm::vec3 scale, glm::vec3 color);
+void drawChicken(GLuint shader, glm::mat4 baseModel);

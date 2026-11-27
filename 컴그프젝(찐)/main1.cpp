@@ -1,3 +1,4 @@
+#include "ResultUI.h"
 #include "ClientNetwork.h"
 #include "Common.h"
 #include "Global.h"
@@ -77,12 +78,16 @@ namespace {
             nextScreen = ClientScreen::Playing;
             break;
         case LobbyStage::Result:
-            // 결과 화면 담당 코드 연결 전까지 현재 화면 유지
-            nextScreen = clientScreen;
+            OpenResultScreen(activeClientNetwork->GetResult(),
+                activeClientNetwork->GetMyPlayerId());
+            nextScreen = ClientScreen::Result;
             break;
         default:
             nextScreen = ClientScreen::Title;
             break;
+        }
+        if (lobby.stage != LobbyStage::Result) {
+            CloseResultScreen(); // 새 라운드 로딩 또는 타이틀 복귀 시 종료
         }
         if (nextScreen == ClientScreen::Title &&
             clientScreen != ClientScreen::Title)

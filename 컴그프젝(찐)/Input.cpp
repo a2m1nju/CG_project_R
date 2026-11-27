@@ -1,3 +1,4 @@
+#include "ResultUI.h"
 #include "ClientNetwork.h"
 #include "Input.h"
 #include "Global.h"
@@ -142,24 +143,10 @@ void specialKeyboard(int key, int x, int y)
 
 void keyboard(unsigned char key, int x, int y)
 {
-	if (activeClientNetwork &&
-		activeClientNetwork->GetLobby().stage == LobbyStage::Result)
-	{
-		// 결과 단계에서는 Y / N으로 재경기 의사 전송
-		if (key == 'y' || key == 'Y') {
-			activeClientNetwork->RequestRematch(true);
-		}
-		else if (key == 'n' || key == 'N') {
-			activeClientNetwork->RequestRematch(false);
-		}
-		else if (key == 'q' || key == 'Q') {
-			glutLeaveMainLoop();
-		}
-
-		// 기존 게임 종료 후 아무 키로 재시작하는 처리 차단
-		return;
-	}
-
+    if (IsResultScreenActive()) {
+        HandleResultKey(key);
+        return;
+    }
 	if (clientScreen == ClientScreen::Lobby &&
 		(key == 'r' || key == 'R'))
 	{
@@ -280,6 +267,10 @@ void keyboard(unsigned char key, int x, int y)
 
 void mouse(int button, int state, int x, int y)
 {
+    if (IsResultScreenActive()) {
+        HandleResultMouse(button, state, x, y);
+        return;
+    }
 	if (button != GLUT_LEFT_BUTTON || state != GLUT_DOWN) {
 		return;
 	}

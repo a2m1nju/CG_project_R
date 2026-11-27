@@ -74,7 +74,8 @@ enum class ClientScreen {
     Title,
     Matching,
     Lobby,
-    Playing
+    Playing,
+    Result
 };
 
 extern ClientScreen clientScreen;

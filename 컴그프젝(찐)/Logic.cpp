@@ -1,3 +1,4 @@
+#include "ResultUI.h"
 #include "ClientNetwork.h"
 #include "Logic.h"
 #include "Global.h"
@@ -546,6 +547,11 @@ void resetGame()
 
 void timer(int value)
 {
+    if (IsResultScreenActive()) {
+        glutPostRedisplay();
+        glutTimerFunc(16, timer, value);
+        return;
+    }
 	if (activeClientNetwork) {
 		WorldEvent event;
 

@@ -1,3 +1,4 @@
+#include "ResultUI.h"
 #include "Renderer.h"
 #include "Global.h"
 #include "Logic.h" 
@@ -1008,6 +1009,11 @@ static void drawMenuScreen()
 
 GLvoid drawScene()
 {
+    if (IsResultScreenActive()) {
+        DrawResultScreen();
+        glutSwapBuffers();
+        return;
+    }
 	// 타이틀과 대기방에서는 게임 월드를 그리지 않음
 	if (clientScreen != ClientScreen::Playing) {
 		drawMenuScreen();
