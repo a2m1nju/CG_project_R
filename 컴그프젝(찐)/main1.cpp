@@ -7,12 +7,79 @@
 #include "Input.h"
 #include "GameViewport.h"
 
+#include <algorithm>
+#include <string>
+
 #pragma comment(lib, "opengl32.lib")
 #pragma comment(lib, "glew32.lib")
 #pragma comment(lib, "freeglut.lib")
 #pragma comment(lib, "winmm.lib")
 #pragma comment(lib, "glew32.lib")
 #pragma warning(disable: 4711 4710 4100)
+
+namespace {
+    enum class BackgroundTrack { Default, Sans };
+
+    BackgroundTrack currentBackgroundTrack = BackgroundTrack::Default;
+    bool backgroundMusicOpen = false;
+
+    void PlayBackgroundTrack(BackgroundTrack track)
+    {
+        if (backgroundMusicOpen && currentBackgroundTrack == track) {
+            return;
+        }
+
+        if (backgroundMusicOpen) {
+            mciSendStringA("close game_bgm", nullptr, 0, nullptr);
+            backgroundMusicOpen = false;
+        }
+
+        const char* filename = track == BackgroundTrack::Sans
+            ? "MEGALOVANIA_BGM.wav" : "bgm.wav";
+        const std::string command = std::string("open \"") + filename +
+            "\" type waveaudio alias game_bgm";
+        if (mciSendStringA(command.c_str(), nullptr, 0, nullptr) != 0) {
+            return;
+        }
+        if (mciSendStringA("play game_bgm from 0", nullptr, 0, nullptr) != 0) {
+            mciSendStringA("close game_bgm", nullptr, 0, nullptr);
+            return;
+        }
+
+        currentBackgroundTrack = track;
+        backgroundMusicOpen = true;
+    }
+
+    void KeepBackgroundMusicPlaying()
+    {
+        if (!backgroundMusicOpen ||
+            currentBackgroundTrack != BackgroundTrack::Sans) {
+            return;
+        }
+
+        static int nextCheckMs = 0;
+        const int nowMs = glutGet(GLUT_ELAPSED_TIME);
+        if (nowMs < nextCheckMs) {
+            return;
+        }
+        nextCheckMs = nowMs + 500;
+
+        char mode[32]{};
+        if (mciSendStringA("status game_bgm mode", mode, sizeof(mode), nullptr) == 0 &&
+            std::string(mode) == "stopped") {
+            mciSendStringA("play game_bgm from 0", nullptr, 0, nullptr);
+        }
+    }
+
+    bool AllPlayersSelectedSans(const LobbyView& lobby)
+    {
+        return lobby.members.size() == 3 &&
+            std::all_of(lobby.members.begin(), lobby.members.end(),
+                [](const LobbyMemberView& member) {
+                    return member.characterId == CharacterId::Sans;
+                });
+    }
+}
 
 void Reshape(int w, int h)
 {
@@ -48,7 +115,7 @@ bool InitializeClient(int& argc, char** argv)
 
     glEnable(GL_DEPTH_TEST);
 
-    mciSendString(TEXT("play bgm.wav"), NULL, 0, NULL);
+    PlayBackgroundTrack(BackgroundTrack::Default);
 
     return true;
 }
@@ -66,6 +133,14 @@ namespace {
             std::cout << "Server disconnected.\n";
         }
         const auto& lobby = activeClientNetwork->GetLobby();
+        static bool wasPlaying = false;
+        const bool isPlaying = lobby.stage == LobbyStage::Playing;
+        if (isPlaying && !wasPlaying) {
+            PlayBackgroundTrack(AllPlayersSelectedSans(lobby)
+                ? BackgroundTrack::Sans : BackgroundTrack::Default);
+        }
+        wasPlaying = isPlaying;
+        KeepBackgroundMusicPlaying();
         ClientScreen nextScreen = ClientScreen::Title;
         switch (lobby.stage) {
         case LobbyStage::Joining:
@@ -140,6 +215,10 @@ int main(int argc, char** argv)
     }
 
     glutMainLoop();
+    if (backgroundMusicOpen) {
+        mciSendStringA("close game_bgm", nullptr, 0, nullptr);
+        backgroundMusicOpen = false;
+    }
     activeClientNetwork = nullptr;
     return EXIT_SUCCESS;
 }
