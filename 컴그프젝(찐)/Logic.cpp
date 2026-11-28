@@ -27,9 +27,10 @@ bool spawnItem(int x, int z, ItemType type) {
     item.x = static_cast<float>(x);
     item.z = static_cast<float>(z);
     item.type = type;
-    if (type >= ITEM_SHIELD && type <= ITEM_BANANA) {
+    if (type >= ITEM_SHIELD && type <= ITEM_DASH_MUSHROOM) {
         item.id = nextItemId;
         const ItemKind kind = type == ITEM_SHIELD ? ItemKind::Shield
+            : type == ITEM_DASH_MUSHROOM ? ItemKind::DashMushroom
             : static_cast<ItemKind>(type - ITEM_REVERSE + 1);
         if (!localItems.AddGroundItem({item.id, kind, x, z})) return false;
         ++nextItemId;
@@ -205,7 +206,7 @@ void generateLane(int z)
 		if (rand() % 100 < 80) {
 			int spawnX = (rand() % 13) - 6;
 			if (!isTreeAt(spawnX, z) && rand() % 100 < 35) {
-				spawnItem(spawnX, z, static_cast<ItemType>(rand() % 4));
+				spawnItem(spawnX, z, static_cast<ItemType>(rand() % 5));
 			}
 		}
 	}
@@ -442,6 +443,14 @@ static void applyItemEvent(const ItemEvent& event)
 	if (event.kind == ItemEvent::Kind::Effect) {
 		if (localBirdCarry.active || isGameOver) return;
 		if (event.itemKind ==
+			static_cast<std::uint8_t>(ItemKind::DashMushroom))
+		{
+			if (localItems.ApplyConfirmedBoost(1, event.durationMs)) {
+				showItemFeedback("DASH BOOST ACTIVE");
+			}
+			return;
+		}
+		if (event.itemKind ==
 			static_cast<std::uint8_t>(ItemKind::Shield))
 		{
 			if (localItems.ApplyConfirmedShield(1, event.durationMs)) {
@@ -487,6 +496,7 @@ static void applyItemEvent(const ItemEvent& event)
 
 		item.type = event.itemKind == 4
 			? ITEM_SHIELD
+			: event.itemKind == 5 ? ITEM_DASH_MUSHROOM
 			: static_cast<ItemType>(
 				ITEM_REVERSE + event.itemKind - 1);
 
@@ -510,6 +520,7 @@ static void applyItemEvent(const ItemEvent& event)
 	{
 		const ItemKind kind = found->type == ITEM_SHIELD
 			? ItemKind::Shield
+			: found->type == ITEM_DASH_MUSHROOM ? ItemKind::DashMushroom
 			: static_cast<ItemKind>(
 				found->type - ITEM_REVERSE + 1);
 
@@ -1004,7 +1015,9 @@ void timer(int value)
 		}
 
 		if (isMoving) {
-			moveTime += 0.032f;
+			const auto* moveEffects = localItems.GetPlayerEffects(1);
+			moveTime += moveEffects && moveEffects->boostRemainingMs > 0
+				? 0.067f : 0.032f;
 			float t = glm::clamp(moveTime / MOVE_DURATION, 0.0f, 1.0f);
 
 			playerPos.x = glm::mix(playerStartPos.x, playerTargetPos.x, t);

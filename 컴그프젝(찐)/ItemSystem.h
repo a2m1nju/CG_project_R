@@ -52,6 +52,7 @@ public:
     bool ApplyConfirmedEffect(PlayerId playerId, EffectKind effect,
                               std::uint32_t durationMs);
     bool ApplyConfirmedShield(PlayerId playerId, std::uint32_t durationMs);
+    bool ApplyConfirmedBoost(PlayerId playerId, std::uint32_t durationMs);
     bool ApplyConfirmedBanana(const BananaTrap& trap);
     PlayerId SelectAttackTarget(PlayerId userId,
         const std::vector<TargetPlayer>& players, std::mt19937& rng) const;

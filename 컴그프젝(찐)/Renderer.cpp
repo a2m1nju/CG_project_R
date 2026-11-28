@@ -368,6 +368,14 @@ void drawItem(const Item& item, GLuint shader) {
         model = glm::scale(model, glm::vec3(1.2f));
         drawShieldModel(shader, model);
     }
+    else if (item.type == ITEM_DASH_MUSHROOM) {
+        drawPart(shader, model, glm::vec3(0.0f, -0.18f, 0.0f),
+            glm::vec3(0.22f, 0.36f, 0.22f), glm::vec3(0.94f, 0.88f, 0.68f));
+        drawPart(shader, model, glm::vec3(0.0f, 0.12f, 0.0f),
+            glm::vec3(0.72f, 0.34f, 0.72f), glm::vec3(0.92f, 0.15f, 0.12f));
+        drawPart(shader, model, glm::vec3(0.0f, 0.30f, 0.0f),
+            glm::vec3(0.24f, 0.03f, 0.24f), glm::vec3(1.0f));
+    }
 
 }
 
@@ -994,6 +1002,7 @@ static void drawInventorySlots() {
         glClear(GL_DEPTH_BUFFER_BIT);
         Item icon{};
         icon.type = inventory->slots[slot] == ItemKind::Shield ? ITEM_SHIELD
+            : inventory->slots[slot] == ItemKind::DashMushroom ? ITEM_DASH_MUSHROOM
             : static_cast<ItemType>(ITEM_REVERSE + static_cast<int>(inventory->slots[slot]) - 1);
         drawItem(icon, shaderProgramID);
     }
@@ -1470,6 +1479,11 @@ GLvoid drawScene()
 
     if (effects && effects->shieldRemainingMs > 0) {
         std::string msg = "[SHIELD] " + std::to_string((effects->shieldRemainingMs + 999) / 1000) + "s";
+        renderTextWithOutline(900, uiY, msg.c_str());
+        uiY += 40.0f;
+    }
+    if (effects && effects->boostRemainingMs > 0) {
+        std::string msg = "[DASH] " + std::to_string((effects->boostRemainingMs + 999) / 1000) + "s";
         renderTextWithOutline(900, uiY, msg.c_str());
         uiY += 40.0f;
     }

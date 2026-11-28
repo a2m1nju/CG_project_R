@@ -226,7 +226,7 @@ void keyboard(unsigned char key, int x, int y)
 		glutPostRedisplay();
 		return;
 	}
-	if (key >= '1' && key <= '4') {
+	if (key >= '1' && key <= '5') {
 		const auto kind =
 			static_cast<std::uint8_t>(key - '0');
 
@@ -239,6 +239,7 @@ void keyboard(unsigned char key, int x, int y)
 				static_cast<int>(std::round(playerPos.z)) - 2,
 				kind == 4
 				? ITEM_SHIELD
+				: kind == 5 ? ITEM_DASH_MUSHROOM
 				: static_cast<ItemType>(
 					ITEM_REVERSE + kind - 1));
 		}

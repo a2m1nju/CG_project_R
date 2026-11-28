@@ -496,7 +496,7 @@ int ClientNetwork::HandleItemPacket(
 
             if (event.id == 0 ||
                 event.itemKind < 1 ||
-                event.itemKind > 4 ||
+                event.itemKind > 5 ||
                 initialItems.size() >= expectedItems ||
                 duplicate)
             {
@@ -538,7 +538,7 @@ int ClientNetwork::HandleItemPacket(
 
             if (event.id == 0 ||
                 event.itemKind < 1 ||
-                event.itemKind > 4)
+                event.itemKind > 5)
             {
                 return -1;
             }
@@ -572,8 +572,8 @@ int ClientNetwork::HandleItemPacket(
     {
         if (Wire::ReadRoundId(p) == roundId && itemReady) {
             if (p[12] >= 2 ||
-                p[13] > 4 ||
-                p[14] > 4 ||
+                p[13] > 5 ||
+                p[14] > 5 ||
                 p[15] > 1)
             {
                 return -1;
@@ -595,7 +595,7 @@ int ClientNetwork::HandleItemPacket(
         if (Wire::ReadRoundId(p) == roundId && itemReady) {
             const auto duration = Wire::Read32(p + 13);
 
-            if ((p[12] != 1 && p[12] != 2 && p[12] != 4) ||
+            if ((p[12] != 1 && p[12] != 2 && p[12] != 4 && p[12] != 5) ||
                 duration == 0 ||
                 duration > 60000)
             {
@@ -736,7 +736,7 @@ bool ClientNetwork::RequestUse()
 
 bool ClientNetwork::RequestSpawn(std::uint8_t itemKind)
 {
-    if (!Ready() || itemKind < 1 || itemKind > 4) {
+    if (!Ready() || itemKind < 1 || itemKind > 5) {
         return false;
     }
 

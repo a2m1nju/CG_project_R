@@ -46,6 +46,7 @@ private:
         std::uint32_t sendSeq = 0;
 
         std::uint64_t nextMoveTick = 0;
+        bool boostShortCooldownNext = true;
         float x = 0, z = 0, rotation = 0;
 
         bool resetVote = false;

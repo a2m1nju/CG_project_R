@@ -4,7 +4,7 @@
 
 bool ItemSystem::AddGroundItem(const GroundItem& item) {
     if (item.id == 0 || item.kind == ItemKind::Empty ||
-        item.kind > ItemKind::Shield) {
+        item.kind > ItemKind::DashMushroom) {
         return false;
     }
     return groundItems_.emplace(item.id, item).second;
@@ -48,6 +48,8 @@ bool ItemSystem::UseSelectedItem(PlayerId playerId, std::int32_t x, std::int32_t
         bananaTraps_.emplace(id, BananaTrap{id, playerId, x, z - rule.placementDistanceCells});
     } else if (rule.useMode == ItemUseMode::ActivateShield) {
         playerEffects_[playerId].shieldRemainingMs = rule.effectDurationMs;
+    } else if (rule.useMode == ItemUseMode::ActivateBoost) {
+        playerEffects_[playerId].boostRemainingMs = rule.effectDurationMs;
     } else if (rule.useMode == ItemUseMode::TargetOpponent) {
         if (targetId == 0 || targetId == playerId || !GetInventory(targetId)) return false;
         auto& effects = playerEffects_[targetId];
@@ -95,6 +97,7 @@ void ItemSystem::AdvanceEffects(std::uint32_t elapsedMs) {
         advance(effects.reverseControlsRemainingMs);
         advance(effects.blackoutRemainingMs);
         advance(effects.shieldRemainingMs);
+        advance(effects.boostRemainingMs);
     }
 }
 
@@ -156,7 +159,7 @@ bool ItemSystem::ApplyConfirmedPickup(PlayerId playerId, std::uint8_t slot,
                                       ItemKind kind) {
     const auto owner = inventories_.find(playerId);
     if (owner == inventories_.end() || slot >= owner->second.slots.size() ||
-        kind == ItemKind::Empty || kind > ItemKind::Shield ||
+        kind == ItemKind::Empty || kind > ItemKind::DashMushroom ||
         owner->second.slots[slot] != ItemKind::Empty) return false;
     owner->second.slots[slot] = kind;
     return true;
@@ -166,7 +169,7 @@ bool ItemSystem::ApplyInventoryState(PlayerId playerId, std::uint8_t selected,
                                       ItemKind first, ItemKind second) {
     auto found = inventories_.find(playerId);
     if (found == inventories_.end() || selected >= found->second.slots.size() ||
-        first > ItemKind::Shield || second > ItemKind::Shield) return false;
+        first > ItemKind::DashMushroom || second > ItemKind::DashMushroom) return false;
     found->second.selectedSlot = selected;
     found->second.slots = {first, second};
     return true;
@@ -189,6 +192,14 @@ bool ItemSystem::ApplyConfirmedShield(PlayerId playerId,
     auto found = playerEffects_.find(playerId);
     if (found == playerEffects_.end() || durationMs == 0) return false;
     found->second.shieldRemainingMs = durationMs;
+    return true;
+}
+
+bool ItemSystem::ApplyConfirmedBoost(PlayerId playerId,
+                                     std::uint32_t durationMs) {
+    auto found = playerEffects_.find(playerId);
+    if (found == playerEffects_.end() || durationMs == 0) return false;
+    found->second.boostRemainingMs = durationMs;
     return true;
 }
 

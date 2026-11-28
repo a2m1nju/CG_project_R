@@ -85,6 +85,8 @@ namespace Wire {
 
     constexpr std::uint32_t TickRate = 30;
     constexpr std::uint32_t MoveCooldownTicks = 3;
+    constexpr std::uint32_t BoostMoveCooldownShortTicks = 1;
+    constexpr std::uint32_t BoostMoveCooldownLongTicks = 2;
 
     enum class MoveStatus : std::uint8_t {
         Idle,

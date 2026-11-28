@@ -31,7 +31,7 @@
 // --- 열거형 ---
 enum GameSeason { SPRING, SUMMER, AUTUMN, WINTER };
 enum TrainState { TRAIN_IDLE, TRAIN_WARNING, TRAIN_PASSING };
-enum ItemType { ITEM_SHIELD, ITEM_REVERSE, ITEM_BLACKOUT, ITEM_BANANA };
+enum ItemType { ITEM_SHIELD, ITEM_REVERSE, ITEM_BLACKOUT, ITEM_BANANA, ITEM_DASH_MUSHROOM };
 
 // --- 구조체 ---
 struct Car {

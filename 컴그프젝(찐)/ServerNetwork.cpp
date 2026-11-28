@@ -820,8 +820,19 @@ bool ServerNetwork::ProcessPackets(
                         s.z = z;
                         s.rotation = rotation;
 
-                        s.nextMoveTick =
-                            tick + Wire::MoveCooldownTicks;
+                        const auto* moveEffects =
+                            items.GetPlayerEffects(s.id);
+                        if (moveEffects && moveEffects->boostRemainingMs > 0) {
+                            s.nextMoveTick = tick +
+                                (s.boostShortCooldownNext
+                                    ? Wire::BoostMoveCooldownShortTicks
+                                    : Wire::BoostMoveCooldownLongTicks);
+                            s.boostShortCooldownNext = !s.boostShortCooldownNext;
+                        }
+                        else {
+                            s.nextMoveTick = tick + Wire::MoveCooldownTicks;
+                            s.boostShortCooldownNext = true;
+                        }
 
                         s.status =
                             Wire::MoveStatus::Accepted;
@@ -1312,6 +1323,7 @@ void ServerNetwork::StartRoundSnapshots()
 
         session->inputSeq = 0;
         session->nextMoveTick = 0;
+        session->boostShortCooldownNext = true;
         session->status = Wire::MoveStatus::Idle;
 
         session->resetVote = false;
@@ -1852,7 +1864,7 @@ void ServerNetwork::ResetWorld(std::uint32_t roundId)
 
     for (std::size_t i = 0; i < count; ++i) {
         const auto kind = static_cast<ItemKind>(
-            std::uniform_int_distribution<int>(1, 4)(rng));
+            std::uniform_int_distribution<int>(1, 5)(rng));
 
         items.AddGroundItem({
             static_cast<ObjectId>(i + 1),
@@ -1897,7 +1909,7 @@ void ServerNetwork::QueueItemsForNewLanes(
             std::uniform_int_distribution<std::size_t>(
                 0, freeX.size() - 1)(itemSpawnRng)];
         const auto kind = static_cast<ItemKind>(
-            std::uniform_int_distribution<int>(1, 4)(itemSpawnRng));
+            std::uniform_int_distribution<int>(1, 5)(itemSpawnRng));
         pendingGroundItems.push_back({0, kind, x, lane.z});
     }
 }
@@ -2349,7 +2361,7 @@ bool ServerNetwork::HandleItemRequest(
         if (Wire::ReadRoundId(p) == s.roundId &&
             s.alive &&
             p[12] >= 1 &&
-            p[12] <= 4 &&
+            p[12] <= 5 &&
             nextSpawnItemId != 0 &&
             items.GetGroundItems().size() < 512)
         {
@@ -2474,8 +2486,8 @@ bool ServerNetwork::HandleItemRequest(
                     Wire::ItemEffectSize +
                     Wire::StateSize <= 16384);
 
-            const bool shieldReady =
-                kind != ItemKind::Shield ||
+            const bool selfEffectReady =
+                (kind != ItemKind::Shield && kind != ItemKind::DashMushroom) ||
                 (!s.itemSnapshotPending &&
                     s.sendBuffer.size() +
                     Wire::InventoryStateSize +
@@ -2493,7 +2505,7 @@ bool ServerNetwork::HandleItemRequest(
             const bool accepted =
                 s.alive &&
                 targetReady &&
-                shieldReady &&
+                selfEffectReady &&
                 items.UseSelectedItem(
                     s.id,
                     static_cast<std::int32_t>(
@@ -2517,7 +2529,7 @@ bool ServerNetwork::HandleItemRequest(
             }
 
             if (accepted &&
-                kind == ItemKind::Shield &&
+                (kind == ItemKind::Shield || kind == ItemKind::DashMushroom) &&
                 !QueueItemEffect(
                     s,
                     kind,
