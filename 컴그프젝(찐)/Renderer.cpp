@@ -1475,22 +1475,24 @@ GLvoid drawScene()
 	renderTextWithOutline(20, 60, scoreStr.c_str());
 
 	// 아이템 효과 상태를 표시한다.
-	float uiY = 120.0f;
+	float uiY = 60.0f;
+    constexpr float statusTextScale = 0.58f;
+    constexpr float statusLineHeight = 44.0f;
 
     if (effects && effects->shieldRemainingMs > 0) {
         std::string msg = "[SHIELD] " + std::to_string((effects->shieldRemainingMs + 999) / 1000) + "s";
-        renderTextWithOutline(900, uiY, msg.c_str());
-        uiY += 40.0f;
+        renderTextWithOutline(1040, uiY, msg.c_str(), statusTextScale);
+        uiY += statusLineHeight;
     }
     if (effects && effects->boostRemainingMs > 0) {
         std::string msg = "[DASH] " + std::to_string((effects->boostRemainingMs + 999) / 1000) + "s";
-        renderTextWithOutline(900, uiY, msg.c_str());
-        uiY += 40.0f;
+        renderTextWithOutline(1040, uiY, msg.c_str(), statusTextScale);
+        uiY += statusLineHeight;
     }
 
 	if (isGodMode) {
-		renderTextWithOutline(950, uiY, "[GOD MODE]");
-		uiY += 40.0f;
+		renderTextWithOutline(1040, uiY, "[GOD MODE]", statusTextScale);
+		uiY += statusLineHeight;
 	}
 
 	if (introState != 0) {
@@ -1607,20 +1609,20 @@ void renderTextTTF(float x, float y, const char* text, float r, float g, float b
 	glPopMatrix();
 }
 
-void renderTextWithOutline(float x, float y, const char* text) {
-	float offset = 5.0f; 
+void renderTextWithOutline(float x, float y, const char* text, float scale) {
+	float offset = 5.0f * scale;
 
-	renderTextTTF(x - offset, y, text, 0.0f, 0.0f, 0.0f); // 좌
-	renderTextTTF(x + offset, y, text, 0.0f, 0.0f, 0.0f); // 우
-	renderTextTTF(x, y - offset, text, 0.0f, 0.0f, 0.0f); // 상
-	renderTextTTF(x, y + offset, text, 0.0f, 0.0f, 0.0f); // 하
+	renderTextTTF(x - offset, y, text, 0.0f, 0.0f, 0.0f, scale); // 좌
+	renderTextTTF(x + offset, y, text, 0.0f, 0.0f, 0.0f, scale); // 우
+	renderTextTTF(x, y - offset, text, 0.0f, 0.0f, 0.0f, scale); // 상
+	renderTextTTF(x, y + offset, text, 0.0f, 0.0f, 0.0f, scale); // 하
 
-	renderTextTTF(x - offset, y - offset, text, 0.0f, 0.0f, 0.0f);
-	renderTextTTF(x + offset, y - offset, text, 0.0f, 0.0f, 0.0f);
-	renderTextTTF(x - offset, y + offset, text, 0.0f, 0.0f, 0.0f);
-	renderTextTTF(x + offset, y + offset, text, 0.0f, 0.0f, 0.0f);
+	renderTextTTF(x - offset, y - offset, text, 0.0f, 0.0f, 0.0f, scale);
+	renderTextTTF(x + offset, y - offset, text, 0.0f, 0.0f, 0.0f, scale);
+	renderTextTTF(x - offset, y + offset, text, 0.0f, 0.0f, 0.0f, scale);
+	renderTextTTF(x + offset, y + offset, text, 0.0f, 0.0f, 0.0f, scale);
 
-	renderTextTTF(x, y, text, 1.0f, 1.0f, 1.0f);
+	renderTextTTF(x, y, text, 1.0f, 1.0f, 1.0f, scale);
 }
 
 void drawLogo() {

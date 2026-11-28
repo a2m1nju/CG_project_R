@@ -4,7 +4,7 @@
 void initFont(const char* filename, float pixelHeight);
 void drawScene(GLvoid);
 void renderTextTTF(float x, float y, const char* text, float r, float g, float b, float scale = 1.0f);
-void renderTextWithOutline(float x, float y, const char* text);
+void renderTextWithOutline(float x, float y, const char* text, float scale = 1.0f);
 void drawTree(int x, int z, GLuint shader);
 void drawCar(const Car& car, GLuint shader);
 void drawLog(const Log& logObj, GLuint shader);
