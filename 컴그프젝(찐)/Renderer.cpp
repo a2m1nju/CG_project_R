@@ -316,7 +316,7 @@ void drawTrain(const Train& train, GLuint shader) {
 // 통나무 그리기
 void drawLog(const Log& logObj, GLuint shader) {
 	glm::mat4 model = glm::mat4(1.0f);
-	model = glm::translate(model, glm::vec3(logObj.x, 0.45f, logObj.z)); 
+	model = glm::translate(model, glm::vec3(logObj.x, 0.05f, logObj.z));
 
 	glm::vec3 scale = glm::vec3(logObj.width, 0.3f, 0.8f);
 

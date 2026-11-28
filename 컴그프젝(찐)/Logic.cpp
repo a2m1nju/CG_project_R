@@ -808,7 +808,7 @@ void timer(int value)
 				playerPos.x += logObj.speed;
 				playerTargetPos.x += logObj.speed;
 				playerStartPos.x += logObj.speed;
-				restingY = 1.1f;
+				restingY = 0.93f;
 			}
 		}
 
@@ -867,7 +867,7 @@ void timer(int value)
 						playerPos.x >= logObj.x - logObj.width / 2.0f - 0.4f &&
 						playerPos.x <= logObj.x + logObj.width / 2.0f + 0.4f) {
 						safe = true;
-						restingY = 1.1f;
+						restingY = 0.93f;
 						break;
 					}
 				}
