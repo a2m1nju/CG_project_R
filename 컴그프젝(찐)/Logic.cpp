@@ -186,6 +186,7 @@ void generateLane(int z)
 		newTrain.state = TRAIN_IDLE;
 		newTrain.timer = rand() % 200 + 100; 
 		newTrain.isLightOn = false;
+		newTrain.rainbow = rand() % 10 == 0;
 
 		trains.push_back(newTrain);
 	}
@@ -361,6 +362,7 @@ static void applyWorldEvent(const WorldEvent& event)
 
 			it->timer = event.trainTimer;
 			it->isLightOn = event.trainLight != 0;
+			it->rainbow = event.design == 1;
 		}
 
 		actorLastPacketMs[event.actorId] =

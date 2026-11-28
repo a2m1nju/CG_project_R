@@ -86,6 +86,7 @@ struct Train {
     TrainState state;
     int timer;
     bool isLightOn;
+    bool rainbow = false;
 };
 
 struct WeatherParticle {

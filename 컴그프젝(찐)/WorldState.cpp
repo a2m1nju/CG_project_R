@@ -93,6 +93,7 @@ WorldLaneData WorldState::MakeLane(std::int32_t z) {
         actor.z = static_cast<float>(z);
         actor.x = -50.0f;
         actor.trainTimer = static_cast<std::uint16_t>(100 + LaneRandom(generation_, z, 301) % 200);
+        actor.design = LaneRandom(generation_, z, 302) % 10 == 0 ? 1 : 0;
         addActor(actor);
     }
     return lane;

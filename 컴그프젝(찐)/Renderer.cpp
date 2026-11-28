@@ -8,6 +8,8 @@
 #include "Texture.h"
 #include "BananaMesh.h"
 
+#include <cmath>
+
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
@@ -300,7 +302,17 @@ void drawTrain(const Train& train, GLuint shader) {
 	model = glm::scale(model, glm::vec3(15.0f, 1.8f, 0.9f)); 
 
 	glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, GL_FALSE, glm::value_ptr(model));
-	if (shader == shaderProgramID) glVertexAttrib3f(1, 0.8f, 0.1f, 0.1f);
+	if (shader == shaderProgramID) {
+        glm::vec3 bodyColor(0.8f, 0.1f, 0.1f);
+        if (train.rainbow) {
+            const float phase = glutGet(GLUT_ELAPSED_TIME) * 0.002f;
+            bodyColor = glm::vec3(
+                0.55f + 0.45f * std::sin(phase),
+                0.55f + 0.45f * std::sin(phase + 2.094395f),
+                0.55f + 0.45f * std::sin(phase + 4.188790f));
+        }
+        glVertexAttrib3f(1, bodyColor.r, bodyColor.g, bodyColor.b);
+    }
 	glDrawArrays(GL_TRIANGLES, 0, 36);
 
 	// 기차 창문 
