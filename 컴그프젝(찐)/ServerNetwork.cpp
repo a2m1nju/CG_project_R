@@ -908,7 +908,8 @@ void ServerNetwork::Tick(std::uint64_t tick)
             maxZ = (std::max)(maxZ, z + 10);
         }
 
-        world.EnsureRange(minZ, maxZ, 8);
+        QueueItemsForNewLanes(world.EnsureRange(minZ, maxZ, 8));
+        PublishPendingItems();
         world.Step(tick);
     }
 
@@ -1803,6 +1804,7 @@ void ServerNetwork::ResetWorld(std::uint32_t roundId)
 {
     world.Reset(roundId);
     items.ResetRound();
+    pendingGroundItems.clear();
 
     std::mt19937 rng(std::random_device{}());
 
@@ -1866,6 +1868,79 @@ void ServerNetwork::ResetWorld(std::uint32_t roundId)
     for (std::size_t i = 0; i < sessionCount; ++i) {
         if (IsRoundMember(sessions[i].id)) {
             items.AddPlayer(sessions[i].id);
+        }
+    }
+}
+
+void ServerNetwork::QueueItemsForNewLanes(
+    const std::vector<WorldLaneData>& lanes)
+{
+    for (const auto& lane : lanes) {
+        if (lane.terrain != 0 || lane.z >= -2 ||
+            pendingGroundItems.size() >= 512 ||
+            std::uniform_int_distribution<int>(0, 1)(itemSpawnRng) == 0)
+        {
+            continue;
+        }
+
+        std::vector<std::int32_t> freeX;
+        for (std::int32_t x = -6; x <= 6; ++x) {
+            if ((lane.treeMask & (1u << (x + 15))) == 0) {
+                freeX.push_back(x);
+            }
+        }
+        if (freeX.empty()) {
+            continue;
+        }
+
+        const auto x = freeX[
+            std::uniform_int_distribution<std::size_t>(
+                0, freeX.size() - 1)(itemSpawnRng)];
+        const auto kind = static_cast<ItemKind>(
+            std::uniform_int_distribution<int>(1, 4)(itemSpawnRng));
+        pendingGroundItems.push_back({0, kind, x, lane.z});
+    }
+}
+
+void ServerNetwork::PublishPendingItems()
+{
+    while (!pendingGroundItems.empty() &&
+        items.GetGroundItems().size() < 512)
+    {
+        for (std::size_t i = 0; i < sessionCount; ++i) {
+            const auto& session = sessions[i];
+            if (IsRoundMember(session.id) &&
+                (session.itemSnapshotPending ||
+                    session.sendBuffer.size() +
+                    Wire::ItemSpawnedSize + Wire::StateSize > 16384))
+            {
+                return;
+            }
+        }
+
+        while (nextSpawnItemId != 0 &&
+            (items.GetGroundItems().count(nextSpawnItemId) ||
+                items.GetBananaTraps().count(nextSpawnItemId)))
+        {
+            ++nextSpawnItemId;
+        }
+        if (nextSpawnItemId == 0) {
+            return;
+        }
+
+        GroundItem item = pendingGroundItems.front();
+        item.id = nextSpawnItemId;
+        if (!items.AddGroundItem(item)) {
+            pendingGroundItems.pop_front();
+            continue;
+        }
+        ++nextSpawnItemId;
+        pendingGroundItems.pop_front();
+
+        for (std::size_t i = 0; i < sessionCount; ++i) {
+            if (IsRoundMember(sessions[i].id)) {
+                QueueItemSpawned(sessions[i], item);
+            }
         }
     }
 }

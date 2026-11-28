@@ -10,6 +10,7 @@
 
 #include <array>
 #include <atomic>
+#include <deque>
 #include <random>
 #include <vector>
 #include <string>
@@ -84,6 +85,8 @@ private:
     WorldState world;
     ItemSystem items;
     std::mt19937 attackTargetRng{ std::random_device{}() };
+    std::mt19937 itemSpawnRng{ std::random_device{}() };
+    std::deque<GroundItem> pendingGroundItems;
     ObjectId nextSpawnItemId = 1;
 
     std::uint64_t currentTick = 0;
@@ -132,6 +135,8 @@ private:
     void PumpWorldPackets(TransportSession& session, std::uint32_t tick);
 
     void ResetWorld(std::uint32_t roundId);
+    void QueueItemsForNewLanes(const std::vector<WorldLaneData>& lanes);
+    void PublishPendingItems();
 
     bool HandleItemRequest(
         TransportSession& session,
